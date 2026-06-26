@@ -1,0 +1,920 @@
+     1→﻿import { request, toQuery } from "./client";
+     2→import { deriveAccessMode } from "./types";
+     3→import type {
+     4→  Page,
+     5→  Proposal,
+     6→  Skill,
+     7→  SkillSet,
+     8→  AgentListItem,
+     9→  AgentResponse,
+    10→  AgentRuntimeSnapshot,
+    11→  AgentServiceRef,
+    12→  AgentUpsertRequest,
+    13→  RuntimeServicesSnapshot,
+    14→  SandboxEnsureRequest,
+    15→  SandboxStatus,
+    16→  SandboxToolCallRequest,
+    17→  SandboxToolCallResult,
+    18→  SandboxToolListResponse,
+    19→  ToolFailureRecord,
+    20→  ToolListItem,
+    21→  ToolResponse,
+    22→  ToolRuntimeSnapshot,
+    23→  ToolUpsertRequest,
+    24→  LocalUser,
+    25→  SkillFileList,
+    26→  SkillFileContent,
+    27→  SkillVersionCompare,
+    28→  SkillPackageDownload,
+    29→  SkillSocialStats,
+    30→  AuditLog,
+    31→  TokenInfo,
+    32→  MetricsSnapshot,
+    33→  Notification,
+    34→  NamespaceInfo,
+    35→  NamespaceMember,
+    36→  SkillDraft,
+    37→  SkillSetUpdate,
+    38→  AccessEvaluateResult,
+    39→  AccessOverview,
+    40→  AccessResourceTemplate,
+    41→  AccessQuickLink,
+    42→  SandboxProfile,
+    43→  ModelProfile,
+    44→  ResourceGrant,
+    45→  CreateShareRequest,
+    46→  ShareListResponse,
+    47→  AihubResourceType,
+    48→} from "./types";
+    49→
+    50→async function fileToBase64(file: File): Promise<string> {
+    51→  const bytes = new Uint8Array(await file.arrayBuffer());
+    52→  let binary = "";
+    53→  const chunkSize = 0x8000;
+    54→  for (let i = 0; i < bytes.length; i += chunkSize) {
+    55→    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    56→  }
+    57→  return btoa(binary);
+    58→}
+    59→
+    60→function parseJsonRecord(value: unknown): Record<string, unknown> {
+    61→  if (!value) return {};
+    62→  if (typeof value === "object") return value as Record<string, unknown>;
+    63→  if (typeof value !== "string") return {};
+    64→  try {
+    65→    const parsed = JSON.parse(value);
+    66→    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+    67→      ? parsed
+    68→      : {};
+    69→  } catch {
+    70→    return {};
+    71→  }
+    72→}
+    73→
+    74→function normalizeTags(value: unknown): string[] {
+    75→  if (Array.isArray(value)) return value.map(String).filter(Boolean);
+    76→  if (typeof value === "string")
+    77→    return value
+    78→      .split(",")
+    79→      .map((x) => x.trim())
+    80→      .filter(Boolean);
+    81→  return [];
+    82→}
+    83→
+    84→function mergeUniqueTags(...sources: unknown[]): string[] {
+    85→  const out: string[] = [];
+    86→  const seen = new Set<string>();
+    87→  for (const source of sources) {
+    88→    for (const tag of normalizeTags(source)) {
+    89→      if (!seen.has(tag)) {
+    90→        seen.add(tag);
+    91→        out.push(tag);
+    92→      }
+    93→    }
+    94→  }
+    95→  return out;
+    96→}
+    97→
+    98→function stringRecord(value: unknown): Record<string, string> | undefined {
+    99→  if (!value || typeof value !== "object" || Array.isArray(value))
+   100→    return undefined;
+   101→  const out: Record<string, string> = {};
+   102→  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+   103→    if (v !== undefined && v !== null) out[k] = String(v);
+   104→  }
+   105→  return Object.keys(out).length ? out : undefined;
+   106→}
+   107→
+   108→function normalizeSkill(skill: Skill): Skill {
+   109→  const manifest = parseJsonRecord(skill.manifestJson);
+   110→  const manifestLabels = stringRecord((manifest as any).labels);
+   111→  const tags = mergeUniqueTags(
+   112→    (skill as any).tags,
+   113→    skill.keywords,
+   114→    skill.bizTags,
+   115→  );
+   116→  const versions = [...(skill.versions || [])].sort((a, b) =>
+   117→    String(b.version).localeCompare(String(a.version)),
+   118→  );
+   119→  const onlineVersion = versions.find((v) => v.status === "online")?.version;
+   120→  return {
+   121→    ...skill,
+   122→    versions,
+   123→    labels: skill.labels || manifestLabels,
+   124→    metadata:
+   125→      skill.metadata ||
+   126→      ((manifest as any).metadata as Record<string, unknown>) ||
+   127→      manifest,
+   128→    tags,
+   129→    bizTags: skill.bizTags || tags,
+   130→    keywords: skill.keywords || tags,
+   131→    scope: skill.scope || skill.visibility || "private",
+   132→    owner: skill.owner || skill.ownerId,
+   133→    latestVersion: skill.latestVersion || skill.version || versions[0]?.version,
+   134→    stableVersion: skill.stableVersion || onlineVersion || skill.version,
+   135→    onlineVersion: skill.onlineVersion || onlineVersion,
+   136→  };
+   137→}
+   138→
+   139→function normalizeSkillPage(page: Page<Skill>): Page<Skill> {
+   140→  const items = (page.items ??
+   141→    page.skills ??
+   142→    page.list ??
+   143→    page.data ??
+   144→    page.pageItems ??
+   145→    []) as Skill[];
+   146→  return {
+   147→    ...page,
+   148→    items: items.map(normalizeSkill),
+   149→    skills: page.skills ? page.skills.map(normalizeSkill) : undefined,
+   150→  };
+   151→}
+   152→
+   153→function manifestJsonForUpdate(current: Skill, data: Partial<Skill>): string {
+   154→  if (
+   155→    data.manifestJson !== undefined &&
+   156→    data.metadata === undefined &&
+   157→    data.labels === undefined
+   158→  )
+   159→    return data.manifestJson;
+   160→  const manifest = parseJsonRecord(data.manifestJson ?? current.manifestJson);
+   161→  if (data.metadata !== undefined) {
+   162→    manifest.metadata = data.metadata;
+   163→  }
+   164→  if (data.labels !== undefined) {
+   165→    manifest.labels = data.labels;
+   166→  }
+   167→  return JSON.stringify(manifest);
+   168→}
+   169→
+   170→export const authApi = {
+   171→  exchange: async (code: string, redirectUri: string, state = "") => {
+   172→    const raw = await request<{
+   173→      accessToken?: string;
+   174→      refreshToken?: string;
+   175→      idToken?: string;
+   176→      access_token?: string;
+   177→      refresh_token?: string;
+   178→      id_token?: string;
+   179→      tokenType?: string;
+   180→      token_type?: string;
+   181→      expiresIn?: number;
+   182→      expires_in?: number;
+   183→      scope?: string;
+   184→    }>("/v3/auth/exchange", {
+   185→      method: "POST",
+   186→      body: JSON.stringify({ code, redirectUri, state }),
+   187→    });
+   188→    return {
+   189→      accessToken: raw.accessToken || raw.access_token || "",
+   190→      refreshToken: raw.refreshToken || raw.refresh_token || "",
+   191→      idToken: raw.idToken || raw.id_token || "",
+   192→      tokenType: raw.tokenType || raw.token_type || "",
+   193→      expiresIn: raw.expiresIn || raw.expires_in || 0,
+   194→      scope: raw.scope || "",
+   195→    };
+   196→  },
+   197→  loginUrl: (redirectUri: string, state = "") =>
+   198→    request<{ loginUrl?: string; login_url?: string }>(
+   199→      `/v3/auth/login-url?${toQuery({ redirectUri, state })}`,
+   200→    ),
+   201→  me: () => request<Record<string, unknown>>("/v3/auth/me"),
+   202→};
+   203→
+   204→export const accessApi = {
+   205→  overview: () => request<AccessOverview>("/v3/admin/access/overview"),
+   206→  resources: () =>
+   207→    request<Page<AccessResourceTemplate>>("/v3/admin/access/resources"),
+   208→  links: () => request<Page<AccessQuickLink>>("/v3/admin/access/links"),
+   209→  evaluate: (subject: string, object: string, action: string) =>
+   210→    request<AccessEvaluateResult>("/v3/admin/access/evaluate", {
+   211→      method: "POST",
+   212→      body: JSON.stringify({ subject, object, action }),
+   213→    }),
+   214→};
+   215→
+   216→export const skillApi = {
+   217→  list: async (params: Record<string, unknown> = {}) => {
+   218→    const q = toQuery({
+   219→      pageSize: params.pageSize ?? params.page_size,
+   220→      pageToken: params.pageToken ?? params.page_token,
+   221→      q: params.q ?? params.search ?? params.keyword,
+   222→      status: params.status,
+   223→      visibility: params.visibility ?? params.scope,
+   224→    });
+   225→    const page = await request<Page<Skill>>(
+   226→      `/v3/aihub/skills${q ? `?${q}` : ""}`,
+   227→    );
+   228→    return normalizeSkillPage(page);
+   229→  },
+   230→  detail: async (skillName: string) => {
+   231→    const name = encodeURIComponent(skillName);
+   232→    const [skill, versions] = await Promise.all([
+   233→      request<Skill>(`/v3/aihub/skills/${name}`),
+   234→      request<{ versions?: Skill["versions"] }>(
+   235→        `/v3/aihub/skills/${name}/versions`,
+   236→      ),
+   237→    ]);
+   238→    return normalizeSkill({ ...skill, versions: versions.versions || [] });
+   239→  },
+   240→  version: (skillName: string, version: string) =>
+   241→    request<unknown>(
+   242→      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}`,
+   243→    ),
+   244→  upload: async (
+   245→    file: File,
+   246→    overwrite = true,
+   247→    targetVersion = "",
+   248→    commitMsg = "",
+   249→  ) =>
+   250→    request<string>("/v3/aihub/skills:upload", {
+   251→      method: "POST",
+   252→      body: JSON.stringify({
+   253→        packageBytes: await fileToBase64(file),
+   254→        overwrite,
+   255→        targetVersion,
+   256→        commitMsg,
+   257→      }),
+   258→    }),
+   259→  batchUpload: async (files: File[], overwrite = true) => {
+   260→    const versions: string[] = [];
+   261→    for (const file of files) {
+   262→      versions.push(await skillApi.upload(file, overwrite));
+   263→    }
+   264→    return versions.join(",");
+   265→  },
+   266→  remove: (skillName: string) =>
+   267→    request<string>(`/v3/aihub/skills/${encodeURIComponent(skillName)}`, {
+   268→      method: "DELETE",
+   269→    }),
+   270→  publish: (skillName: string, version: string) =>
+   271→    request<string>(
+   272→      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}:publish`,
+   273→      { method: "POST", body: "{}" },
+   274→    ),
+   275→  submit: (skillName: string, version: string) =>
+   276→    request<string>(
+   277→      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}:submit`,
+   278→      { method: "POST", body: "{}" },
+   279→    ),
+   280→  online: (skillName: string, version: string) =>
+   281→    request<string>(
+   282→      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}:online`,
+   283→      { method: "POST", body: "{}" },
+   284→    ),
+   285→  offline: (skillName: string, version: string) =>
+   286→    request<string>(
+   287→      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}:offline`,
+   288→      { method: "POST", body: "{}" },
+   289→    ),
+   290→  labels: (skillName: string, labels: Record<string, string>) =>
+   291→    skillApi.update(skillName, { name: skillName, labels }),
+   292→  downloadUrl: (skillName: string, version: string) =>
+   293→    `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}/download`,
+   294→  download: (skillName: string, version: string) =>
+   295→    request<SkillPackageDownload>(
+   296→      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}/download`,
+   297→    ),
+   298→  files: (skillName: string, version: string) =>
+   299→    request<SkillFileList>(
+   300→      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}/files`,
+   301→    ),
+   302→  file: (skillName: string, version: string, path: string) =>
+   303→    request<SkillFileContent>(
+   304→      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}/file?${toQuery({ path })}`,
+   305→    ),
+   306→  compare: (skillName: string, baseVersion: string, targetVersion: string) =>
+   307→    request<SkillVersionCompare>(
+   308→      `/v3/aihub/skills/${encodeURIComponent(skillName)}/compare?${toQuery({ baseVersion, targetVersion })}`,
+   309→    ),
+   310→  update: async (skillName: string, data: Partial<Skill>) => {
+   311→    // The backend PUT is not a sparse PATCH: protobuf default values make omitted
+   312→    // strings indistinguishable from empty strings. Always merge with current detail
+   313→    // first, so settings panels do not accidentally reset visibility/status/metadata.
+   314→    const current = normalizeSkill(
+   315→      await request<Skill>(`/v3/aihub/skills/${encodeURIComponent(skillName)}`),
+   316→    );
+   317→    const tags = mergeUniqueTags(
+   318→      (data as any).tags ?? current.tags,
+   319→      data.keywords ?? current.keywords,
+   320→      data.bizTags ?? current.bizTags,
+   321→    );
+   322→    const updated = await request<Skill>(
+   323→      `/v3/aihub/skills/${encodeURIComponent(skillName)}`,
+   324→      {
+   325→        method: "PUT",
+   326→        body: JSON.stringify({
+   327→          name: skillName,
+   328→          displayName: data.displayName ?? current.displayName ?? "",
+   329→          description: data.description ?? current.description ?? "",
+   330→          version: data.version ?? current.version ?? "",
+   331→          status: data.status ?? current.status ?? "active",
+   332→          visibility:
+   333→            data.visibility ??
+   334→            data.scope ??
+   335→            current.visibility ??
+   336→            current.scope ??
+   337→            "private",
+   338→          ownerId: data.ownerId ?? current.ownerId ?? current.owner ?? "",
+   339→          orgId: data.orgId ?? current.orgId ?? "",
+   340→          projectId: data.projectId ?? current.projectId ?? "",
+   341→          sourceType: data.sourceType ?? current.sourceType ?? "",
+   342→          sourceUri: data.sourceUri ?? current.sourceUri ?? "",
+   343→          manifestJson: manifestJsonForUpdate(current, data),
+   344→          tags,
+   345→        }),
+   346→      },
+   347→    );
+   348→    return normalizeSkill(updated);
+   349→  },
+   350→  draft: async (data: SkillDraft) => {
+   351→    const created = await request<Skill>("/v3/aihub/skills", {
+   352→      method: "POST",
+   353→      body: JSON.stringify({
+   354→        name: data.name,
+   355→        displayName: data.displayName,
+   356→        description: data.description,
+   357→        version: data.version,
+   358→        status: "active",
+   359→        visibility: data.scope || "private",
+   360→        manifestJson: data.metadata
+   361→          ? JSON.stringify({ metadata: data.metadata })
+   362→          : "{}",
+   363→        tags: [...(data.keywords || []), ...(data.bizTags || [])],
+   364→      }),
+   365→    });
+   366→    return normalizeSkill(created);
+   367→  },
+   368→  updateDraft: (data: SkillDraft) =>
+   369→    skillApi.update(data.name, {
+   370→      name: data.name,
+   371→      displayName: data.displayName,
+   372→      description: data.description,
+   373→      version: data.version,
+   374→      visibility: data.scope,
+   375→      metadata: data.metadata,
+   376→      tags: [...(data.keywords || []), ...(data.bizTags || [])],
+   377→    }),
+   378→  deleteDraft: (skillName: string) => skillApi.remove(skillName),
+   379→  forcePublish: (skillName: string, version: string) =>
+   380→    request<string>(
+   381→      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}:force-publish`,
+   382→      { method: "POST", body: "{}" },
+   383→    ),
+   384→  redraft: (skillName: string, version: string) =>
+   385→    skillApi.version(skillName, version),
+   386→  bizTags: (skillName: string, tags: string[]) =>
+   387→    skillApi.update(skillName, { name: skillName, tags, bizTags: tags }),
+   388→  metadata: (skillName: string, metadata: Record<string, unknown>) =>
+   389→    skillApi.update(skillName, { name: skillName, metadata }),
+   390→  scope: (skillName: string, scope: string) =>
+   391→    skillApi.update(skillName, { name: skillName, visibility: scope, scope }),
+   392→};
+   393→
+   394→export const skillSetApi = {
+   395→  list: (params: Record<string, unknown> = {}) =>
+   396→    request<Page<SkillSet>>(`/v3/aihub/skillsets?${toQuery(params)}`),
+   397→  detail: (skillSetName: string) =>
+   398→    request<SkillSet>(`/v3/aihub/skillset/${encodeURIComponent(skillSetName)}`),
+   399→  save: (group: SkillSet) =>
+   400→    request<unknown>("/v3/aihub/skillsets", {
+   401→      method: "POST",
+   402→      body: JSON.stringify(group),
+   403→    }),
+   404→  update: (skillSetName: string, group: SkillSetUpdate) =>
+   405→    request<unknown>(`/v3/aihub/skillset/${encodeURIComponent(skillSetName)}`, {
+   406→      method: "PUT",
+   407→      body: JSON.stringify(group),
+   408→    }),
+   409→  remove: (skillSetName: string) =>
+   410→    request<unknown>(`/v3/aihub/skillset/${encodeURIComponent(skillSetName)}`, {
+   411→      method: "DELETE",
+   412→    }),
+   413→  bind: (skillSetName: string, member: Record<string, unknown>) =>
+   414→    request<unknown>(
+   415→      `/v3/aihub/skillset/${encodeURIComponent(skillSetName)}/skills`,
+   416→      {
+   417→        method: "POST",
+   418→        body: JSON.stringify(member),
+   419→      },
+   420→    ),
+   421→  unbind: (skillSetName: string, skillName: string) =>
+   422→    request<unknown>(
+   423→      `/v3/aihub/skillset/${encodeURIComponent(skillSetName)}/skills/${encodeURIComponent(skillName)}`,
+   424→      {
+   425→        method: "DELETE",
+   426→      },
+   427→    ),
+   428→  skillSetSkills: (skillSetName: string) =>
+   429→    request<SkillSet>(
+   430→      `/v3/aihub/skillset/${encodeURIComponent(skillSetName)}/skills`,
+   431→    ),
+   432→};
+   433→
+   434→export const agentApi = {
+   435→  list: (params: Record<string, unknown> = {}) =>
+   436→    request<Page<AgentListItem>>(`/v3/aihub/agents?${toQuery(params)}`),
+   437→  detail: (agentId: string) =>
+   438→    request<AgentResponse>(`/v3/aihub/agents/${encodeURIComponent(agentId)}`),
+   439→  create: (data: AgentUpsertRequest) =>
+   440→    request<AgentResponse>("/v3/aihub/agents", {
+   441→      method: "POST",
+   442→      body: JSON.stringify(data),
+   443→    }),
+   444→  update: (agentId: string, data: AgentUpsertRequest) =>
+   445→    request<AgentResponse>(`/v3/aihub/agents/${encodeURIComponent(agentId)}`, {
+   446→      method: "PUT",
+   447→      body: JSON.stringify(data),
+   448→    }),
+   449→  remove: (agentId: string) =>
+   450→    request<unknown>(`/v3/aihub/agents/${encodeURIComponent(agentId)}`, {
+   451→      method: "DELETE",
+   452→    }),
+   453→  resolve: (
+   454→    agentId: string,
+   455→    body: {
+   456→      runtimeId?: string;
+   457→      sessionId?: string;
+   458→      version?: string;
+   459→      label?: string;
+   460→      policy?: string;
+   461→    } = {},
+   462→  ) =>
+   463→    request<AgentRuntimeSnapshot>(
+   464→      `/v3/aihub/runtime/agents/${encodeURIComponent(agentId)}/resolve`,
+   465→      {
+   466→        method: "POST",
+   467→        body: JSON.stringify(body),
+   468→      },
+   469→    ),
+   470→};
+   471→
+   472→export const runtimeServiceApi = {
+   473→  resolve: (
+   474→    services: AgentServiceRef[],
+   475→    body: { runtimeId?: string; sessionId?: string } = {},
+   476→  ) =>
+   477→    request<RuntimeServicesSnapshot>("/v3/aihub/runtime/services/resolve", {
+   478→      method: "POST",
+   479→      body: JSON.stringify({ ...body, services }),
+   480→    }),
+   481→};
+   482→
+   483→export const sandboxApi = {
+   484→  list: (params: Record<string, unknown> = {}) =>
+   485→    request<Page<SandboxStatus>>(
+   486→      `/v3/aihub/runtime/sandboxes?${toQuery(params)}`,
+   487→    ),
+   488→  ensure: (body: SandboxEnsureRequest) =>
+   489→    request<SandboxStatus>("/v3/aihub/runtime/sandboxes", {
+   490→      method: "POST",
+   491→      body: JSON.stringify(body),
+   492→    }),
+   493→  get: (sandboxId: string) =>
+   494→    request<SandboxStatus>(
+   495→      `/v3/aihub/runtime/sandboxes/${encodeURIComponent(sandboxId)}`,
+   496→    ),
+   497→  restart: (sandboxId: string) =>
+   498→    request<SandboxStatus>(
+   499→      `/v3/aihub/runtime/sandboxes/${encodeURIComponent(sandboxId)}/restart`,
+   500→      { method: "POST" },
+   501→    ),
+   502→  remove: (sandboxId: string, deleteWorkspace = false) =>
+   503→    request<unknown>(
+   504→      `/v3/aihub/runtime/sandboxes/${encodeURIComponent(sandboxId)}?${toQuery({ deleteWorkspace })}`,
+   505→      { method: "DELETE" },
+   506→    ),
+   507→  logsUrl: (sandboxId: string, tailLines = 200, container = "sandbox") =>
+   508→    `/v3/aihub/runtime/sandboxes/${encodeURIComponent(sandboxId)}/logs?${toQuery({ tailLines, container })}`,
+   509→  tools: (sandboxId: string) =>
+   510→    request<SandboxToolListResponse>(
+   511→      `/v3/aihub/runtime/sandboxes/${encodeURIComponent(sandboxId)}/tools`,
+   512→    ),
+   513→  callTool: (sandboxId: string, body: SandboxToolCallRequest) =>
+   514→    request<SandboxToolCallResult>(
+   515→      `/v3/aihub/runtime/sandboxes/${encodeURIComponent(sandboxId)}/tools/call`,
+   516→      {
+   517→        method: "POST",
+   518→        body: JSON.stringify(body),
+   519→      },
+   520→    ),
+   521→};
+   522→
+   523→export const toolApi = {
+   524→  list: (params: Record<string, unknown> = {}) =>
+   525→    request<Page<ToolListItem>>(`/v3/aihub/tools?${toQuery(params)}`),
+   526→  detail: (toolId: string) =>
+   527→    request<ToolResponse>(`/v3/aihub/tools/${encodeURIComponent(toolId)}`),
+   528→  create: (data: ToolUpsertRequest) =>
+   529→    request<ToolResponse>("/v3/aihub/tools", {
+   530→      method: "POST",
+   531→      body: JSON.stringify(data),
+   532→    }),
+   533→  update: (toolId: string, data: ToolUpsertRequest) =>
+   534→    request<ToolResponse>(`/v3/aihub/tools/${encodeURIComponent(toolId)}`, {
+   535→      method: "PUT",
+   536→      body: JSON.stringify(data),
+   537→    }),
+   538→  remove: (toolId: string) =>
+   539→    request<unknown>(`/v3/aihub/tools/${encodeURIComponent(toolId)}`, {
+   540→      method: "DELETE",
+   541→    }),
+   542→  resolve: (
+   543→    toolId: string,
+   544→    body: {
+   545→      runtimeId?: string;
+   546→      sessionId?: string;
+   547→      version?: string;
+   548→      label?: string;
+   549→    } = {},
+   550→  ) =>
+   551→    request<ToolRuntimeSnapshot>(
+   552→      `/v3/aihub/runtime/tools/${encodeURIComponent(toolId)}/resolve`,
+   553→      {
+   554→        method: "POST",
+   555→        body: JSON.stringify(body),
+   556→      },
+   557→    ),
+   558→  failures: (params: Record<string, unknown> = {}) =>
+   559→    request<Page<ToolFailureRecord>>(
+   560→      `/v3/aihub/tool-failures?${toQuery(params)}`,
+   561→    ),
+   562→};
+   563→
+   564→export const proposalApi = {
+   565→  list: (params: Record<string, unknown>) =>
+   566→    request<Page<Proposal>>(
+   567→      `/v3/admin/ai/skill-proposals/list?${toQuery(params)}`,
+   568→    ),
+   569→  detail: (id: string) =>
+   570→    request<Proposal>(`/v3/admin/ai/skill-proposals/${encodeURIComponent(id)}`),
+   571→  validate: (id: string) =>
+   572→    request<unknown>(
+   573→      `/v3/admin/ai/skill-proposals/${encodeURIComponent(id)}/validate`,
+   574→      { method: "POST" },
+   575→    ),
+   576→  approve: (id: string, options: Record<string, unknown>) =>
+   577→    request<unknown>(
+   578→      `/v3/admin/ai/skill-proposals/${encodeURIComponent(id)}/approve`,
+   579→      {
+   580→        method: "POST",
+   581→        body: JSON.stringify(options),
+   582→      },
+   583→    ),
+   584→  reject: (id: string, reason: string) =>
+   585→    request<unknown>(
+   586→      `/v3/admin/ai/skill-proposals/${encodeURIComponent(id)}/reject`,
+   587→      {
+   588→        method: "POST",
+   589→        body: JSON.stringify({ reason }),
+   590→      },
+   591→    ),
+   592→};
+   593→
+   594→export const iamApi = {
+   595→  listUsers: () => request<LocalUser[]>("/v3/admin/iam/local-users/list"),
+   596→  saveUser: (u: LocalUser & { password?: string }) =>
+   597→    request<LocalUser>("/v3/admin/iam/local-users", {
+   598→      method: "POST",
+   599→      body: JSON.stringify(u),
+   600→    }),
+   601→  deleteUser: (username: string) =>
+   602→    request<unknown>(
+   603→      `/v3/admin/iam/local-users/${encodeURIComponent(username)}`,
+   604→      { method: "DELETE" },
+   605→    ),
+   606→  whoami: () => request<Record<string, unknown>>("/v3/admin/iam/whoami"),
+   607→};
+   608→
+   609→export const namespaceApi = {
+   610→  list: () => request<NamespaceInfo[]>("/v3/admin/namespaces"),
+   611→  save: (data: Record<string, unknown>) =>
+   612→    request<unknown>("/v3/admin/namespaces", {
+   613→      method: "POST",
+   614→      body: JSON.stringify(data),
+   615→    }),
+   616→  members: (namespaceId: string) =>
+   617→    request<NamespaceMember[]>(`/v3/admin/namespaces/${namespaceId}/members`),
+   618→  saveMember: (namespaceId: string, data: Record<string, unknown>) =>
+   619→    request<unknown>(`/v3/admin/namespaces/${namespaceId}/members`, {
+   620→      method: "POST",
+   621→      body: JSON.stringify(data),
+   622→    }),
+   623→  deleteMember: (namespaceId: string, subjectId: string) =>
+   624→    request<unknown>(
+   625→      `/v3/admin/namespaces/${namespaceId}/members/${encodeURIComponent(subjectId)}`,
+   626→      {
+   627→        method: "DELETE",
+   628→      },
+   629→    ),
+   630→};
+   631→
+   632→export const socialApi = {
+   633→  stats: (skillName: string) =>
+   634→    request<SkillSocialStats>(
+   635→      `/v3/admin/ai/skills/social?${toQuery({ skillName })}`,
+   636→    ),
+   637→  star: (skillName: string, starred: boolean) =>
+   638→    request<SkillSocialStats>("/v3/admin/ai/skills/social/star", {
+   639→      method: "POST",
+   640→      body: JSON.stringify({ skillName, starred }),
+   641→    }),
+   642→  rating: (skillName: string, rating: number, comment = "") =>
+   643→    request<SkillSocialStats>("/v3/admin/ai/skills/social/rating", {
+   644→      method: "POST",
+   645→      body: JSON.stringify({ skillName, rating, comment }),
+   646→    }),
+   647→  subscribe: (skillName: string, subscribed: boolean) =>
+   648→    request<unknown>("/v3/admin/ai/skills/social/subscribe", {
+   649→      method: "POST",
+   650→      body: JSON.stringify({ skillName, subscribed }),
+   651→    }),
+   652→};
+   653→
+   654→export const auditApi = {
+   655→  list: (params: Record<string, unknown>) =>
+   656→    request<Page<AuditLog>>(`/v3/admin/audit/logs?${toQuery(params)}`),
+   657→};
+   658→
+   659→export const tokenApi = {
+   660→  list: (subjectId = "") =>
+   661→    request<TokenInfo[]>(`/v3/admin/iam/tokens?${toQuery({ subjectId })}`),
+   662→  create: (data: Record<string, unknown>) =>
+   663→    request<TokenInfo>("/v3/admin/iam/tokens", {
+   664→      method: "POST",
+   665→      body: JSON.stringify(data),
+   666→    }),
+   667→  remove: (keyId: string) =>
+   668→    request<unknown>(`/v3/admin/iam/tokens/${keyId}`, { method: "DELETE" }),
+   669→};
+   670→
+   671→export const metricsApi = {
+   672→  get: () => request<MetricsSnapshot>("/v3/admin/metrics"),
+   673→};
+   674→
+   675→export const notificationApi = {
+   676→  list: (params: Record<string, unknown> = {}) =>
+   677→    request<Notification[]>(`/v3/admin/notifications?${toQuery(params)}`),
+   678→  markRead: (id: string) =>
+   679→    request<unknown>(`/v3/admin/notifications/${encodeURIComponent(id)}/read`, {
+   680→      method: "POST",
+   681→    }),
+   682→  streamUrl: () => "/v3/admin/notifications/stream",
+   683→};
+   684→
+   685→// 閳光偓閳光偓閳光偓 AIHub Resource Sharing API 閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓閳光偓
+   686→// Implements the v3.5 sharing model: each share is a ResourceGrant
+   687→// record stored in aisphere-auth's IAM. The visible access mode
+   688→// (private / shared / public) is derived from the grants list.
+   689→
+   690→type BackendSkillShare = {
+   691→  grantId?: string;
+   692→  id?: string;
+   693→  resource?: string;
+   694→  subject?: string;
+   695→  subjectType?: string;
+   696→  subjectId?: string;
+   697→  role?: string;
+   698→  actions?: string[];
+   699→  orgId?: string;
+   700→  projectId?: string;
+   701→  createdBy?: string;
+   702→  createdAt?: string | number;
+   703→  updatedAt?: string | number;
+   704→  metadataJson?: string;
+   705→  metadata?: Record<string, string>;
+   706→};
+   707→
+   708→function resourcePath(
+   709→  resourceType: AihubResourceType,
+   710→  resourceId: string,
+   711→): string {
+   712→  switch (resourceType) {
+   713→    case "skill":
+   714→      return `/v3/aihub/skills/${encodeURIComponent(resourceId)}/shares`;
+   715→    case "agent":
+   716→      return `/v3/aihub/agents/${encodeURIComponent(resourceId)}/shares`;
+   717→    case "tool":
+   718→      return `/v3/aihub/tools/${encodeURIComponent(resourceId)}/shares`;
+   719→    case "workflow":
+   720→      return `/v3/aihub/workflows/${encodeURIComponent(resourceId)}/shares`;
+   721→    default:
+   722→      return `/v3/aihub/skills/${encodeURIComponent(resourceId)}/shares`;
+   723→  }
+   724→}
+   725→
+   726→function normalizeShareRole(role: string | undefined): ResourceGrant["role"] {
+   727→  if (role === "consumer") return "consumer";
+   728→  if (role === "runner") return "consumer";
+   729→  if (
+   730→    role === "editor" ||
+   731→    role === "reviewer" ||
+   732→    role === "admin" ||
+   733→    role === "owner"
+   734→  )
+   735→    return role;
+   736→  return "viewer";
+   737→}
+   738→
+   739→function toBackendShareRole(
+   740→  resourceType: AihubResourceType,
+   741→  role: ResourceGrant["role"],
+   742→): string {
+   743→  // The new Skill backend currently defines viewer/consumer/editor/owner.
+   744→  if (resourceType === "skill") {
+   745→    if (role === "runner") return "consumer";
+   746→    if (role === "admin") return "owner";
+   747→    if (role === "reviewer") return "viewer";
+   748→  }
+   749→  return role;
+   750→}
+   751→
+   752→function normalizeSkillShare(
+   753→  raw: BackendSkillShare,
+   754→  resourceId: string,
+   755→): ResourceGrant {
+   756→  const metadata =
+   757→    raw.metadata || stringRecord(parseJsonRecord(raw.metadataJson));
+   758→  const subjectParts = raw.subject ? raw.subject.split(":") : [];
+   759→  const subjectIdFromSubject =
+   760→    subjectParts.length > 1 ? subjectParts.slice(1).join(":") : raw.subject;
+   761→  return {
+   762→    id: raw.grantId || raw.id || "",
+   763→    app: "aihub",
+   764→    orgId: raw.orgId,
+   765→    projectId: raw.projectId,
+   766→    resourceType: "skill",
+   767→    resourceId,
+   768→    object: raw.resource || `aihub:skill:${resourceId}`,
+   769→    subjectType: (raw.subjectType ||
+   770→      subjectParts[0] ||
+   771→      "user") as ResourceGrant["subjectType"],
+   772→    subjectId: raw.subjectId || subjectIdFromSubject || "",
+   773→    role: normalizeShareRole(raw.role),
+   774→    effect: "allow",
+   775→    actions: raw.actions || [],
+   776→    createdBy: raw.createdBy,
+   777→    createdAt: raw.createdAt,
+   778→    updatedAt: raw.updatedAt,
+   779→    metadata,
+   780→  };
+   781→}
+   782→
+   783→function normalizeShareList(
+   784→  resourceType: AihubResourceType,
+   785→  resourceId: string,
+   786→  raw: unknown,
+   787→): ShareListResponse {
+   788→  const obj = (raw || {}) as any;
+   789→  if (resourceType === "skill") {
+   790→    const source = obj.shares ?? obj.items ?? (Array.isArray(raw) ? raw : []);
+   791→    const items = (source as BackendSkillShare[])
+   792→      .map((x) => normalizeSkillShare(x, resourceId))
+   793→      .filter((x) => x.id);
+   794→    return {
+   795→      items,
+   796→      total: obj.total,
+   797→      limit: obj.limit,
+   798→      offset: obj.offset,
+   799→      accessMode: obj.accessMode ?? deriveAccessMode(items),
+   800→      canManage: obj.canManage ?? true,
+   801→    };
+   802→  }
+   803→  const items = (obj.items ??
+   804→    (Array.isArray(raw) ? raw : [])) as ResourceGrant[];
+   805→  return {
+   806→    items,
+   807→    total: obj.total,
+   808→    limit: obj.limit,
+   809→    offset: obj.offset,
+   810→    accessMode: obj.accessMode ?? deriveAccessMode(items),
+   811→    canManage: obj.canManage ?? true,
+   812→  };
+   813→}
+   814→
+   815→function backendShareBody(
+   816→  resourceType: AihubResourceType,
+   817→  resourceId: string,
+   818→  body: CreateShareRequest,
+   819→): Record<string, unknown> {
+   820→  if (resourceType !== "skill")
+   821→    return body as unknown as Record<string, unknown>;
+   822→  return {
+   823→    name: resourceId,
+   824→    subjectType: body.subjectType,
+   825→    subjectId: body.subjectType === "public" ? "" : body.subjectId,
+   826→    orgId: body.orgId,
+   827→    projectId: body.projectId,
+   828→    role: toBackendShareRole(resourceType, body.role),
+   829→    actions: body.actions,
+   830→    metadataJson: body.metadata ? JSON.stringify(body.metadata) : undefined,
+   831→  };
+   832→}
+   833→
+   834→export const sharesApi = {
+   835→  list: async (
+   836→    resourceType: AihubResourceType,
+   837→    resourceId: string,
+   838→    params: Record<string, unknown> = {},
+   839→  ) => {
+   840→    const q = toQuery(params);
+   841→    const raw = await request<unknown>(
+   842→      `${resourcePath(resourceType, resourceId)}${q ? `?${q}` : ""}`,
+   843→    );
+   844→    return normalizeShareList(resourceType, resourceId, raw);
+   845→  },
+   846→
+   847→  create: async (
+   848→    resourceType: AihubResourceType,
+   849→    resourceId: string,
+   850→    body: CreateShareRequest,
+   851→  ) => {
+   852→    const raw = await request<unknown>(resourcePath(resourceType, resourceId), {
+   853→      method: "POST",
+   854→      body: JSON.stringify(backendShareBody(resourceType, resourceId, body)),
+   855→    });
+   856→    if (resourceType === "skill")
+   857→      return normalizeShareList(resourceType, resourceId, { shares: [raw] })
+   858→        .items[0];
+   859→    return raw as ResourceGrant;
+   860→  },
+   861→
+   862→  remove: (
+   863→    resourceType: AihubResourceType,
+   864→    resourceId: string,
+   865→    grantId: string,
+   866→  ) =>
+   867→    request<{ deleted: boolean; id: string }>(
+   868→      `${resourcePath(resourceType, resourceId)}/${encodeURIComponent(grantId)}`,
+   869→      { method: "DELETE" },
+   870→    ),
+   871→
+   872→  listSkillShares: (skillName: string) => sharesApi.list("skill", skillName),
+   873→  createSkillShare: (skillName: string, body: CreateShareRequest) =>
+   874→    sharesApi.create("skill", skillName, body),
+   875→  deleteSkillShare: (skillName: string, grantId: string) =>
+   876→    sharesApi.remove("skill", skillName, grantId),
+   877→};
+   878→
+   879→export const sandboxProfileApi = {
+   880→  list: () => request<SandboxProfile[]>("/v3/aihub/sandbox-profiles"),
+   881→  get: (id: string) =>
+   882→    request<SandboxProfile>(
+   883→      `/v3/aihub/sandbox-profiles/${encodeURIComponent(id)}`,
+   884→    ),
+   885→  save: (profile: SandboxProfile) =>
+   886→    request<SandboxProfile>("/v3/aihub/sandbox-profiles", {
+   887→      method: "POST",
+   888→      body: JSON.stringify(profile),
+   889→    }),
+   890→  update: (id: string, profile: SandboxProfile) =>
+   891→    request<SandboxProfile>(
+   892→      `/v3/aihub/sandbox-profiles/${encodeURIComponent(id)}`,
+   893→      { method: "PUT", body: JSON.stringify(profile) },
+   894→    ),
+   895→  remove: (id: string) =>
+   896→    request<string>(`/v3/aihub/sandbox-profiles/${encodeURIComponent(id)}`, {
+   897→      method: "DELETE",
+   898→    }),
+   899→};
+   900→
+   901→export const modelProfileApi = {
+   902→  list: () => request<ModelProfile[]>("/v3/aihub/model-profiles"),
+   903→  get: (id: string) =>
+   904→    request<ModelProfile>(`/v3/aihub/model-profiles/${encodeURIComponent(id)}`),
+   905→  save: (profile: ModelProfile) =>
+   906→    request<ModelProfile>("/v3/aihub/model-profiles", {
+   907→      method: "POST",
+   908→      body: JSON.stringify(profile),
+   909→    }),
+   910→  update: (id: string, profile: ModelProfile) =>
+   911→    request<ModelProfile>(
+   912→      `/v3/aihub/model-profiles/${encodeURIComponent(id)}`,
+   913→      { method: "PUT", body: JSON.stringify(profile) },
+   914→    ),
+   915→  remove: (id: string) =>
+   916→    request<string>(`/v3/aihub/model-profiles/${encodeURIComponent(id)}`, {
+   917→      method: "DELETE",
+   918→    }),
+   919→};
+   920→

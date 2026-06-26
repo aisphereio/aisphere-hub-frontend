@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package api.auth.v1;
+
+import "google/api/annotations.proto";
+import "google/api/field_behavior.proto";
+
+option go_package = "aisphere-hub/api/auth/v1;v1";
+
+// AuthService is the Casdoor-native authentication facade for AIHub.
+//
+// Hub does not issue or persist local tokens. Browser login, OAuth code
+// exchange, refresh, and logout are delegated to Casdoor. API requests are
+// authenticated by aisphere-kit-kratos middleware using Casdoor access tokens.
+service AuthService {
+  // LoginURL returns the Casdoor authorization URL as JSON for SPA/debug usage.
+  // Browser users should prefer GET /v3/auth/login, which is registered as a
+  // direct HTTP 302 route by the service implementation.
+  rpc LoginURL(LoginURLRequest) returns (LoginURLResponse) {
+    option (google.api.http) = {
+      get: "/v3/auth/login-url"
+    };
+  }
+
+  // Exchange exchanges an OAuth authorization code for Casdoor tokens.
+  // HTTP JSON binding is implemented manually in internal/service/auth.go so
+  // both snake_case (redirect_uri) and camelCase (redirectUri) clients work.
+  rpc Exchange(ExchangeRequest) returns (TokenResponse);
+
+  // Refresh refreshes a Casdoor access token.
+  // HTTP JSON binding is implemented manually in internal/service/auth.go so
+  // both snake_case (refresh_token) and camelCase (refreshToken) clients work.
+  rpc Refresh(RefreshRequest) returns (TokenResponse);
+
+  // LogoutURL returns the Casdoor logout URL as JSON for SPA/debug usage.
+  // Browser users can also call GET /v3/auth/logout for direct HTTP 302.
+  rpc LogoutURL(LogoutURLRequest) returns (LogoutURLResponse) {
+    option (google.api.http) = {
+      get: "/v3/auth/logout-url"
+    };
+  }
+
+  // Me returns the current authenticated principal.
+  rpc Me(MeRequest) returns (MeResponse) {
+    option (google.api.http) = {
+      get: "/v3/auth/me"
+    };
+  }
+}
+
+message LoginURLRequest {
+  string redirect_uri = 1 [(google.api.field_behavior) = REQUIRED];
+  string state = 2;
+  string scope = 3;
+  string prompt = 4;
+}
+
+message LoginURLResponse {
+  string login_url = 1;
+}
+
+message ExchangeRequest {
+  string code = 1 [(google.api.field_behavior) = REQUIRED];
+  string redirect_uri = 2 [(google.api.field_behavior) = REQUIRED];
+  string state = 3;
+}
+
+message RefreshRequest {
+  string refresh_token = 1 [(google.api.field_behavior) = REQUIRED];
+  string scope = 2;
+}
+
+message TokenResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  string id_token = 3;
+  string token_type = 4;
+  int64 expires_in = 5;
+  string scope = 6;
+}
+
+message LogoutURLRequest {
+  string post_logout_redirect_uri = 1;
+  string id_token_hint = 2;
+  string state = 3;
+}
+
+message LogoutURLResponse {
+  string logout_url = 1;
+}
+
+message MeRequest {}
+
+message MeResponse {
+  string subject_type = 1;
+  string subject_id = 2;
+  string name = 3;
+  string display_name = 4;
+  string email = 5;
+  string avatar = 6;
+  string org_id = 7;
+  string project_id = 8;
+  repeated string roles = 9;
+  repeated string groups = 10;
+}

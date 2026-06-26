@@ -1,0 +1,38 @@
+# Optional overlay for verifying real Casdoor AuthZ + Audit.
+# Use after AuthN is already working.
+#
+# Start with authz=false/audit=false for normal local development.
+# Then enable this overlay or copy these fields into configs/config.yaml.
+
+features:
+  authn: true
+  authz: true
+  audit: true
+  # Enable permission when Hub needs to create/revoke dynamic Skill share policies through kit.
+  # Global RBAC still uses casdoor.permission_id; dynamic sharing uses casdoor.policy_enforcer.
+  permission: true
+
+casdoor:
+  # For authz=true, configure exactly one selector.
+  # Recommended: permission_id, because it is explicit and production-safe.
+  # The value should be the Casdoor Permission full id / name accepted by /api/enforce.
+  permission_id: "aisphere/<your-permission-name>"
+
+  # Fallback selectors; leave empty when permission_id is used.
+  # Do not use enforcer_id as the primary authz selector in normal Hub deployments;
+  # dynamic sharing should use policy_enforcer below.
+  model_id: ""
+  resource_id: ""
+  enforcer_id: ""
+  owner: ""
+
+  # Required when features.permission=true.
+  # This is a dedicated Casdoor Enforcer for dynamic object-level policies such as Skill shares.
+  # It must be bound in Casdoor to the same three-field Casbin Model used by permission_id.
+  policy_enforcer: "enforcer_aihub_share"
+  # Casdoor Model adapter/table name. This table is in Casdoor's DB, not Hub's DB.
+  policy_adapter_id: "aisphere_policy_rule"
+
+  audit_async: false
+  audit_queue: 1024
+  audit_timeout: "5s"

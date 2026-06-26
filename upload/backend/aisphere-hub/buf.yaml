@@ -1,0 +1,21 @@
+version: v2
+
+modules:
+  - path: api
+
+deps:
+  - buf.build/googleapis/googleapis
+
+lint:
+  use:
+    - STANDARD
+  except:
+    # Allow service names without "Service" suffix if we want; the kratos
+    # convention is "<Resource>Service" so this stays on by default.
+    - SERVICE_SUFFIX
+  ignore:
+    - api/health/v1  # smoke-test proto, not subject to strict lint
+
+breaking:
+  use:
+    - WIRE_JSON

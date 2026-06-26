@@ -1,0 +1,1396 @@
+# Generated with protoc-gen-openapi
+# https://github.com/google/gnostic/tree/master/cmd/protoc-gen-openapi
+
+openapi: 3.0.3
+info:
+    title: ""
+    version: 0.0.1
+paths:
+    /v1/todos/create:
+        post:
+            tags:
+                - TodoService
+            description: |-
+                CreateTodo creates a new todo item and returns the persisted record
+                 with the server-assigned id, create_time, and update_time populated.
+                 Returns INVALID_ARGUMENT if the request payload fails validation.
+            operationId: TodoService_CreateTodo
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/todo.v1.Todo'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/todo.v1.Todo'
+    /v1/todos/list:
+        get:
+            tags:
+                - TodoService
+            description: |-
+                ListTodos returns a page of todo items, optionally filtered and ordered.
+                 Use the next_page_token from TodoSet to retrieve subsequent pages.
+                 Returns INVALID_ARGUMENT if filter, order_by, or page_token are malformed.
+            operationId: TodoService_ListTodos
+            parameters:
+                - name: pageSize
+                  in: query
+                  description: |-
+                    Optional. Maximum number of todo items to return in a single page.
+                     The server may apply a default and a maximum when unset or out of range.
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  description: |-
+                    Optional. Token from a previous response's next_page_token used to fetch
+                     the next page. Leave empty to request the first page.
+                  schema:
+                    type: string
+                - name: filter
+                  in: query
+                  description: |-
+                    Optional. The standard list filter.
+                     Supported fields:
+                        * `title` (i.e. `title:"bug"`)
+                        * `content` (i.e. `content:"docs"`)
+                        * `completed` (i.e. `completed` or `NOT completed`)
+                        * `create_time` range (i.e. `create_time>="2026-01-01T00:00:00Z"`)
+                  schema:
+                    type: string
+                - name: orderBy
+                  in: query
+                  description: |-
+                    Optional. A comma-separated list of fields to order by.
+                     Supported fields:
+                        * `id`
+                        * `title`
+                        * `create_time`
+                        * `update_time`
+                     Append ` desc` to a field for descending order, e.g. `create_time desc`.
+                     Defaults to ascending order when no direction is supplied.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/todo.v1.TodoSet'
+    /v1/todos/sync:
+        post:
+            tags:
+                - TodoService
+            description: |-
+                SyncTodos opens a bidirectional stream for two-way synchronization.
+                 The client sends SyncTodoRequest messages describing local changes, and
+                 the server pushes back TodoEvent messages reflecting the resulting state.
+                 The stream stays open until either side closes it.
+            operationId: TodoService_SyncTodos
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/todo.v1.SyncTodoRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/todo.v1.TodoEvent'
+    /v1/todos/update:
+        put:
+            tags:
+                - TodoService
+            description: |-
+                UpdateTodo applies a partial update to an existing todo item using a
+                 FieldMask. Only the fields listed in update_mask are overwritten; all
+                 other fields are left unchanged.
+                 Returns NOT_FOUND if the target todo does not exist, or
+                 INVALID_ARGUMENT if update_mask references unknown fields.
+            operationId: TodoService_UpdateTodo
+            parameters:
+                - name: updateMask
+                  in: query
+                  description: |-
+                    Set of field paths in todo to overwrite. Fields not listed are left
+                     unchanged. Use a single path of `*` to replace every mutable field.
+                  schema:
+                    type: string
+                    format: field-mask
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/todo.v1.Todo'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/todo.v1.Todo'
+    /v1/todos/watch:
+        get:
+            tags:
+                - TodoService
+            description: |-
+                WatchTodos opens a server-side stream that emits a TodoEvent for every
+                 create, update, or delete that matches the supplied filter and ordering.
+                 The stream remains open until the client cancels or the server terminates it.
+            operationId: TodoService_WatchTodos
+            parameters:
+                - name: pageSize
+                  in: query
+                  description: |-
+                    Optional. Maximum number of todo items returned in the initial snapshot
+                     before live events begin streaming.
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  description: Optional. Page token used to resume from a prior snapshot.
+                  schema:
+                    type: string
+                - name: filter
+                  in: query
+                  description: Optional. List filter expression. Same syntax as ListTodosRequest.filter.
+                  schema:
+                    type: string
+                - name: orderBy
+                  in: query
+                  description: Optional. Order specification. Same syntax as ListTodosRequest.order_by.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/todo.v1.TodoEvent'
+    /v1/todos/{id}:
+        get:
+            tags:
+                - TodoService
+            description: |-
+                GetTodo returns a single todo item by its id.
+                 Returns NOT_FOUND if no todo exists with the supplied id.
+            operationId: TodoService_GetTodo
+            parameters:
+                - name: id
+                  in: path
+                  description: Unique identifier of the todo item to retrieve.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/todo.v1.Todo'
+        delete:
+            tags:
+                - TodoService
+            description: |-
+                DeleteTodo permanently removes a todo item by its id.
+                 Returns NOT_FOUND if no todo exists with the supplied id.
+            operationId: TodoService_DeleteTodo
+            parameters:
+                - name: id
+                  in: path
+                  description: Unique identifier of the todo item to delete.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content: {}
+    /v3/aihub/catalog/skills:
+        get:
+            tags:
+                - SkillService
+            description: ListCatalogSkills lists skills visible to the current user/service consumer.
+            operationId: SkillService_ListCatalogSkills
+            parameters:
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+                - name: q
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.ListCatalogSkillsResponse'
+    /v3/aihub/catalog/skills/{name}:
+        get:
+            tags:
+                - SkillService
+            description: GetCatalogSkill returns one skill for Agent/Runtime/Catalog consumers.
+            operationId: SkillService_GetCatalogSkill
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.Skill'
+    /v3/aihub/catalog/skills/{name}/manifest:
+        get:
+            tags:
+                - SkillService
+            description: GetCatalogSkillManifest returns the online version manifest for runtime consumers.
+            operationId: SkillService_GetCatalogSkillManifest
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: ifNoneMatch
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.SkillManifest'
+    /v3/aihub/catalog/skills/{name}/versions/{version}/download:
+        get:
+            tags:
+                - SkillService
+            description: DownloadCatalogSkillVersion returns the package for a catalog-consumable version.
+            operationId: SkillService_DownloadCatalogSkillVersion
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: version
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: ifNoneMatch
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.SkillPackageDownload'
+    /v3/aihub/health:
+        get:
+            tags:
+                - HealthService
+            description: Check returns the current service health snapshot.
+            operationId: HealthService_Check
+            parameters:
+                - name: component
+                  in: query
+                  description: Optional component name to check; empty means "all components".
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.health.v1.HealthCheckResponse'
+    /v3/aihub/skills:
+        get:
+            tags:
+                - SkillService
+            description: ListSkills lists canonical skills for management views.
+            operationId: SkillService_ListSkills
+            parameters:
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+                - name: q
+                  in: query
+                  schema:
+                    type: string
+                - name: status
+                  in: query
+                  schema:
+                    type: string
+                - name: visibility
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.ListSkillsResponse'
+        post:
+            tags:
+                - SkillService
+            description: CreateSkill creates one canonical skill.
+            operationId: SkillService_CreateSkill
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.skill.v1.CreateSkillRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.Skill'
+    /v3/aihub/skills/{name}:
+        get:
+            tags:
+                - SkillService
+            description: GetSkill returns one canonical skill by name for management views.
+            operationId: SkillService_GetSkill
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.Skill'
+        put:
+            tags:
+                - SkillService
+            description: UpdateSkill updates mutable fields of one canonical skill.
+            operationId: SkillService_UpdateSkill
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.skill.v1.UpdateSkillRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.Skill'
+        delete:
+            tags:
+                - SkillService
+            description: DeleteSkill soft-deletes one canonical skill by name.
+            operationId: SkillService_DeleteSkill
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content: {}
+    /v3/aihub/skills/{name}/compare:
+        get:
+            tags:
+                - SkillService
+            description: CompareSkillVersions returns SKILL.md and file lists for two versions.
+            operationId: SkillService_CompareSkillVersions
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: baseVersion
+                  in: query
+                  schema:
+                    type: string
+                - name: targetVersion
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.CompareSkillVersionsResponse'
+    /v3/aihub/skills/{name}/shares:
+        get:
+            tags:
+                - SkillService
+            description: ListSkillShares lists Casdoor/Casbin policy grants created for one Skill.
+            operationId: SkillService_ListSkillShares
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.ListSkillSharesResponse'
+        post:
+            tags:
+                - SkillService
+            description: CreateSkillShare grants one user/service/app/agent/workflow access to one Skill.
+            operationId: SkillService_CreateSkillShare
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.skill.v1.CreateSkillShareRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.SkillShare'
+    /v3/aihub/skills/{name}/shares/{grantId}:
+        delete:
+            tags:
+                - SkillService
+            description: DeleteSkillShare revokes all policy actions for one subject on one Skill.
+            operationId: SkillService_DeleteSkillShare
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: grantId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content: {}
+    /v3/aihub/skills/{name}/versions:
+        get:
+            tags:
+                - SkillService
+            description: ListSkillVersions lists versions of one canonical skill.
+            operationId: SkillService_ListSkillVersions
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.ListSkillVersionsResponse'
+    /v3/aihub/skills/{name}/versions/{version}:
+        get:
+            tags:
+                - SkillService
+            description: GetSkillVersion returns one version metadata record.
+            operationId: SkillService_GetSkillVersion
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: version
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.SkillVersion'
+    /v3/aihub/skills/{name}/versions/{version}/download:
+        get:
+            tags:
+                - SkillService
+            description: DownloadSkillVersion returns the version package bytes with cache metadata.
+            operationId: SkillService_DownloadSkillVersion
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: version
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: ifNoneMatch
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.SkillPackageDownload'
+    /v3/aihub/skills/{name}/versions/{version}/file:
+        get:
+            tags:
+                - SkillService
+            description: GetSkillVersionFile returns one text or base64-encoded file content.
+            operationId: SkillService_GetSkillVersionFile
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: version
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: path
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.SkillFile'
+    /v3/aihub/skills/{name}/versions/{version}/files:
+        get:
+            tags:
+                - SkillService
+            description: ListSkillVersionFiles lists files stored for one skill version.
+            operationId: SkillService_ListSkillVersionFiles
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: version
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.ListSkillVersionFilesResponse'
+    /v3/aihub/skills/{name}/versions/{version}:force-publish:
+        post:
+            tags:
+                - SkillService
+            description: ForcePublishSkillVersion lets an operator publish without normal submit state.
+            operationId: SkillService_ForcePublishSkillVersion
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: version
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.skill.v1.SkillVersionActionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.SkillVersion'
+    /v3/aihub/skills/{name}/versions/{version}:offline:
+        post:
+            tags:
+                - SkillService
+            description: OfflineSkillVersion removes one online version from catalog/runtime use.
+            operationId: SkillService_OfflineSkillVersion
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: version
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.skill.v1.SkillVersionActionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.SkillVersion'
+    /v3/aihub/skills/{name}/versions/{version}:online:
+        post:
+            tags:
+                - SkillService
+            description: OnlineSkillVersion makes one published version consumable by catalog/runtime.
+            operationId: SkillService_OnlineSkillVersion
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: version
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.skill.v1.SkillVersionActionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.SkillVersion'
+    /v3/aihub/skills/{name}/versions/{version}:publish:
+        post:
+            tags:
+                - SkillService
+            description: PublishSkillVersion marks a submitted version as published.
+            operationId: SkillService_PublishSkillVersion
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: version
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.skill.v1.SkillVersionActionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.SkillVersion'
+    /v3/aihub/skills/{name}/versions/{version}:submit:
+        post:
+            tags:
+                - SkillService
+            description: SubmitSkillVersion marks a draft version ready for publish.
+            operationId: SkillService_SubmitSkillVersion
+            parameters:
+                - name: name
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: version
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.skill.v1.SkillVersionActionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.SkillVersion'
+    /v3/aihub/skills:upload:
+        post:
+            tags:
+                - SkillService
+            description: UploadSkillPackage imports a zipped Skill package into draft version files.
+            operationId: SkillService_UploadSkillPackage
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/api.skill.v1.UploadSkillPackageRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.skill.v1.SkillVersion'
+    /v3/auth/login-url:
+        get:
+            tags:
+                - AuthService
+            description: |-
+                LoginURL returns the Casdoor authorization URL as JSON for SPA/debug usage.
+                 Browser users should prefer GET /v3/auth/login, which is registered as a
+                 direct HTTP 302 route by the service implementation.
+            operationId: AuthService_LoginURL
+            parameters:
+                - name: redirectUri
+                  in: query
+                  schema:
+                    type: string
+                - name: state
+                  in: query
+                  schema:
+                    type: string
+                - name: scope
+                  in: query
+                  schema:
+                    type: string
+                - name: prompt
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.auth.v1.LoginURLResponse'
+    /v3/auth/logout-url:
+        get:
+            tags:
+                - AuthService
+            description: |-
+                LogoutURL returns the Casdoor logout URL as JSON for SPA/debug usage.
+                 Browser users can also call GET /v3/auth/logout for direct HTTP 302.
+            operationId: AuthService_LogoutURL
+            parameters:
+                - name: postLogoutRedirectUri
+                  in: query
+                  schema:
+                    type: string
+                - name: idTokenHint
+                  in: query
+                  schema:
+                    type: string
+                - name: state
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.auth.v1.LogoutURLResponse'
+    /v3/auth/me:
+        get:
+            tags:
+                - AuthService
+            description: Me returns the current authenticated principal.
+            operationId: AuthService_Me
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/api.auth.v1.MeResponse'
+components:
+    schemas:
+        api.auth.v1.LoginURLResponse:
+            type: object
+            properties:
+                loginUrl:
+                    type: string
+        api.auth.v1.LogoutURLResponse:
+            type: object
+            properties:
+                logoutUrl:
+                    type: string
+        api.auth.v1.MeResponse:
+            type: object
+            properties:
+                subjectType:
+                    type: string
+                subjectId:
+                    type: string
+                name:
+                    type: string
+                displayName:
+                    type: string
+                email:
+                    type: string
+                avatar:
+                    type: string
+                orgId:
+                    type: string
+                projectId:
+                    type: string
+                roles:
+                    type: array
+                    items:
+                        type: string
+                groups:
+                    type: array
+                    items:
+                        type: string
+        api.health.v1.HealthCheckResponse:
+            type: object
+            properties:
+                status:
+                    type: string
+                    description: 'Overall status: "ok" or "degraded".'
+                checkedAt:
+                    type: string
+                    description: Unix timestamp (seconds) of the check.
+                components:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: Per-component details, keyed by component name.
+        api.skill.v1.CompareSkillVersionsResponse:
+            type: object
+            properties:
+                baseVersion:
+                    type: string
+                targetVersion:
+                    type: string
+                baseSkillMd:
+                    type: string
+                targetSkillMd:
+                    type: string
+                baseFiles:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/api.skill.v1.SkillFile'
+                targetFiles:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/api.skill.v1.SkillFile'
+        api.skill.v1.CreateSkillRequest:
+            required:
+                - name
+            type: object
+            properties:
+                name:
+                    type: string
+                displayName:
+                    type: string
+                description:
+                    type: string
+                version:
+                    type: string
+                status:
+                    type: string
+                visibility:
+                    type: string
+                ownerId:
+                    type: string
+                orgId:
+                    type: string
+                projectId:
+                    type: string
+                sourceType:
+                    type: string
+                sourceUri:
+                    type: string
+                manifestJson:
+                    type: string
+                tags:
+                    type: array
+                    items:
+                        type: string
+        api.skill.v1.CreateSkillShareRequest:
+            required:
+                - name
+                - subjectType
+            type: object
+            properties:
+                name:
+                    type: string
+                subjectType:
+                    type: string
+                subjectId:
+                    type: string
+                orgId:
+                    type: string
+                projectId:
+                    type: string
+                role:
+                    type: string
+                actions:
+                    type: array
+                    items:
+                        type: string
+                metadataJson:
+                    type: string
+        api.skill.v1.ListCatalogSkillsResponse:
+            type: object
+            properties:
+                skills:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/api.skill.v1.Skill'
+                nextPageToken:
+                    type: string
+        api.skill.v1.ListSkillSharesResponse:
+            type: object
+            properties:
+                shares:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/api.skill.v1.SkillShare'
+        api.skill.v1.ListSkillVersionFilesResponse:
+            type: object
+            properties:
+                files:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/api.skill.v1.SkillFile'
+        api.skill.v1.ListSkillVersionsResponse:
+            type: object
+            properties:
+                versions:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/api.skill.v1.SkillVersion'
+        api.skill.v1.ListSkillsResponse:
+            type: object
+            properties:
+                skills:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/api.skill.v1.Skill'
+                nextPageToken:
+                    type: string
+        api.skill.v1.Skill:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                displayName:
+                    type: string
+                description:
+                    type: string
+                version:
+                    type: string
+                status:
+                    type: string
+                visibility:
+                    type: string
+                ownerId:
+                    type: string
+                orgId:
+                    type: string
+                projectId:
+                    type: string
+                sourceType:
+                    type: string
+                sourceUri:
+                    type: string
+                manifestJson:
+                    type: string
+                tags:
+                    type: array
+                    items:
+                        type: string
+                createTime:
+                    type: string
+                    format: date-time
+                updateTime:
+                    type: string
+                    format: date-time
+        api.skill.v1.SkillFile:
+            type: object
+            properties:
+                id:
+                    type: string
+                skillName:
+                    type: string
+                version:
+                    type: string
+                path:
+                    type: string
+                name:
+                    type: string
+                type:
+                    type: string
+                size:
+                    type: string
+                binary:
+                    type: boolean
+                content:
+                    type: string
+                createTime:
+                    type: string
+                    format: date-time
+                updateTime:
+                    type: string
+                    format: date-time
+        api.skill.v1.SkillManifest:
+            type: object
+            properties:
+                skillName:
+                    type: string
+                version:
+                    type: string
+                status:
+                    type: string
+                etag:
+                    type: string
+                md5:
+                    type: string
+                sha256:
+                    type: string
+                revision:
+                    type: string
+                manifestJson:
+                    type: string
+                files:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/api.skill.v1.SkillFile'
+                notModified:
+                    type: boolean
+        api.skill.v1.SkillPackageDownload:
+            type: object
+            properties:
+                skillName:
+                    type: string
+                version:
+                    type: string
+                etag:
+                    type: string
+                md5:
+                    type: string
+                sha256:
+                    type: string
+                notModified:
+                    type: boolean
+                packageBytes:
+                    type: string
+                    format: bytes
+        api.skill.v1.SkillShare:
+            type: object
+            properties:
+                grantId:
+                    type: string
+                resource:
+                    type: string
+                subject:
+                    type: string
+                subjectType:
+                    type: string
+                subjectId:
+                    type: string
+                role:
+                    type: string
+                actions:
+                    type: array
+                    items:
+                        type: string
+                createdBy:
+                    type: string
+                metadataJson:
+                    type: string
+        api.skill.v1.SkillVersion:
+            type: object
+            properties:
+                id:
+                    type: string
+                skillName:
+                    type: string
+                version:
+                    type: string
+                status:
+                    type: string
+                author:
+                    type: string
+                commitMsg:
+                    type: string
+                publishPipelineInfo:
+                    type: string
+                downloadCount:
+                    type: string
+                md5:
+                    type: string
+                sha256:
+                    type: string
+                revision:
+                    type: string
+                sizeBytes:
+                    type: string
+                manifestJson:
+                    type: string
+                createTime:
+                    type: string
+                    format: date-time
+                updateTime:
+                    type: string
+                    format: date-time
+        api.skill.v1.SkillVersionActionRequest:
+            required:
+                - name
+                - version
+            type: object
+            properties:
+                name:
+                    type: string
+                version:
+                    type: string
+        api.skill.v1.UpdateSkillRequest:
+            required:
+                - name
+            type: object
+            properties:
+                name:
+                    type: string
+                displayName:
+                    type: string
+                description:
+                    type: string
+                version:
+                    type: string
+                status:
+                    type: string
+                visibility:
+                    type: string
+                ownerId:
+                    type: string
+                orgId:
+                    type: string
+                projectId:
+                    type: string
+                sourceType:
+                    type: string
+                sourceUri:
+                    type: string
+                manifestJson:
+                    type: string
+                tags:
+                    type: array
+                    items:
+                        type: string
+        api.skill.v1.UploadSkillPackageRequest:
+            required:
+                - packageBytes
+            type: object
+            properties:
+                packageBytes:
+                    type: string
+                    format: bytes
+                overwrite:
+                    type: boolean
+                targetVersion:
+                    type: string
+                commitMsg:
+                    type: string
+        todo.v1.SyncTodoRequest:
+            type: object
+            properties:
+                action:
+                    type: string
+                    description: The operation to perform. One of `create`, `update`, or `delete`.
+                todo:
+                    allOf:
+                        - $ref: '#/components/schemas/todo.v1.Todo'
+                    description: Payload for `create` and `update` actions. Ignored for `delete`.
+                id:
+                    type: string
+                    description: Identifier of the target todo. Required for `delete` and `update`.
+                updateMask:
+                    type: string
+                    description: |-
+                        Field mask used by `update` actions to limit which fields are overwritten.
+                         Ignored for `create` and `delete`.
+                    format: field-mask
+            description: |-
+                SyncTodoRequest is a single client message in the SyncTodos bidirectional
+                 stream. The action field selects which operation to perform on the server.
+        todo.v1.Todo:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Server-assigned unique identifier. Read-only on create.
+                title:
+                    type: string
+                    description: Short human-readable title.
+                content:
+                    type: string
+                    description: Detailed description or notes for the todo item.
+                completed:
+                    type: boolean
+                    description: Whether the todo item has been completed.
+                createTime:
+                    type: string
+                    description: Time at which the todo item was created. Server-assigned, read-only.
+                    format: date-time
+                updateTime:
+                    type: string
+                    description: Time at which the todo item was last modified. Server-assigned, read-only.
+                    format: date-time
+            description: Todo is the canonical representation of a todo item.
+        todo.v1.TodoEvent:
+            type: object
+            properties:
+                action:
+                    type: string
+                    description: The change that occurred. One of `created`, `updated`, or `deleted`.
+                todo:
+                    allOf:
+                        - $ref: '#/components/schemas/todo.v1.Todo'
+                    description: |-
+                        The todo item after the change. For `deleted` events only the id field
+                         is guaranteed to be populated.
+                eventTime:
+                    type: string
+                    description: Time at which the change was observed by the server.
+                    format: date-time
+            description: |-
+                TodoEvent is a server-sent message describing a change to a todo item.
+                 It is emitted by both WatchTodos and SyncTodos streams.
+        todo.v1.TodoSet:
+            type: object
+            properties:
+                todos:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/todo.v1.Todo'
+                    description: The page of todo items in the order requested by ListTodosRequest.order_by.
+                nextPageToken:
+                    type: string
+                    description: |-
+                        Token used to retrieve the next page via ListTodosRequest.page_token.
+                         Empty when there are no more results.
+            description: TodoSet is a paginated collection of todo items returned by ListTodos.
+tags:
+    - name: AuthService
+      description: |-
+        AuthService is the Casdoor-native authentication facade for AIHub.
+
+         Hub does not issue or persist local tokens. Browser login, OAuth code
+         exchange, refresh, and logout are delegated to Casdoor. API requests are
+         authenticated by aisphere-kit-kratos middleware using Casdoor access tokens.
+    - name: HealthService
+      description: |-
+        HealthService exposes a single Check RPC used by the kratos HTTP server
+         as a smoke-test endpoint during Phase 1.
+    - name: SkillService
+      description: "SkillService exposes the canonical AIHub Skill API.\r\n\r\n This service is the first real business module migrated from the legacy\r\n backend into the new kratos+kit Hub. It intentionally uses canonical,\r\n namespace-free resources and a structured PostgreSQL table."
+    - name: TodoService
+      description: |-
+        TodoService provides a simple CRUD example for managing todo items.
+         It demonstrates unary, server-streaming, and bidirectional-streaming RPCs
+         together with AIP-style list filtering, ordering, and pagination.
