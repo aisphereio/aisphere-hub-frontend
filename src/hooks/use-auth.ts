@@ -53,13 +53,22 @@ export function useLogout() {
     const redirect =
       options?.postLogoutRedirectUri ||
       (typeof window !== 'undefined' ? window.location.origin : '');
-    // Always clear local tokens first so the UI flips immediately.
+
+    // Ask Hub for the logout URL before clearing tokens so the request carries
+    // Authorization and Hub can revoke the current access token in Redis.
+    let logoutUrl = '';
+    try {
+      logoutUrl = await authApi.logoutUrl(redirect, idToken);
+    } catch {
+      logoutUrl = authApi.logout(redirect, idToken);
+    }
+
     clearTokens('logout');
     queryClient.clear();
-    // Then redirect to the IdP end-session endpoint so the IdP-side session is closed too.
+
     if (typeof window !== 'undefined') {
       try {
-        window.location.href = authApi.logout(redirect, idToken);
+        window.location.href = logoutUrl || authApi.logout(redirect, idToken);
       } catch {
         window.location.href = '/';
       }

@@ -1,9 +1,38 @@
-export type ApiResult<T> = { code?: number; message?: string; data?: T; error?: string } | T;
+/**
+ * API client for aisphere-hub.
+ *
+ * Talks DIRECTLY to the hub backend (no Next.js rewrites). The hub URL
+ * is configured via NEXT_PUBLIC_HUB_URL env var (defaults to
+ * http://127.0.0.1:18001 for local dev).
+ *
+ * Response format:
+ *
+ *   The hub returns protobuf JSON directly (no {code, message, data}
+ *   envelope). Field names are camelCase (proto3 JSON default). This
+ *   client returns the JSON body as-is; callers access fields by their
+ *   proto camelCase name (e.g. response.skills, response.nextPageToken).
+ *
+ * Auth:
+ *
+ *   Access token is stored in localStorage and sent as
+ *   `Authorization: Bearer <token>` on every request. On 401, the
+ *   client automatically calls /v1/authn/refresh once and retries the
+ *   original request. If refresh fails, tokens are cleared and the
+ *   user is redirected to login.
+ *
+ *   Public endpoints (/v1/authn/login, /v1/authn/exchange, etc.) do
+ *   not require a token — the hub's authn middleware skips them.
+ */
 
 const TOKEN_KEY = 'aihub_console_token';
 const REFRESH_KEY = 'aihub_console_refresh';
 const ID_TOKEN_KEY = 'aihub_console_id_token';
 const EXPIRES_KEY = 'aihub_console_expires';
+
+/** Hub base URL. Always ends without trailing slash. */
+export const HUB_URL: string = (
+  process.env.NEXT_PUBLIC_HUB_URL || 'http://127.0.0.1:18001'
+).replace(/\/+$/, '');
 
 /** Listeners fired when the session becomes invalid (401) or on explicit logout. */
 type AuthListener = (reason: 'expired' | 'logout' | 'manual') => void;
@@ -11,7 +40,9 @@ const authListeners = new Set<AuthListener>();
 
 export function onAuthEvent(listener: AuthListener): () => void {
   authListeners.add(listener);
-  return () => authListeners.delete(listener);
+  return () => {
+    authListeners.delete(listener);
+  };
 }
 
 function emitAuth(reason: 'expired' | 'logout' | 'manual') {
@@ -39,7 +70,11 @@ export function getIdToken(): string {
   return localStorage.getItem(ID_TOKEN_KEY) || '';
 }
 
-export function setTokens(accessToken: string, refreshToken?: string, opts?: { idToken?: string; expiresIn?: number }) {
+export function setTokens(
+  accessToken: string,
+  refreshToken?: string,
+  opts?: { idToken?: string; expiresIn?: number },
+) {
   if (typeof window === 'undefined') return;
   localStorage.setItem(TOKEN_KEY, accessToken);
   if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
@@ -85,10 +120,26 @@ export function setAccessSpace(id: string) {
 // ─── Refresh machinery ────────────────────────────────────────────────
 // Avoids parallel refresh storms when multiple API calls hit 401 at once.
 let refreshPromise: Promise<string> | null = null;
-let onManualRefresh: (() => Promise<{ accessToken: string; refreshToken?: string; idToken?: string; expiresIn?: number }>) | null = null;
+let onManualRefresh:
+  | (() => Promise<{
+      accessToken: string;
+      refreshToken?: string;
+      idToken?: string;
+      expiresIn?: number;
+    }>)
+  | null = null;
 
 /** Allows the auth module to register its refresh implementation. */
-export function registerRefreshFn(fn: (() => Promise<{ accessToken: string; refreshToken?: string; idToken?: string; expiresIn?: number }>) | null) {
+export function registerRefreshFn(
+  fn:
+    | (() => Promise<{
+        accessToken: string;
+        refreshToken?: string;
+        idToken?: string;
+        expiresIn?: number;
+      }>)
+    | null,
+) {
   onManualRefresh = fn;
 }
 
@@ -97,7 +148,10 @@ export function refreshAccessToken(): Promise<string> {
   if (!onManualRefresh) return Promise.reject(new Error('no refresh fn'));
   refreshPromise = onManualRefresh()
     .then((res) => {
-      setTokens(res.accessToken, res.refreshToken, { idToken: res.idToken, expiresIn: res.expiresIn });
+      setTokens(res.accessToken, res.refreshToken, {
+        idToken: res.idToken,
+        expiresIn: res.expiresIn,
+      });
       return res.accessToken;
     })
     .finally(() => {
@@ -106,7 +160,60 @@ export function refreshAccessToken(): Promise<string> {
   return refreshPromise;
 }
 
+/**
+ * Build a full URL for a hub API path.
+ *
+ *   apiUrl('/v1/skills')           → 'http://127.0.0.1:18001/v1/skills'
+ *   apiUrl('/v1/authn/login-url')  → 'http://127.0.0.1:18001/v1/authn/login-url'
+ *
+ * If `path` is already an absolute URL (http:// or https://), it is
+ * returned as-is. This lets callers pass browser-facing 302 URLs (e.g.
+ * the /v1/authn/login redirect) without double-prefixing.
+ */
+export function apiUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  if (!path.startsWith('/')) path = '/' + path;
+  return HUB_URL + path;
+}
+
+/**
+ * Browser-facing URL for the 302 login route. Returns the full URL so
+ * `window.location.href = authApi.login(...)` works cross-origin.
+ *
+ *   loginBrowserUrl('/auth/callback', 'state123')
+ *   → 'http://127.0.0.1:18001/v1/authn/login?redirect_uri=...&state=state123'
+ */
+export function loginBrowserUrl(redirectUri: string, state = ''): string {
+  const q = new URLSearchParams();
+  q.set('redirect_uri', redirectUri);
+  if (state) q.set('state', state);
+  return apiUrl(`/v1/authn/login?${q.toString()}`);
+}
+
+/**
+ * Browser-facing URL for the 302 logout route.
+ */
+export function logoutBrowserUrl(
+  postLogoutRedirectUri = '',
+  idTokenHint = '',
+  state = '',
+): string {
+  const q = new URLSearchParams();
+  if (postLogoutRedirectUri) q.set('post_logout_redirect_uri', postLogoutRedirectUri);
+  if (idTokenHint) q.set('id_token_hint', idTokenHint);
+  if (state) q.set('state', state);
+  return apiUrl(`/v1/authn/logout?${q.toString()}`);
+}
+
+/**
+ * Core request function. Sends a request to the hub, auto-refreshes on
+ * 401, and returns the JSON body (or blob for binary responses).
+ *
+ * `url` is a path relative to HUB_URL (e.g. '/v1/skills'). It may also
+ * be an absolute URL (rare; used for external callbacks).
+ */
 export async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
+  const fullUrl = apiUrl(url);
   const headers = new Headers(init.headers || []);
   const token = getToken();
   if (token) headers.set('Authorization', `Bearer ${token}`);
@@ -114,14 +221,15 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
     headers.set('Content-Type', 'application/json');
   }
 
-  let res = await fetch(url, { ...init, headers });
+  let res = await fetch(fullUrl, { ...init, headers });
 
   // Try one automatic refresh on 401 if we have a refresh token.
-  if (res.status === 401 && token && getRefreshToken() && !url.endsWith('/v3/auth/refresh')) {
+  // Skip the refresh endpoint itself to avoid infinite loops.
+  if (res.status === 401 && token && getRefreshToken() && !url.endsWith('/v1/authn/refresh')) {
     try {
       const newToken = await refreshAccessToken();
       headers.set('Authorization', `Bearer ${newToken}`);
-      res = await fetch(url, { ...init, headers });
+      res = await fetch(fullUrl, { ...init, headers });
     } catch {
       clearTokens('expired');
       throw new Error('session expired');
@@ -136,6 +244,9 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
     try {
       if (contentType.includes('json')) {
         const j = await res.json();
+        // New hub returns proto JSON errors with `message` and optional
+        // `code` fields. Old hub used {code, message} envelope. Support
+        // both for safety during migration.
         msg = j.message || j.error || msg;
       } else if (contentType.includes('text/html')) {
         // Don't try to parse HTML error responses - use status code
@@ -150,37 +261,30 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
     throw new Error(msg);
   }
 
+  // Binary responses (skill package download).
   if (contentType.includes('application/zip') || contentType.includes('octet-stream')) {
     return (await res.blob()) as T;
   }
 
-  if (!contentType.includes('json')) {
-    // Some backends / proxies don't set Content-Type: application/json.
-    // Try to parse as JSON first; if that fails, fall back to text.
+  // Empty body (e.g. DELETE returns Empty proto → empty JSON object).
+  if (contentType.includes('application/json') || contentType === '') {
     const text = await res.text();
-    if (text && (text.trim().startsWith('{') || text.trim().startsWith('['))) {
-      try {
-        const json = JSON.parse(text);
-        if (json && typeof json === 'object' && 'code' in json) {
-          if (json.code !== 0) throw new Error(json.message || 'request failed');
-          return json.data as T;
-        }
-        return (json.data ?? json) as T;
-      } catch {
-        // not valid JSON despite looking like it — return as text
-      }
+    if (!text) return {} as T;
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      return text as T;
     }
-    return text as T;
   }
 
-  const json = await res.json();
-  if (json && typeof json === 'object' && 'code' in json) {
-    if (json.code !== 0) throw new Error(json.message || 'request failed');
-    return json.data as T;
-  }
-  return (json.data ?? json) as T;
+  // Non-JSON text.
+  return (await res.text()) as T;
 }
 
+/**
+ * Build a URL query string from a params object. Skips undefined / null
+ * / empty-string values.
+ */
 export function toQuery(params: Record<string, unknown>): string {
   const q = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => {
@@ -189,6 +293,19 @@ export function toQuery(params: Record<string, unknown>): string {
   return q.toString();
 }
 
+/**
+ * Extract an items array from a list response.
+ *
+ * The hub's proto list responses use type-specific field names:
+ *   {skills: [...], nextPageToken: "..."}
+ *   {versions: [...]}
+ *   {files: [...]}
+ *   {shares: [...]}
+ *
+ * This helper tries each known field name and falls back to treating
+ * the response as a bare array. Kept for backward compat with hooks
+ * that were written against the old hub's variable response shapes.
+ */
 export function asItems<T>(page: unknown): T[] {
   if (!page) return [];
   const p = page as Record<string, unknown>;
@@ -198,6 +315,10 @@ export function asItems<T>(page: unknown): T[] {
     (p.versions as T[]) ||
     (p.files as T[]) ||
     (p.shares as T[]) ||
+    (p.records as T[]) ||
+    (p.relationships as T[]) ||
+    (p.resources as T[]) ||
+    (p.subjects as T[]) ||
     (p.pageItems as T[]) ||
     (p.list as T[]) ||
     (p.data as T[]) ||

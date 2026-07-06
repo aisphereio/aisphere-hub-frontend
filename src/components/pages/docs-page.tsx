@@ -80,39 +80,62 @@ export function DocsPage() {
         <CardHeader className="pb-2"><CardTitle className="text-sm">Key API Endpoints</CardTitle></CardHeader>
         <CardContent>
           <pre className="text-[11px] font-mono bg-muted/50 p-3 rounded-lg overflow-auto whitespace-pre-wrap">
-{`# Canonical SkillHub API
-GET  /v3/aihub/skills                    List skills
-POST /v3/aihub/skills                    Create canonical skill
-POST /v3/aihub/skills:upload             Upload skill ZIP
-GET  /v3/aihub/skills/:name              Get skill detail
-PUT  /v3/aihub/skills/:name              Update skill metadata
-DELETE /v3/aihub/skills/:name            Delete skill
-GET  /v3/aihub/skills/:name/versions     List versions
-POST /v3/aihub/skills/:name/versions/:version:submit        Submit version
-POST /v3/aihub/skills/:name/versions/:version:publish       Publish version
-POST /v3/aihub/skills/:name/versions/:version:force-publish Force publish
-POST /v3/aihub/skills/:name/versions/:version:online        Bring online
-POST /v3/aihub/skills/:name/versions/:version:offline       Take offline
-GET  /v3/aihub/skills/:name/versions/:version/download      Download ZIP
-GET  /v3/aihub/skills/:name/compare      Compare versions
-GET  /v3/aihub/catalog/skills/:name/manifest Runtime manifest
+{`# Canonical AIHub API (v1)
 
-# Governance
-GET  /v3/admin/ai/skill-proposals/list      List proposals
-POST /v3/admin/ai/skill-proposals/:id/validate  Validate
-POST /v3/admin/ai/skill-proposals/:id/approve   Approve
-POST /v3/admin/ai/skill-proposals/:id/reject    Reject
+# Skill CRUD
+GET  /v1/skills                            List skills
+POST /v1/skills                            Create canonical skill
+POST /v1/skills:upload                     Upload skill ZIP
+GET  /v1/skills/:name                      Get skill detail
+PUT  /v1/skills/:name                      Update skill metadata
+DELETE /v1/skills/:name                    Delete skill
 
-# Auth
-GET  /v3/auth/login                         Casdoor OAuth redirect
-POST /v3/auth/exchange                      Exchange OAuth code
-POST /v3/auth/refresh                       Refresh Casdoor token
-GET  /v3/auth/me                            Current principal
+# Skill Versions
+GET  /v1/skills/:name/versions             List versions
+GET  /v1/skills/:name/versions/:version    Get version detail
+POST /v1/skills/:name/versions/:version:submit   Submit version
+POST /v1/skills/:name/versions/:version:publish  Publish version
+POST /v1/skills/:name/versions/:version:online   Bring online
+POST /v1/skills/:name/versions/:version:offline  Take offline
+GET  /v1/skills/:name/versions/:version/download  Download ZIP
 
-# Runtime (Agent)
-GET  /v3/aihub/catalog/skills/:name         Online skill metadata
-GET  /v3/aihub/catalog/skills/:name/manifest Lightweight manifest
-GET  /v3/aihub/catalog/skills/:name/versions/:version/download  Package download`}
+# Skill Files
+GET  /v1/skills/:name/versions/:version/files   List files
+GET  /v1/skills/:name/versions/:version/file    Get file content
+
+# Skill Shares (authz relationships)
+GET    /v1/skills/:name/shares              List shares
+POST   /v1/skills/:name/shares              Grant viewer/editor relation
+DELETE /v1/skills/:name/shares/:subjectType/:subjectId  Revoke all relations
+
+# Authn (Casdoor OAuth)
+GET  /v1/authn/login                       Browser 302 → Casdoor login
+GET  /v1/authn/login-url                   JSON: Casdoor login URL
+POST /v1/authn/exchange                    Exchange OAuth code for tokens
+POST /v1/authn/refresh                     Refresh access token
+GET  /v1/authn/logout-url                  JSON: Casdoor logout URL
+GET  /v1/authn/logout                      Browser 302 → Casdoor logout
+GET  /v1/authn/me                          Current authenticated principal
+POST /v1/authn/revoke                      Revoke a token
+POST /v1/authn/introspect                  Verify a token (RFC 7662)
+
+# Authz (SpiceDB ReBAC + ABAC)
+POST /v1/authz/check                       Check permission
+POST /v1/authz/check:batch                 Batch check permissions
+POST /v1/authz/relationships               Write relationship tuples
+DELETE /v1/authz/relationships             Delete relationship tuples
+GET  /v1/authz/relationships               Read relationship tuples
+GET  /v1/authz/lookup-resources            Resources a subject can access
+GET  /v1/authz/lookup-subjects             Subjects that can access a resource
+GET  /v1/authz/schema                      Read SpiceDB schema
+PUT  /v1/authz/schema                      Write SpiceDB schema
+
+# Audit
+GET  /v1/audit/records                     Query audit log
+
+# Health
+GET  /healthz                              Liveness probe (always 200)
+GET  /readyz                               Readiness probe (checks DB + Cache + SpiceDB)`}
           </pre>
         </CardContent>
       </Card>

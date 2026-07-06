@@ -31,7 +31,6 @@ import {
   Columns2,
   AlertCircle,
   FilePlus,
-  FolderPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -100,7 +99,7 @@ import { FileTree, FileBreadcrumbs } from "./file-tree";
 import { CodeEditor } from "./code-editor";
 import { ResourceSharePanel } from "@/components/aihub";
 import { useT } from "@/lib/i18n";
-import type { Skill, SkillVersion, AccessMode } from "@/lib/api/types";
+import type { Skill, SkillVersion, AccessMode, SkillFileContent } from "@/lib/api/types";
 import { deriveAccessMode } from "@/lib/api/types";
 
 interface SkillEditorProps {
@@ -136,15 +135,8 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
   } = useSkillDetail(skillName);
   const { data: social } = useSkillSocial(skillName);
 
-  const activeVersion = useMemo(() => {
-    if (userVersionChoice) return userVersionChoice;
-    if (detail) return versionOf(detail);
-    return "";
-  }, [userVersionChoice, detail]);
-
   // When detail changes, prefer an editing/draft version if one exists.
-  // We compute the preferred version lazily and let the user's explicit
-  // choice override it; this avoids the setState-in-effect anti-pattern.
+  // The user's explicit choice still wins.
   const preferredDraftVersion = useMemo(() => {
     if (!detail || userVersionChoice) return null;
     return (
@@ -154,18 +146,22 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
     );
   }, [detail, userVersionChoice]);
 
-  const effectiveVersion = userVersionChoice || preferredDraftVersion?.version || activeVersion;
-  if (effectiveVersion !== activeVersion && preferredDraftVersion) {
-    // Defer to escape the render cycle.
-    Promise.resolve().then(() => setUserVersionChoice(preferredDraftVersion.version));
-  }
+  const activeVersion = useMemo(() => {
+    if (!detail) return userVersionChoice || "";
+    const versions = detail.versions || [];
+    if (userVersionChoice && versions.some((v) => v.version === userVersionChoice)) {
+      return userVersionChoice;
+    }
+    return preferredDraftVersion?.version || versionOf(detail);
+  }, [userVersionChoice, preferredDraftVersion, detail]);
 
-  // Is the current version editable (i.e. draft)?
-  const isVersionEditable = useMemo(() => {
-    if (!detail || !activeVersion) return false;
-    const v = (detail.versions || []).find((x) => x.version === activeVersion);
-    return v?.status === "draft" || v?.status === "submitted";
+  const activeVersionMeta = useMemo(() => {
+    if (!detail || !activeVersion) return null;
+    return (detail.versions || []).find((x) => x.version === activeVersion) || null;
   }, [detail, activeVersion]);
+  const activeVersionStatus = activeVersionMeta?.status || "";
+  const isOnlineVersion = activeVersionMeta?.status === "online";
+  const canEditInEditor = Boolean(activeVersion);
 
   // Files
   const { data: filesData, refetch: refetchFiles } = useSkillFiles(
@@ -203,8 +199,16 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
   const deleteFileMutation = useDeleteSkillFile();
   const renameFileMutation = useRenameSkillFile();
   const ensureDraftMutation = useEnsureDraftVersion();
+  const versionActionPending =
+    submitMutation.isPending ||
+    publishMutation.isPending ||
+    onlineMutation.isPending ||
+    offlineMutation.isPending ||
+    ensureDraftMutation.isPending;
 
-  const { data: sharesData } = useResourceShares("skill", skillName);
+  const { data: sharesData } = useResourceShares("skill", skillName, {
+    enabled: showRightPanel && rightTab === "shares",
+  });
   const skillAccessMode: AccessMode =
     sharesData?.accessMode ?? deriveAccessMode(sharesData?.items || []);
 
@@ -267,11 +271,11 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
     [activeTab],
   );
 
-  // Ensure a draft version exists for editing. Called when the user
-  // attempts to edit a non-draft version, or clicks "Create draft to edit".
+  // Ensure a draft version exists when the user edits the online runtime
+  // artifact. Non-online versions are writable directly.
   const ensureDraft = useCallback(async (): Promise<string | null> => {
     if (!detail) return null;
-    if (isVersionEditable) return activeVersion;
+    if (!isOnlineVersion) return activeVersion;
     try {
       toast.info(t("editor.draftNeeded"));
       const res = await ensureDraftMutation.mutateAsync({
@@ -290,7 +294,7 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
       );
       return null;
     }
-  }, [detail, isVersionEditable, activeVersion, ensureDraftMutation, refetchDetail, t]);
+  }, [detail, isOnlineVersion, activeVersion, ensureDraftMutation, refetchDetail, t]);
 
   // Save a single file.
   const saveFile = useCallback(
@@ -300,7 +304,7 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
       if (content === undefined) return;
 
       let version = activeVersion;
-      if (!isVersionEditable) {
+      if (isOnlineVersion) {
         const draftVersion = await ensureDraft();
         if (!draftVersion) return;
         version = draftVersion;
@@ -330,14 +334,14 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
         );
       }
     },
-    [detail, activeVersion, isVersionEditable, dirtyMap, ensureDraft, saveFileMutation, queryClient, refetchFiles, t],
+    [detail, activeVersion, isOnlineVersion, dirtyMap, ensureDraft, saveFileMutation, queryClient, refetchFiles, t],
   );
 
   // Save all dirty files.
   const saveAll = useCallback(async () => {
     if (!detail || !activeVersion) return;
     let version = activeVersion;
-    if (!isVersionEditable) {
+    if (isOnlineVersion) {
       const draftVersion = await ensureDraft();
       if (!draftVersion) return;
       version = draftVersion;
@@ -377,14 +381,14 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
       toast.error(`Failed to save ${failCount} file(s)`);
     }
     refetchFiles();
-  }, [detail, activeVersion, isVersionEditable, dirtyMap, getSavedContent, ensureDraft, saveFileMutation, queryClient, refetchFiles]);
+  }, [detail, activeVersion, isOnlineVersion, dirtyMap, getSavedContent, ensureDraft, saveFileMutation, queryClient, refetchFiles]);
 
   // Create a new file or folder inside the draft version.
   const handleCreateFile = useCallback(
     async (parentDir: string, name: string, type: "file" | "dir") => {
       if (!detail || !activeVersion) return;
       let version = activeVersion;
-      if (!isVersionEditable) {
+      if (isOnlineVersion) {
         const draftVersion = await ensureDraft();
         if (!draftVersion) return;
         version = draftVersion;
@@ -398,23 +402,29 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
           type,
         });
         toast.success(t("editor.fileCreated"));
-        refetchFiles();
+        await refetchFiles();
         if (type === "file") openFile(path);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Failed to create");
       }
     },
-    [detail, activeVersion, isVersionEditable, ensureDraft, createFileMutation, refetchFiles, openFile, t],
+    [detail, activeVersion, isOnlineVersion, ensureDraft, createFileMutation, refetchFiles, openFile, t],
   );
 
   // Delete a file or directory.
   const handleDeleteNode = useCallback(
     async (path: string) => {
       if (!detail || !activeVersion) return;
+      let version = activeVersion;
+      if (isOnlineVersion) {
+        const draftVersion = await ensureDraft();
+        if (!draftVersion) return;
+        version = draftVersion;
+      }
       try {
         await deleteFileMutation.mutateAsync({
           skillName: detail.name,
-          version: activeVersion,
+          version,
           path,
         });
         toast.success(t("editor.fileDeleted"));
@@ -425,17 +435,23 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
         toast.error(e instanceof Error ? e.message : "Failed to delete");
       }
     },
-    [detail, activeVersion, deleteFileMutation, refetchFiles, openTabs, closeTab, t],
+    [detail, activeVersion, isOnlineVersion, ensureDraft, deleteFileMutation, refetchFiles, openTabs, closeTab, t],
   );
 
   // Rename / move a file or directory.
   const handleRenameNode = useCallback(
     async (oldPath: string, newPath: string) => {
       if (!detail || !activeVersion) return;
+      let version = activeVersion;
+      if (isOnlineVersion) {
+        const draftVersion = await ensureDraft();
+        if (!draftVersion) return;
+        version = draftVersion;
+      }
       try {
         await renameFileMutation.mutateAsync({
           skillName: detail.name,
-          version: activeVersion,
+          version,
           oldPath,
           newPath,
         });
@@ -450,7 +466,7 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
         toast.error(e instanceof Error ? e.message : "Failed to rename");
       }
     },
-    [detail, activeVersion, renameFileMutation, refetchFiles, openTabs, activeTab, t],
+    [detail, activeVersion, isOnlineVersion, ensureDraft, renameFileMutation, refetchFiles, openTabs, activeTab, t],
   );
 
   const doVersionAction = async (action: string, version: string) => {
@@ -471,6 +487,15 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
         case "online":
           await onlineMutation.mutateAsync({ skillName: detail.name, version });
           toast.success(t("editor.broughtOnline"));
+          try {
+            const draft = await ensureDraftMutation.mutateAsync({
+              skillName: detail.name,
+              baseVersion: version,
+            });
+            setUserVersionChoice(draft.version);
+          } catch {
+            toast.info(t("editor.draftNeeded"));
+          }
           break;
         case "offline":
           await offlineMutation.mutateAsync({
@@ -480,9 +505,24 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
           toast.success(t("editor.takenOffline"));
           break;
       }
-      refetchDetail();
+      await refetchDetail();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : t("skills.actionFailed"));
+    }
+  };
+
+  const versionActionsFor = (v: SkillVersion) => {
+    switch (v.status) {
+      case "draft":
+        return [{ action: "submit", label: t("editor.submit"), icon: Send }];
+      case "submitted":
+        return [{ action: "publish", label: t("editor.publish"), icon: CheckCircle2 }];
+      case "published":
+        return [{ action: "online", label: t("editor.bringOnline"), icon: Play }];
+      case "online":
+        return [{ action: "offline", label: t("editor.takeOffline"), icon: Pause }];
+      default:
+        return [];
     }
   };
 
@@ -713,6 +753,11 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
               ))}
             </SelectContent>
           </Select>
+          {activeVersionStatus && (
+            <Badge variant="secondary" className={`text-[9px] px-1.5 h-4 ${getStatusColor(activeVersionStatus)}`}>
+              {activeVersionStatus}
+            </Badge>
+          )}
         </div>
 
         <Separator orientation="vertical" className="h-5" />
@@ -769,30 +814,43 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem
-                onClick={() => doVersionAction("online", activeVersion)}
-              >
-                <Play className="h-3.5 w-3.5 mr-2" /> {t("editor.bringOnline")}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => doVersionAction("offline", activeVersion)}
-              >
-                <Pause className="h-3.5 w-3.5 mr-2" /> {t("editor.takeOffline")}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => doVersionAction("submit", activeVersion)}
-              >
-                <Send className="h-3.5 w-3.5 mr-2" />{" "}
-                {t("editor.submitForReview")}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => doVersionAction("publish", activeVersion)}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5 mr-2" />{" "}
-                {t("editor.publishVersion")}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
+              {activeVersionStatus === "draft" && (
+                <DropdownMenuItem
+                  disabled={versionActionPending}
+                  onClick={() => doVersionAction("submit", activeVersion)}
+                >
+                  <Send className="h-3.5 w-3.5 mr-2" />{" "}
+                  {t("editor.submitForReview")}
+                </DropdownMenuItem>
+              )}
+              {activeVersionStatus === "submitted" && (
+                <DropdownMenuItem
+                  disabled={versionActionPending}
+                  onClick={() => doVersionAction("publish", activeVersion)}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 mr-2" />{" "}
+                  {t("editor.publishVersion")}
+                </DropdownMenuItem>
+              )}
+              {activeVersionStatus === "published" && (
+                <DropdownMenuItem
+                  disabled={versionActionPending}
+                  onClick={() => doVersionAction("online", activeVersion)}
+                >
+                  <Play className="h-3.5 w-3.5 mr-2" /> {t("editor.bringOnline")}
+                </DropdownMenuItem>
+              )}
+              {activeVersionStatus === "online" && (
+                <DropdownMenuItem
+                  disabled={versionActionPending}
+                  onClick={() => doVersionAction("offline", activeVersion)}
+                >
+                  <Pause className="h-3.5 w-3.5 mr-2" /> {t("editor.takeOffline")}
+                </DropdownMenuItem>
+              )}
+              {["draft", "submitted", "published", "online"].includes(activeVersionStatus) && (
+                <DropdownMenuSeparator />
+              )}
               <DropdownMenuItem onClick={() => downloadZip(activeVersion)}>
                 <Download className="h-3.5 w-3.5 mr-2" />{" "}
                 {t("editor.downloadZip")}
@@ -823,8 +881,8 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
         </div>
       </header>
 
-      {/* Not-editable banner */}
-      {!isVersionEditable && activeVersion && (
+      {/* Online runtime versions are copied before editing. */}
+      {isOnlineVersion && activeVersion && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-500/20 text-amber-800 dark:text-amber-200 text-xs">
           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
           <span className="flex-1">{t("editor.cannotEditPublished")}</span>
@@ -863,13 +921,6 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
                 </span>
               </div>
               <div className="flex items-center gap-1">
-                {isVersionEditable && (
-                  <FileTreeCreateDropdown
-                    onCreate={(type) =>
-                      handleCreateFile("", type === "dir" ? "new-folder" : "SKILL.md", type)
-                    }
-                  />
-                )}
                 <span className="text-[10px] text-muted-foreground tabular-nums">
                   {files.length} {t("editor.files")}
                 </span>
@@ -884,7 +935,7 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
                   defaultExpanded={tree
                     .filter((n) => n.type === "dir")
                     .map((n) => n.path)}
-                  editable={isVersionEditable}
+                  editable={canEditInEditor}
                   onCreateFile={handleCreateFile}
                   onDeleteNode={handleDeleteNode}
                   onRenameNode={handleRenameNode}
@@ -966,7 +1017,7 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
                         </span>
                       )}
                       <span>{editorValue.length} {t("editor.chars")}</span>
-                      {isVersionEditable && !isBinary && (
+                      {!isBinary && (
                         <Button
                           size="sm"
                           variant={isCurrentDirty ? "default" : "ghost"}
@@ -1022,14 +1073,14 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
                   key={activeTab}
                   value={editorValue}
                   onChange={handleEditorChange}
-                  readOnly={!isVersionEditable}
+                  readOnly={!canEditInEditor}
                 />
               ) : (
                 <CodeEditor
                   value={editorValue}
                   onChange={handleEditorChange}
                   path={activeTab}
-                  readOnly={!isVersionEditable}
+                  readOnly={!canEditInEditor}
                   className="h-full"
                 />
               )}
@@ -1262,12 +1313,21 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
                       </div>
                       {(detail.versions || []).map((v: SkillVersion) => {
                         const isActive = v.version === activeVersion;
+                        const actions = versionActionsFor(v);
                         return (
-                          <button
+                          <div
                             key={v.version}
+                            role="button"
+                            tabIndex={0}
                             onClick={() => setUserVersionChoice(v.version)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                setUserVersionChoice(v.version);
+                              }
+                            }}
                             className={cn(
-                              "w-full text-left rounded-md border p-2.5 transition-all hover:shadow-sm",
+                              "w-full cursor-pointer text-left rounded-md border p-2.5 transition-all hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                               isActive
                                 ? "border-violet-500/40 bg-violet-500/5"
                                 : "border-border/60 hover:border-border",
@@ -1311,33 +1371,27 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
                                   <span>· {v.downloadCount} downloads</span>
                                 )}
                             </div>
-                            <div className="flex items-center gap-1 mt-2">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-5 px-1.5 text-[10px]"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  doVersionAction("submit", v.version);
-                                }}
-                              >
-                                <Send className="h-2.5 w-2.5 mr-0.5" />
-                                {t("editor.submit")}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-5 px-1.5 text-[10px]"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  doVersionAction("publish", v.version);
-                                }}
-                              >
-                                <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />
-                                {t("editor.publish")}
-                              </Button>
-                            </div>
-                          </button>
+                            {actions.length > 0 && (
+                              <div className="flex items-center gap-1 mt-2">
+                                {actions.map(({ action, label, icon: Icon }) => (
+                                  <Button
+                                    key={action}
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-5 px-1.5 text-[10px]"
+                                    disabled={versionActionPending}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      doVersionAction(action, v.version);
+                                    }}
+                                  >
+                                    <Icon className="h-2.5 w-2.5 mr-0.5" />
+                                    {label}
+                                  </Button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                     </TabsContent>
@@ -1434,31 +1488,6 @@ GET /v3/aihub/catalog/skills/${detail.name}/versions/${activeVersion || "1.0.0"}
 }
 
 // ─── Helper: dropdown for creating new top-level files ─────────────
-function FileTreeCreateDropdown({
-  onCreate,
-}: {
-  onCreate: (type: "file" | "dir") => void;
-}) {
-  const t = useT();
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-5 w-5" title={t("editor.newFile")}>
-          <FilePlus className="h-3 w-3" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40">
-        <DropdownMenuItem onClick={() => onCreate("file")}>
-          <FilePlus className="h-3 w-3 mr-2" /> {t("editor.newFile")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onCreate("dir")}>
-          <FolderPlus className="h-3 w-3 mr-2" /> {t("editor.newFolder")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
 // ─── Child: SettingsTab ────────────────────────────────────────────
 // Holds its own form state initialized from `detail` on mount.
 interface SettingsTabProps {

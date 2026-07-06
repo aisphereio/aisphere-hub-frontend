@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback } from 'react';
 import {
   ChevronRight, ChevronDown, Folder, FolderOpen,
   FileText, FileCode, FileJson, FileCog, FileImage, File, FileType2,
-  Plus, Trash2, Pencil, FolderPlus, FilePlus,
+  Plus, Trash2, Pencil, FolderPlus, FilePlus, Check, X,
 } from 'lucide-react';
 import { cn, fmtSize, type TreeNode } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -386,6 +386,9 @@ export function FileTree({
   onRenameNode,
 }: FileTreeProps) {
   const t = useT();
+  const [rootCreating, setRootCreating] = useState<null | 'file' | 'dir'>(null);
+  const [rootName, setRootName] = useState('');
+  const [rootSubmitting, setRootSubmitting] = useState(false);
   // Compute initial expanded set: defaultExpanded + all folder paths with selected descendant
   const initialExpanded = useMemo(() => {
     const set = new Set<string>(defaultExpanded);
@@ -427,27 +430,107 @@ export function FileTree({
     });
   }, []);
 
+  const submitRootCreate = async () => {
+    const trimmed = rootName.trim();
+    if (!trimmed || !rootCreating || !onCreateFile || rootSubmitting) return;
+    setRootSubmitting(true);
+    try {
+      await onCreateFile('', trimmed, rootCreating);
+      setRootCreating(null);
+      setRootName('');
+    } catch {
+      /* error handled by caller */
+    } finally {
+      setRootSubmitting(false);
+    }
+  };
+
+  const cancelRootCreate = () => {
+    if (rootSubmitting) return;
+    setRootCreating(null);
+    setRootName('');
+  };
+
+  const rootCreateControls = editable && onCreateFile && (
+    <div className="px-1 py-1">
+      {rootCreating ? (
+        <div className="flex items-center gap-1 rounded-md border border-border bg-background px-1.5 py-1 shadow-sm">
+          {rootCreating === 'dir' ? (
+            <Folder className="h-3.5 w-3.5 text-violet-500/80 shrink-0" />
+          ) : (
+            <File className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          )}
+          <Input
+            autoFocus
+            disabled={rootSubmitting}
+            value={rootName}
+            onChange={(e) => setRootName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitRootCreate();
+              if (e.key === 'Escape') cancelRootCreate();
+            }}
+            placeholder={rootCreating === 'dir' ? t('editor.folderName') : t('editor.fileName')}
+            className="h-7 text-xs flex-1"
+          />
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7 text-emerald-600"
+            disabled={!rootName.trim() || rootSubmitting}
+            onClick={submitRootCreate}
+            title={t('common.confirm')}
+          >
+            <Check className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            disabled={rootSubmitting}
+            onClick={cancelRootCreate}
+            title={t('common.cancel')}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-[11px] gap-1"
+            onClick={() => setRootCreating('file')}
+          >
+            <FilePlus className="h-3 w-3" /> {t('editor.newFile')}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-[11px] gap-1"
+            onClick={() => setRootCreating('dir')}
+          >
+            <FolderPlus className="h-3 w-3" /> {t('editor.newFolder')}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+
   if (nodes.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-10 text-center px-4 gap-2">
         <Folder className="h-8 w-8 text-muted-foreground/50 mb-1" />
         <p className="text-xs text-muted-foreground">No files in this version</p>
-        {editable && onCreateFile && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-6 text-[11px]"
-            onClick={() => onCreateFile('', 'SKILL.md', 'file')}
-          >
-            <FilePlus className="h-3 w-3 mr-1" /> {t('editor.newFile')}
-          </Button>
-        )}
+        <div className="w-full max-w-[220px]">{rootCreateControls}</div>
       </div>
     );
   }
 
   return (
     <div className="py-1">
+      {rootCreateControls}
       {nodes.map((n) => (
         <TreeRow
           key={n.path}

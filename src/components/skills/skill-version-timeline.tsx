@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { SkillVersion } from '@/lib/api/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Eye, Send, CheckCircle2, Play, Pause, Download, RotateCcw, Zap } from 'lucide-react';
+import { Eye, Send, CheckCircle2, Play, Pause, Download } from 'lucide-react';
 import { fmtRelativeTime } from '@/lib/utils';
 import { getStatusColor } from '@/lib/utils';
 import { skillApi } from '@/lib/api';
@@ -71,14 +71,6 @@ export function SkillVersionTimeline({ versions, skillName, onViewFiles, onActio
               </Button>
               <Button variant="outline" size="sm" className="h-7 text-[11px] text-amber-600" onClick={() => onAction('offline', v.version)}>
                 <Pause className="h-3 w-3 mr-1" /> Offline
-              </Button>
-              {v.status === 'draft' && (
-                <Button variant="outline" size="sm" className="h-7 text-[11px] text-violet-600" onClick={() => onAction('redraft', v.version)}>
-                  <RotateCcw className="h-3 w-3 mr-1" /> Redraft
-                </Button>
-              )}
-              <Button variant="outline" size="sm" className="h-7 text-[11px] text-orange-600" onClick={() => onAction('forcePublish', v.version)}>
-                <Zap className="h-3 w-3 mr-1" /> Force Publish
               </Button>
               <Button variant="outline" size="sm" className="h-7 text-[11px]" onClick={() => downloadVersion(v.version)}>
                 <Download className="h-3 w-3 mr-1" /> Download

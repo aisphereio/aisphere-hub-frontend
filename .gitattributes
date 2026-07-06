@@ -1,0 +1,39 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Source code
+*.ts text diff=typescript
+*.tsx text diff=typescript
+*.js text diff=javascript
+*.jsx text diff=javascript
+*.css text diff=css
+*.json text
+*.md text diff=markdown
+*.yaml text
+*.yml text
+*.mjs text
+*.mts text
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+*.woff binary
+*.woff2 binary
+*.eot binary
+*.ttf binary
+
+# Config files
+*.env.example text
+.eslintrc* text
+.prettierrc* text
+.gitignore text
+.gitattributes text
+
+# Ensure consistent line endings
+*.sh text eol=lf
+*.bash text eol=lf
+*.ps1 text eol=crlf

@@ -20,6 +20,7 @@ function sharesKey(resourceType: AihubResourceType, resourceId: string) {
 export function useResourceShares(
   resourceType: AihubResourceType,
   resourceId: string | null,
+  options: { enabled?: boolean } = {},
 ) {
   return useQuery({
     queryKey: sharesKey(resourceType, resourceId || ''),
@@ -41,7 +42,7 @@ export function useResourceShares(
       };
       return result;
     },
-    enabled: Boolean(resourceId),
+    enabled: Boolean(resourceId) && (options.enabled ?? true),
     staleTime: 15_000,
   });
 }
@@ -61,6 +62,10 @@ export function useCreateShare() {
     }) => sharesApi.create(resourceType, resourceId, body),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: sharesKey(vars.resourceType, vars.resourceId) });
+      if (vars.resourceType === 'skill') {
+        queryClient.invalidateQueries({ queryKey: ['skills', 'detail', vars.resourceId] });
+        queryClient.invalidateQueries({ queryKey: ['skills', 'list'] });
+      }
     },
   });
 }
@@ -80,6 +85,10 @@ export function useDeleteShare() {
     }) => sharesApi.remove(resourceType, resourceId, grantId),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: sharesKey(vars.resourceType, vars.resourceId) });
+      if (vars.resourceType === 'skill') {
+        queryClient.invalidateQueries({ queryKey: ['skills', 'detail', vars.resourceId] });
+        queryClient.invalidateQueries({ queryKey: ['skills', 'list'] });
+      }
     },
   });
 }
@@ -112,6 +121,10 @@ export function useSetPrivate() {
     },
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: sharesKey(vars.resourceType, vars.resourceId) });
+      if (vars.resourceType === 'skill') {
+        queryClient.invalidateQueries({ queryKey: ['skills', 'detail', vars.resourceId] });
+        queryClient.invalidateQueries({ queryKey: ['skills', 'list'] });
+      }
     },
   });
 }

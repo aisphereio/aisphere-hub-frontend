@@ -43,7 +43,7 @@ export type TreeNode = {
   children: TreeNode[];
 };
 
-export function buildTree(files: { path: string; name: string; size?: number; binary?: boolean }[]): TreeNode[] {
+export function buildTree(files: { path: string; name: string; type?: string; size?: number; binary?: boolean }[]): TreeNode[] {
   const root: TreeNode[] = [];
   const ensure = (list: TreeNode[], name: string, path: string, type: 'dir' | 'file') => {
     let node = list.find((x) => x.name === name && x.type === type);
@@ -59,7 +59,8 @@ export function buildTree(files: { path: string; name: string; size?: number; bi
     let acc = '';
     parts.forEach((p, i) => {
       acc = acc ? `${acc}/${p}` : p;
-      const isFile = i === parts.length - 1;
+      const isLeaf = i === parts.length - 1;
+      const isFile = isLeaf && f.type !== 'dir';
       const n = ensure(list, p, acc, isFile ? 'file' : 'dir');
       if (isFile) {
         n.size = f.size;

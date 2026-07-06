@@ -8,12 +8,11 @@ import { Topbar } from './topbar';
 import { authApi } from '@/lib/api';
 import { getToken, getAccessSpace, onAuthEvent } from '@/lib/api/client';
 import { useMe, useLogout } from '@/hooks/use-auth';
-import { useNotifications } from '@/hooks/use-ops';
 import { LoginPage } from '@/components/auth/login-page';
 import { SkillEditor } from '@/components/editor/skill-editor';
 import { UserPanelSheet } from '@/components/layout/user-panel-sheet';
 import { useT } from '@/lib/i18n';
-import type { Tab, Notification } from '@/lib/api/types';
+import type { Tab } from '@/lib/api/types';
 
 interface AppShellProps {
   children: (tab: Tab) => React.ReactNode;
@@ -21,10 +20,7 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   const t = useT();
-  const [authed, setAuthed] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return Boolean(getToken());
-  });
+  const [authed, setAuthed] = useState<boolean | null>(null);
   const [tab, setTab] = useState<Tab>('skills');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -32,12 +28,16 @@ export function AppShell({ children }: AppShellProps) {
   const [userPanelOpen, setUserPanelOpen] = useState(false);
   const accessSpaceId = getAccessSpace();
 
+  // Defer auth check to client to avoid SSR/CSR hydration mismatch.
+  useEffect(() => {
+    queueMicrotask(() => setAuthed(Boolean(getToken())));
+  }, []);
+
   // useMe is enabled only when authed so the principal is fetched lazily after login.
   const { data: principal } = useMe();
   const logout = useLogout();
 
-  const { data: notificationsData } = useNotifications({ pageNo: 1, pageSize: 30 });
-  const unreadNotifications = (notificationsData || []).filter((n: Notification) => !n.read).length;
+  const unreadNotifications = 0;
 
   // Listen for forced-logout events (401, refresh failure) so the UI flips back to LoginPage.
   useEffect(() => {
@@ -88,6 +88,10 @@ export function AppShell({ children }: AppShellProps) {
     setTab(nextTab);
   }, []);
 
+  if (authed === null) {
+    return <div className="flex items-center justify-center min-h-screen bg-background" />;
+  }
+
   if (!authed) {
     return <LoginPage />;
   }
@@ -113,6 +117,7 @@ export function AppShell({ children }: AppShellProps) {
             unreadNotifications={unreadNotifications}
             editorMode={Boolean(editingSkill)}
             onExitEditor={closeSkillEditor}
+            onNavigate={handleTabChange}
           />
 
           <main className="flex-1 overflow-hidden">

@@ -5,6 +5,8 @@ import { auditApi, tokenApi, metricsApi, notificationApi } from '@/lib/api';
 import { asItems } from '@/lib/api/client';
 import type { AuditLog, TokenInfo, MetricsSnapshot, Notification } from '@/lib/api/types';
 
+const NOTIFICATIONS_ENABLED = process.env.NEXT_PUBLIC_ENABLE_NOTIFICATIONS === 'true';
+
 export function useAuditLogs(params: Record<string, unknown> = {}) {
   return useQuery({
     queryKey: ['ops', 'audit', params],
@@ -55,13 +57,19 @@ export function useTokenDelete() {
   });
 }
 
-export function useNotifications(params: Record<string, unknown> = {}) {
+export function useNotifications(
+  params: Record<string, unknown> = {},
+  options: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: ['ops', 'notifications', params],
     queryFn: async () => {
       const data = await notificationApi.list(params);
       return asItems<Notification>(data);
     },
+    enabled: NOTIFICATIONS_ENABLED && (options.enabled ?? true),
+    placeholderData: [],
+    retry: false,
     staleTime: 10_000,
   });
 }

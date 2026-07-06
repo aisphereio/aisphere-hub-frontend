@@ -17,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import ReactMarkdown from 'react-markdown';
 import { getScopeColor, getStatusColor, versionOf, buildTree } from '@/lib/utils';
@@ -37,10 +36,7 @@ import {
   useSkillSubmit,
   useSkillOnline,
   useSkillOffline,
-  useSkillForcePublish,
-  useSkillRedraft,
   useSkillBizTags,
-  useSkillScope,
   useSocialStar,
   useSocialRating,
   useSocialSubscribe,
@@ -59,7 +55,6 @@ export function SkillDetailSheet({ skill, open, onOpenChange }: SkillDetailSheet
   const [activeVersion, setActiveVersion] = useState('');
   const [labelsText, setLabelsText] = useState('{}');
   const [bizTagsText, setBizTagsText] = useState('');
-  const [scopeValue, setScopeValue] = useState('public');
   const [compareBase, setCompareBase] = useState('');
   const [compareTarget, setCompareTarget] = useState('');
   const [filePath, setFilePath] = useState('');
@@ -80,10 +75,7 @@ export function SkillDetailSheet({ skill, open, onOpenChange }: SkillDetailSheet
   const submitMutation = useSkillSubmit();
   const onlineMutation = useSkillOnline();
   const offlineMutation = useSkillOffline();
-  const forcePublishMutation = useSkillForcePublish();
-  const redraftMutation = useSkillRedraft();
   const bizTagsMutation = useSkillBizTags();
-  const scopeMutation = useSkillScope();
   const starMutation = useSocialStar();
   const ratingMutation = useSocialRating();
   const subscribeMutation = useSocialSubscribe();
@@ -103,7 +95,6 @@ export function SkillDetailSheet({ skill, open, onOpenChange }: SkillDetailSheet
     if (!detail) return '';
     return detail.versions?.[1]?.version || detail.versions?.[0]?.version || computedVersion;
   }, [detail, computedVersion]);
-  const computedScopeValue = detail?.scope || 'public';
   const computedBizTagsText = useMemo(() => {
     if (!detail) return '';
     return Array.isArray(detail.bizTags) ? detail.bizTags.join(', ') : (detail.bizTags || '');
@@ -147,18 +138,6 @@ export function SkillDetailSheet({ skill, open, onOpenChange }: SkillDetailSheet
     }
   };
 
-  const saveScope = async (newScope: string) => {
-    if (!detail) return;
-    try {
-      await scopeMutation.mutateAsync({ skillName: detail.name, scope: newScope });
-      setScopeValue(newScope);
-      toast.success('Scope updated');
-      refetchDetail();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update scope');
-    }
-  };
-
   const handleDelete = async () => {
     if (!detail) return;
     try {
@@ -190,14 +169,6 @@ export function SkillDetailSheet({ skill, open, onOpenChange }: SkillDetailSheet
         case 'offline':
           await offlineMutation.mutateAsync({ skillName: detail.name, version });
           toast.success('Skill taken offline');
-          break;
-        case 'forcePublish':
-          await forcePublishMutation.mutateAsync({ skillName: detail.name, version });
-          toast.success('Version force-published');
-          break;
-        case 'redraft':
-          await redraftMutation.mutateAsync({ skillName: detail.name, version });
-          toast.success('Version redrafted');
           break;
       }
       refetchDetail();
@@ -318,18 +289,13 @@ export function SkillDetailSheet({ skill, open, onOpenChange }: SkillDetailSheet
 
                     <Separator />
 
-                    {/* Scope editor */}
+                    {/* Visibility is currently read-only in the hub UpdateSkill API. */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium">Scope</Label>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">Private</span>
-                          <Switch
-                            checked={scopeValue === 'public'}
-                            onCheckedChange={(checked) => saveScope(checked ? 'public' : 'private')}
-                          />
-                          <span className="text-xs text-muted-foreground">Public</span>
-                        </div>
+                        <Badge variant="outline" className={`text-[10px] ${getScopeColor(detail.scope)}`}>
+                          {detail.scope || 'private'}
+                        </Badge>
                       </div>
                     </div>
 

@@ -1,4 +1,37 @@
-﻿import { request, toQuery } from "./client";
+/**
+ * AIHub Frontend API layer.
+ *
+ * Talks DIRECTLY to the hub backend (no Next.js rewrites). All URLs are
+ * relative to HUB_URL (see client.ts); the request() function prepends
+ * HUB_URL automatically.
+ *
+ * Module migration status (v3 → v1):
+ *
+ *   ✅ authApi     → /v1/authn/*   (migrated)
+ *   ✅ authzApi    → /v1/authz/*    (new, ReBAC via SpiceDB)
+ *   ✅ skillApi    → /v1/skills/*   (migrated)
+ *   ✅ sharesApi   → /v1/skills/{name}/shares  (migrated, skill-only)
+ *   ✅ auditApi    → /v1/audit/records  (migrated)
+ *   ⚠️ accessApi   → /v1/authz/*    (legacy endpoints, will 404 until UI is rebuilt)
+ *   ⏳ skillSetApi → /v3/aihub/skillsets/*  (awaiting backend migration)
+ *   ⏳ agentApi    → /v3/aihub/agents/*     (awaiting backend migration)
+ *   ⏳ sandboxApi  → /v3/aihub/runtime/sandboxes/*  (awaiting backend migration)
+ *   ⏳ toolApi     → /v3/aihub/tools/*      (awaiting backend migration)
+ *   ⏳ proposalApi → /v3/admin/ai/skill-proposals/*  (awaiting backend migration)
+ *   ⏳ iamApi      → /v3/admin/iam/*        (awaiting backend migration)
+ *   ⏳ namespaceApi→ /v3/admin/namespaces/* (awaiting backend migration)
+ *   ⏳ socialApi   → /v3/admin/ai/skills/social/*  (awaiting backend migration)
+ *   ⏳ tokenApi    → /v3/admin/iam/tokens/* (awaiting backend migration)
+ *   ⏳ metricsApi  → /v3/admin/metrics      (awaiting backend migration)
+ *   ⏳ notificationApi → /v3/admin/notifications/*  (awaiting backend migration)
+ *   ⏳ sandboxProfileApi → /v3/aihub/sandbox-profiles/*  (awaiting backend migration)
+ *   ⏳ modelProfileApi → /v3/aihub/model-profiles/*  (awaiting backend migration)
+ *
+ * The ⏳ modules will 404 against the new hub until their backends are
+ * migrated. The frontend code structure is correct; only the path prefix
+ * needs updating when each backend module lands.
+ */
+import { request, toQuery, loginBrowserUrl, logoutBrowserUrl, HUB_URL, getToken } from "./client";
 import { deriveAccessMode } from "./types";
 import type {
   Page,
@@ -24,13 +57,13 @@ import type {
   LocalUser,
   SkillFileList,
   SkillFileContent,
+  SkillVersion,
   SkillVersionCompare,
   SkillPackageDownload,
   SkillSocialStats,
   AuditLog,
   TokenInfo,
   MetricsSnapshot,
-  Notification,
   NamespaceInfo,
   NamespaceMember,
   SkillDraft,
@@ -46,6 +79,24 @@ import type {
   CreateShareRequest,
   ShareListResponse,
   AihubResourceType,
+  IamPrincipal,
+  IamUser,
+  IamOrganization,
+  IamGroup,
+  IamCpOrganization,
+  IamProject,
+  IamCapability,
+  IamProjectCapability,
+  IamResourceType,
+  IamResourceRef,
+  IamResource,
+  IamResourceBinding,
+  IamRoleTemplate,
+  IamGrant,
+  IamSubjectRef,
+  IamRelationship,
+  IamCheckPermissionRequest,
+  IamCheckPermissionResponse,
 } from "./types";
 
 async function fileToBase64(file: File): Promise<string> {
@@ -104,6 +155,16 @@ function stringRecord(value: unknown): Record<string, string> | undefined {
     if (v !== undefined && v !== null) out[k] = String(v);
   }
   return Object.keys(out).length ? out : undefined;
+}
+
+function contentTypeForPath(path: string): string {
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".md") || lower.endsWith(".markdown")) return "text/markdown; charset=utf-8";
+  if (lower.endsWith(".json")) return "application/json; charset=utf-8";
+  if (lower.endsWith(".yaml") || lower.endsWith(".yml")) return "application/yaml; charset=utf-8";
+  if (lower.endsWith(".py")) return "text/x-python; charset=utf-8";
+  if (lower.endsWith(".js") || lower.endsWith(".ts")) return "text/javascript; charset=utf-8";
+  return "text/plain; charset=utf-8";
 }
 
 function normalizeSkill(skill: Skill): Skill {
@@ -182,9 +243,9 @@ export const authApi = {
       expiresIn?: number;
       expires_in?: number;
       scope?: string;
-    }>("/v3/auth/exchange", {
+    }>("/v1/authn/exchange", {
       method: "POST",
-      body: JSON.stringify({ code, redirectUri, state }),
+      body: JSON.stringify({ code, redirect_uri: redirectUri, redirectUri, state }),
     });
     return {
       accessToken: raw.accessToken || raw.access_token || "",
@@ -197,11 +258,11 @@ export const authApi = {
   },
   loginUrl: (redirectUri: string, state = "") =>
     request<{ loginUrl?: string; login_url?: string }>(
-      `/v3/auth/login-url?${toQuery({ redirectUri, state })}`,
-    ),
-  /** Browser entry point: returns the Casdoor authorize URL. */
+      `/v1/authn/login-url?${toQuery({ redirect_uri: redirectUri, state })}`,
+    ).then((r) => r.loginUrl || r.login_url || ""),
+  /** Browser entry point: returns the full hub URL for 302 redirect to Casdoor. */
   login: (redirectUri: string, state = "") =>
-    `/v3/auth/login?redirect_uri=${encodeURIComponent(redirectUri)}${state ? `&state=${encodeURIComponent(state)}` : ''}`,
+    loginBrowserUrl(redirectUri, state),
   /** Refresh the access token using a refresh token. */
   refresh: async (refreshToken: string) => {
     const raw = await request<{
@@ -213,7 +274,7 @@ export const authApi = {
       id_token?: string;
       expiresIn?: number;
       expires_in?: number;
-    }>("/v3/auth/refresh", {
+    }>("/v1/authn/refresh", {
       method: "POST",
       body: JSON.stringify({ refreshToken, refresh_token: refreshToken }),
     });
@@ -224,33 +285,162 @@ export const authApi = {
       expiresIn: raw.expiresIn || raw.expires_in || 0,
     };
   },
-  /** Returns the Casdoor logout URL (JSON). Browser users can also call GET /v3/auth/logout directly. */
-  logoutUrl: (postLogoutRedirectUri = "", idTokenHint = "", state = "") =>
-    request<{ logoutUrl?: string; logout_url?: string }>("/v3/auth/logout-url", {
-      method: "GET",
-    }).then((r) => r.logoutUrl || r.logout_url || ""),
-  /** Browser entry point: redirect to Casdoor end-session. */
-  logout: (postLogoutRedirectUri = "", idTokenHint = "", state = "") => {
+  /** Returns the Casdoor logout URL (JSON). Browser users can also call GET /v1/authn/logout directly. */
+  logoutUrl: (postLogoutRedirectUri = "", idTokenHint = "", state = "") => {
     const q = toQuery({
       post_logout_redirect_uri: postLogoutRedirectUri,
       id_token_hint: idTokenHint,
       state,
     });
-    return `/v3/auth/logout${q ? `?${q}` : ""}`;
+    return request<{ logoutUrl?: string; logout_url?: string }>(
+      `/v1/authn/logout-url${q ? `?${q}` : ""}`,
+      { method: "GET" },
+    ).then((r) => r.logoutUrl || r.logout_url || "");
   },
+  /** Browser entry point: full hub URL for 302 redirect to Casdoor end-session. */
+  logout: (postLogoutRedirectUri = "", idTokenHint = "", state = "") =>
+    logoutBrowserUrl(postLogoutRedirectUri, idTokenHint, state),
   /** Returns the current authenticated principal. */
-  me: () => request<Record<string, unknown>>("/v3/auth/me"),
+  me: () => request<Record<string, unknown>>("/v1/authn/me"),
 };
 
+/**
+ * accessApi — legacy access management panel.
+ *
+ * The new hub replaces this with the authz API (/v1/authz/*). The old
+ * overview / resources / links / evaluate endpoints are NOT implemented
+ * in the new hub yet. Calls will 404 until the authz management UI is
+ * rebuilt on top of /v1/authz/relationships + /v1/authz/lookup-subjects.
+ *
+ * See authzApi below for the new API surface.
+ */
 export const accessApi = {
-  overview: () => request<AccessOverview>("/v3/admin/access/overview"),
+  overview: () => request<AccessOverview>("/v1/authz/overview"),
   resources: () =>
-    request<Page<AccessResourceTemplate>>("/v3/admin/access/resources"),
-  links: () => request<Page<AccessQuickLink>>("/v3/admin/access/links"),
+    request<Page<AccessResourceTemplate>>("/v1/authz/resources"),
+  links: () => request<Page<AccessQuickLink>>("/v1/authz/links"),
   evaluate: (subject: string, object: string, action: string) =>
-    request<AccessEvaluateResult>("/v3/admin/access/evaluate", {
+    request<AccessEvaluateResult>("/v1/authz/evaluate", {
       method: "POST",
       body: JSON.stringify({ subject, object, action }),
+    }),
+};
+
+/**
+ * authzApi — new authorization API backed by SpiceDB (ReBAC + ABAC).
+ *
+ * Mirrors the hub's /v1/authz/* RPCs. Use these for:
+ *   - Permission checks (CheckPermission)
+ *   - Relationship management (Write/Delete/ReadRelationships)
+ *   - Reverse lookups (LookupResources / LookupSubjects)
+ *   - Schema management (ReadSchema / WriteSchema)
+ */
+export const authzApi = {
+  /** Check if subject has permission on resource. */
+  check: (params: {
+    subject: { type: string; id: string; relation?: string };
+    resource: { type: string; id: string };
+    permission: string;
+    fullyConsistent?: boolean;
+    consistencyToken?: string;
+  }) =>
+    request<{
+      effect: string; // "allow" | "deny" | "no_match"
+      allowed: boolean;
+      reason?: string;
+      consistencyToken?: string;
+      missingContext?: string[];
+    }>("/v1/authz/check", {
+      method: "POST",
+      body: JSON.stringify(params),
+    }),
+
+  /** Write (create or update) relationship tuples. Idempotent. */
+  writeRelationships: (relationships: Array<{
+    resource: { type: string; id: string };
+    relation: string;
+    subject: { type: string; id: string; relation?: string };
+    caveatName?: string;
+    caveatContext?: Record<string, unknown>;
+    expiresAt?: string;
+  }>) =>
+    request<{
+      consistencyToken: string;
+      written: number;
+    }>("/v1/authz/relationships", {
+      method: "POST",
+      body: JSON.stringify({ relationships }),
+    }),
+
+  /** Delete relationship tuples matching the filter. */
+  deleteRelationships: (filter: {
+    resourceType?: string;
+    resourceId?: string;
+    relation?: string;
+    subjectType?: string;
+    subjectId?: string;
+    subjectRelation?: string;
+  }) =>
+    request<{
+      consistencyToken: string;
+      deleted: number;
+    }>("/v1/authz/relationships", {
+      method: "DELETE",
+      body: JSON.stringify({ filter }),
+    }),
+
+  /** List relationship tuples matching the filter. */
+  readRelationships: (filter: {
+    resourceType?: string;
+    resourceId?: string;
+    relation?: string;
+    subjectType?: string;
+    subjectId?: string;
+    subjectRelation?: string;
+  }) =>
+    request<{
+      relationships: Array<{
+        resource: { type: string; id: string };
+        relation: string;
+        subject: { type: string; id: string; relation?: string };
+      }>;
+      nextCursor?: string;
+      consistencyToken?: string;
+    }>(`/v1/authz/relationships?${toQuery(filter)}`),
+
+  /** List resources a subject can access with the given permission. */
+  lookupResources: (params: {
+    subject: { type: string; id: string; relation?: string };
+    resourceType: string;
+    permission: string;
+  }) =>
+    request<{
+      resources: Array<{ type: string; id: string }>;
+      nextCursor?: string;
+      consistencyToken?: string;
+    }>(`/v1/authz/lookup-resources?${toQuery(params)}`),
+
+  /** List subjects that can access the given resource with the given permission. */
+  lookupSubjects: (params: {
+    resource: { type: string; id: string };
+    permission: string;
+    subjectType: string;
+  }) =>
+    request<{
+      subjects: Array<{ type: string; id: string; relation?: string }>;
+      nextCursor?: string;
+      consistencyToken?: string;
+    }>(`/v1/authz/lookup-subjects?${toQuery(params)}`),
+
+  /** Read the current SpiceDB schema text. */
+  readSchema: () =>
+    request<{ schemaText: string }>("/v1/authz/schema"),
+
+  /** Replace the SpiceDB schema. Use with care. */
+  writeSchema: (schemaText: string) =>
+    request<unknown>("/v1/authz/schema", {
+      method: "PUT",
+      body: JSON.stringify({ schemaText }),
     }),
 };
 
@@ -264,23 +454,23 @@ export const skillApi = {
       visibility: params.visibility ?? params.scope,
     });
     const page = await request<Page<Skill>>(
-      `/v3/aihub/skills${q ? `?${q}` : ""}`,
+      `/v1/skills${q ? `?${q}` : ""}`,
     );
     return normalizeSkillPage(page);
   },
   detail: async (skillName: string) => {
     const name = encodeURIComponent(skillName);
     const [skill, versions] = await Promise.all([
-      request<Skill>(`/v3/aihub/skills/${name}`),
+      request<Skill>(`/v1/skills/${name}`),
       request<{ versions?: Skill["versions"] }>(
-        `/v3/aihub/skills/${name}/versions`,
+        `/v1/skills/${name}/versions`,
       ),
     ]);
     return normalizeSkill({ ...skill, versions: versions.versions || [] });
   },
   version: (skillName: string, version: string) =>
     request<unknown>(
-      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}`,
+      `/v1/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}`,
     ),
   upload: async (
     file: File,
@@ -288,7 +478,7 @@ export const skillApi = {
     targetVersion = "",
     commitMsg = "",
   ) =>
-    request<string>("/v3/aihub/skills:upload", {
+    request<SkillVersion>("/v1/skills:upload", {
       method: "POST",
       body: JSON.stringify({
         packageBytes: await fileToBase64(file),
@@ -298,104 +488,207 @@ export const skillApi = {
       }),
     }),
   batchUpload: async (files: File[], overwrite = true) => {
-    const versions: string[] = [];
+    const versions: SkillVersion[] = [];
     for (const file of files) {
       versions.push(await skillApi.upload(file, overwrite));
     }
-    return versions.join(",");
+    return versions;
   },
   remove: (skillName: string) =>
-    request<string>(`/v3/aihub/skills/${encodeURIComponent(skillName)}`, {
+    request<string>(`/v1/skills/${encodeURIComponent(skillName)}`, {
       method: "DELETE",
     }),
   publish: (skillName: string, version: string) =>
     request<string>(
-      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}:publish`,
+      `/v1/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}:publish`,
       { method: "POST", body: "{}" },
     ),
   submit: (skillName: string, version: string) =>
     request<string>(
-      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}:submit`,
+      `/v1/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}:submit`,
       { method: "POST", body: "{}" },
     ),
   online: (skillName: string, version: string) =>
     request<string>(
-      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}:online`,
+      `/v1/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}:online`,
       { method: "POST", body: "{}" },
     ),
   offline: (skillName: string, version: string) =>
     request<string>(
-      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}:offline`,
+      `/v1/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}:offline`,
       { method: "POST", body: "{}" },
     ),
   labels: (skillName: string, labels: Record<string, string>) =>
     skillApi.update(skillName, { name: skillName, labels }),
   downloadUrl: (skillName: string, version: string) =>
-    `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}/download`,
+    `/v1/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}/download`,
   download: (skillName: string, version: string) =>
     request<SkillPackageDownload>(
-      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}/download`,
+      `/v1/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}/download`,
     ),
-  files: (skillName: string, version: string) =>
-    request<SkillFileList>(
-      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}/files`,
-    ),
-  file: (skillName: string, version: string, path: string) =>
-    request<SkillFileContent>(
-      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}/file?${toQuery({ path })}`,
-    ),
+  files: async (skillName: string, version: string) => {
+    const encodedName = encodeURIComponent(skillName);
+    const encodedVersion = encodeURIComponent(version);
+    const versionMeta = await request<SkillVersion>(
+      `/v1/skills/${encodedName}/versions/${encodedVersion}`,
+    );
+    if (versionMeta.status === "draft") {
+      return request<SkillFileList>(
+        `/v1/skills/${encodedName}/draft/files?${toQuery({ version })}`,
+      );
+    }
+    return request<SkillFileList>(
+      `/v1/skills/${encodedName}/versions/${encodedVersion}/files`,
+    );
+  },
+  file: async (skillName: string, version: string, path: string) => {
+    const encodedName = encodeURIComponent(skillName);
+    const encodedVersion = encodeURIComponent(version);
+    const versionMeta = await request<SkillVersion>(
+      `/v1/skills/${encodedName}/versions/${encodedVersion}`,
+    );
+    if (versionMeta.status === "draft") {
+      return request<SkillFileContent>(
+        `/v1/skills/${encodedName}/draft/file?${toQuery({ version, path })}`,
+      );
+    }
+    return request<SkillFileContent>(
+      `/v1/skills/${encodedName}/versions/${encodedVersion}/file?${toQuery({ path })}`,
+    );
+  },
   /** Save (create or update) a single text file in a draft/editing version. */
   saveFile: (skillName: string, version: string, path: string, content: string, commitMsg = "") =>
     request<SkillFileContent>(
-      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}/files/${encodeURIComponent(path)}`,
+      `/v1/skills/${encodeURIComponent(skillName)}/draft/file`,
       {
         method: "PUT",
-        body: JSON.stringify({ content, commitMsg }),
+        body: JSON.stringify({
+          version,
+          path,
+          type: contentTypeForPath(path),
+          content,
+          commitMsg,
+          createParents: true,
+        }),
       },
     ),
   /** Create a new empty file or folder. */
-  createFile: (skillName: string, version: string, path: string, type: "file" | "dir" = "file", content = "") =>
-    request<SkillFileContent>(
-      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}/files`,
-      {
+  createFile: (skillName: string, version: string, path: string, type: "file" | "dir" = "file", content = "") => {
+    const encodedName = encodeURIComponent(skillName);
+    if (type === "dir") {
+      return request<SkillFileContent>(`/v1/skills/${encodedName}/draft/dir`, {
         method: "POST",
-        body: JSON.stringify({ path, type, content }),
-      },
-    ),
+        body: JSON.stringify({ version, path }),
+      });
+    }
+    return request<SkillFileContent>(`/v1/skills/${encodedName}/draft/file`, {
+      method: "PUT",
+      body: JSON.stringify({
+        version,
+        path,
+        type: contentTypeForPath(path),
+        content,
+        createParents: true,
+      }),
+    });
+  },
   /** Delete a file or directory from a draft version. */
   deleteFile: (skillName: string, version: string, path: string) =>
     request<unknown>(
-      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}/files/${encodeURIComponent(path)}`,
-      { method: "DELETE" },
+      `/v1/skills/${encodeURIComponent(skillName)}/draft/path?${toQuery({ version, path, recursive: true })}`,
+      {
+        method: "DELETE",
+      },
     ),
   /** Rename or move a file/directory inside a draft version. */
   renameFile: (skillName: string, version: string, oldPath: string, newPath: string) =>
-    request<SkillFileContent>(
-      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}/files/${encodeURIComponent(oldPath)}:rename`,
+    request<unknown>(
+      `/v1/skills/${encodeURIComponent(skillName)}/draft/path:move`,
       {
         method: "POST",
-        body: JSON.stringify({ newPath }),
+        body: JSON.stringify({ version, oldPath, newPath, overwrite: false }),
       },
     ),
   /** Ensure a draft version exists for editing; creates one if the skill only has published versions. */
-  ensureDraftVersion: (skillName: string, baseVersion = "") =>
-    request<{ version: string; created: boolean }>(
-      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions:ensure-draft`,
-      {
-        method: "POST",
-        body: JSON.stringify({ baseVersion }),
-      },
-    ),
-  compare: (skillName: string, baseVersion: string, targetVersion: string) =>
-    request<SkillVersionCompare>(
-      `/v3/aihub/skills/${encodeURIComponent(skillName)}/compare?${toQuery({ baseVersion, targetVersion })}`,
-    ),
+  ensureDraftVersion: async (skillName: string, baseVersion = "") => {
+    const detail = await skillApi.detail(skillName);
+    const existing = (detail.versions || []).find((v) => v.status === "draft");
+    if (existing?.version) return { version: existing.version, created: false };
+    const base = baseVersion || detail.version || detail.latestVersion || "0.0.1";
+    const draftVersion = base.endsWith("-draft") ? base : `${base}-draft`;
+    const encodedName = encodeURIComponent(skillName);
+    const encodedBase = encodeURIComponent(base);
+    const baseFiles = await request<SkillFileList>(
+      `/v1/skills/${encodedName}/versions/${encodedBase}/files`,
+    ).catch(() => ({ files: [] }));
+    for (const file of baseFiles.files || []) {
+      if (!file.path) continue;
+      if (file.type === "directory") {
+        await request<SkillFileContent>(`/v1/skills/${encodedName}/draft/dir`, {
+          method: "POST",
+          body: JSON.stringify({ version: draftVersion, path: file.path }),
+        });
+        continue;
+      }
+      const content = await request<SkillFileContent>(
+        `/v1/skills/${encodedName}/versions/${encodedBase}/file?${toQuery({ path: file.path })}`,
+      );
+      await request<SkillFileContent>(`/v1/skills/${encodedName}/draft/file`, {
+        method: "PUT",
+        body: JSON.stringify({
+          version: draftVersion,
+          path: file.path,
+          type: file.type || contentTypeForPath(file.path),
+          content: content.content || "",
+          binary: Boolean(content.binary || file.binary),
+          createParents: true,
+        }),
+      });
+    }
+    return { version: draftVersion, created: true };
+  },
+  commitDraft: (skillName: string, version: string, opts: {
+    commitMsg?: string;
+    overwrite?: boolean;
+    submit?: boolean;
+    publish?: boolean;
+    online?: boolean;
+  } = {}) =>
+    request<SkillVersion>(`/v1/skills/${encodeURIComponent(skillName)}/draft:commit`, {
+      method: "POST",
+      body: JSON.stringify({
+        version,
+        commitMsg: opts.commitMsg || "",
+        overwrite: opts.overwrite ?? true,
+        submit: opts.submit ?? false,
+        publish: opts.publish ?? false,
+        online: opts.online ?? false,
+      }),
+    }),
+  compare: async (skillName: string, baseVersion: string, targetVersion: string) => {
+    const [baseFiles, targetFiles] = await Promise.all([
+      skillApi.files(skillName, baseVersion),
+      skillApi.files(skillName, targetVersion),
+    ]);
+    const [baseSkillMd, targetSkillMd] = await Promise.all([
+      skillApi.file(skillName, baseVersion, "SKILL.md").then((f) => f.content || "").catch(() => ""),
+      skillApi.file(skillName, targetVersion, "SKILL.md").then((f) => f.content || "").catch(() => ""),
+    ]);
+    return {
+      baseVersion,
+      targetVersion,
+      baseSkillMd,
+      targetSkillMd,
+      baseFiles: baseFiles.files || [],
+      targetFiles: targetFiles.files || [],
+    };
+  },
   update: async (skillName: string, data: Partial<Skill>) => {
     // The backend PUT is not a sparse PATCH: protobuf default values make omitted
     // strings indistinguishable from empty strings. Always merge with current detail
     // first, so settings panels do not accidentally reset visibility/status/metadata.
     const current = normalizeSkill(
-      await request<Skill>(`/v3/aihub/skills/${encodeURIComponent(skillName)}`),
+      await request<Skill>(`/v1/skills/${encodeURIComponent(skillName)}`),
     );
     const tags = mergeUniqueTags(
       (data as any).tags ?? current.tags,
@@ -403,7 +696,7 @@ export const skillApi = {
       data.bizTags ?? current.bizTags,
     );
     const updated = await request<Skill>(
-      `/v3/aihub/skills/${encodeURIComponent(skillName)}`,
+      `/v1/skills/${encodeURIComponent(skillName)}`,
       {
         method: "PUT",
         body: JSON.stringify({
@@ -411,16 +704,6 @@ export const skillApi = {
           displayName: data.displayName ?? current.displayName ?? "",
           description: data.description ?? current.description ?? "",
           version: data.version ?? current.version ?? "",
-          status: data.status ?? current.status ?? "active",
-          visibility:
-            data.visibility ??
-            data.scope ??
-            current.visibility ??
-            current.scope ??
-            "private",
-          ownerId: data.ownerId ?? current.ownerId ?? current.owner ?? "",
-          orgId: data.orgId ?? current.orgId ?? "",
-          projectId: data.projectId ?? current.projectId ?? "",
           sourceType: data.sourceType ?? current.sourceType ?? "",
           sourceUri: data.sourceUri ?? current.sourceUri ?? "",
           manifestJson: manifestJsonForUpdate(current, data),
@@ -431,7 +714,7 @@ export const skillApi = {
     return normalizeSkill(updated);
   },
   draft: async (data: SkillDraft) => {
-    const created = await request<Skill>("/v3/aihub/skills", {
+    const created = await request<Skill>("/v1/skills", {
       method: "POST",
       body: JSON.stringify({
         name: data.name,
@@ -460,43 +743,52 @@ export const skillApi = {
     }),
   deleteDraft: (skillName: string) => skillApi.remove(skillName),
   forcePublish: (skillName: string, version: string) =>
-    request<string>(
-      `/v3/aihub/skills/${encodeURIComponent(skillName)}/versions/${encodeURIComponent(version)}:force-publish`,
-      { method: "POST", body: "{}" },
-    ),
+    skillApi.publish(skillName, version),
   redraft: (skillName: string, version: string) =>
-    skillApi.version(skillName, version),
+    skillApi.ensureDraftVersion(skillName, version),
   bizTags: (skillName: string, tags: string[]) =>
     skillApi.update(skillName, { name: skillName, tags, bizTags: tags }),
   metadata: (skillName: string, metadata: Record<string, unknown>) =>
     skillApi.update(skillName, { name: skillName, metadata }),
-  scope: (skillName: string, scope: string) =>
-    skillApi.update(skillName, { name: skillName, visibility: scope, scope }),
+  scope: async (skillName: string, scope: string) => {
+    const visibility = String(scope || "").toLowerCase();
+    if (visibility !== "private" && visibility !== "public") {
+      throw new Error("Skill visibility must be private or public");
+    }
+    const updated = await request<Skill>(
+      `/v1/skills/${encodeURIComponent(skillName)}:visibility`,
+      {
+        method: "POST",
+        body: JSON.stringify({ name: skillName, visibility }),
+      },
+    );
+    return normalizeSkill(updated);
+  },
 };
 
 export const skillSetApi = {
   list: (params: Record<string, unknown> = {}) =>
-    request<Page<SkillSet>>(`/v3/aihub/skillsets?${toQuery(params)}`),
+    request<Page<SkillSet>>(`/v1/skillsets?${toQuery(params)}`),
   detail: (skillSetName: string) =>
-    request<SkillSet>(`/v3/aihub/skillsets/${encodeURIComponent(skillSetName)}`),
+    request<SkillSet>(`/v1/skillsets/${encodeURIComponent(skillSetName)}`),
   save: (group: SkillSet) =>
-    request<unknown>("/v3/aihub/skillsets", {
+    request<unknown>("/v1/skillsets", {
       method: "POST",
       body: JSON.stringify(group),
     }),
   update: (skillSetName: string, group: SkillSetUpdate) =>
-    request<unknown>(`/v3/aihub/skillsets/${encodeURIComponent(skillSetName)}`, {
+    request<unknown>(`/v1/skillsets/${encodeURIComponent(skillSetName)}`, {
       method: "PUT",
       body: JSON.stringify(group),
     }),
   remove: (skillSetName: string) =>
-    request<unknown>(`/v3/aihub/skillsets/${encodeURIComponent(skillSetName)}`, {
+    request<unknown>(`/v1/skillsets/${encodeURIComponent(skillSetName)}`, {
       method: "DELETE",
     }),
   /** Bind a skill to the SkillSet (creates or updates the membership). */
   bind: (skillSetName: string, member: SkillSetMember) =>
     request<SkillSetMember>(
-      `/v3/aihub/skillsets/${encodeURIComponent(skillSetName)}/members`,
+      `/v1/skillsets/${encodeURIComponent(skillSetName)}/members`,
       {
         method: "POST",
         body: JSON.stringify(member),
@@ -505,7 +797,7 @@ export const skillSetApi = {
   /** Update an existing membership (label / required / order). */
   updateMember: (skillSetName: string, skillName: string, member: Partial<SkillSetMember>) =>
     request<SkillSetMember>(
-      `/v3/aihub/skillsets/${encodeURIComponent(skillSetName)}/members/${encodeURIComponent(skillName)}`,
+      `/v1/skillsets/${encodeURIComponent(skillSetName)}/members/${encodeURIComponent(skillName)}`,
       {
         method: "PUT",
         body: JSON.stringify(member),
@@ -514,7 +806,7 @@ export const skillSetApi = {
   /** Remove a skill from the SkillSet. */
   unbind: (skillSetName: string, skillName: string) =>
     request<unknown>(
-      `/v3/aihub/skillsets/${encodeURIComponent(skillSetName)}/members/${encodeURIComponent(skillName)}`,
+      `/v1/skillsets/${encodeURIComponent(skillSetName)}/members/${encodeURIComponent(skillName)}`,
       { method: "DELETE" },
     ),
   /** Convenience: return the SkillSet with members populated. */
@@ -523,7 +815,7 @@ export const skillSetApi = {
   /** List all SkillSets that contain a given skill (reverse lookup). */
   skillSetOfSkill: (skillName: string) =>
     request<{ skillsets: string[] }>(
-      `/v3/aihub/skills/${encodeURIComponent(skillName)}/skillsets`,
+      `/v1/skills/${encodeURIComponent(skillName)}/skillsets`,
     ),
 };
 
@@ -702,6 +994,299 @@ export const iamApi = {
   whoami: () => request<Record<string, unknown>>("/v3/admin/iam/whoami"),
 };
 
+// ─── IAM Service API (aisphere-iam /v1/iam/*) ──────────────────────────
+// These endpoints talk directly to the aisphere-iam service.
+// The IAM service URL is configured via NEXT_PUBLIC_IAM_URL env var
+// (defaults to http://127.0.0.1:18080 for local dev).
+
+const IAM_URL: string = (
+  process.env.NEXT_PUBLIC_IAM_URL || 'http://127.0.0.1:18080'
+).replace(/\/+$/, '');
+
+function iamRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const fullUrl = IAM_URL + path;
+  const headers = new Headers(init.headers || []);
+  const token = getToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  return fetch(fullUrl, { ...init, headers }).then(async (res) => {
+    if (!res.ok) {
+      let msg = `${res.status} ${res.statusText}`;
+      try {
+        const j = await res.json();
+        msg = j.message || j.error || msg;
+      } catch { /* ignore */ }
+      throw new Error(msg);
+    }
+    const text = await res.text();
+    if (!text) return {} as T;
+    return JSON.parse(text) as T;
+  });
+}
+
+/** IAM Auth Service */
+export const iamAuthApi = {
+  /** Build Casdoor OAuth login URL */
+  buildLoginUrl: (redirectUri: string, state = '') =>
+    iamRequest<{ loginUrl?: string; login_url?: string }>(
+      `/v1/iam/login-url?${toQuery({ redirect_uri: redirectUri, state })}`,
+    ).then((r) => r.loginUrl || r.login_url || ''),
+
+  /** Exchange authorization code for tokens */
+  exchangeCode: (code: string, redirectUri: string) =>
+    iamRequest<{
+      accessToken?: string;
+      refreshToken?: string;
+      idToken?: string;
+      tokenType?: string;
+      expiresIn?: number;
+    }>('/v1/iam/auth/exchange', {
+      method: 'POST',
+      body: JSON.stringify({ code, redirect_uri: redirectUri }),
+    }),
+
+  /** Refresh access token */
+  refreshToken: (refreshToken: string) =>
+    iamRequest<{
+      accessToken?: string;
+      refreshToken?: string;
+      idToken?: string;
+      expiresIn?: number;
+    }>('/v1/iam/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken }),
+    }),
+
+  /** Get current user profile */
+  getMe: () => iamRequest<IamPrincipal>('/v1/iam/me'),
+};
+
+export const iamDirectoryApi = {
+  /** Get a user by org and user id */
+  getUser: (orgId: string, userId: string) =>
+    iamRequest<IamUser>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/users/${encodeURIComponent(userId)}`),
+
+  /** List users in an organization */
+  listUsers: (orgId: string) =>
+    iamRequest<{ users: IamUser[] }>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/users`),
+
+  /** Get organization */
+  getOrganization: (orgId: string) =>
+    iamRequest<IamOrganization>(`/v1/iam/orgs/${encodeURIComponent(orgId)}`),
+
+  /** List groups in an organization */
+  listGroups: (orgId: string) =>
+    iamRequest<{ groups: IamGroup[] }>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/groups`),
+};
+
+export const iamPermissionApi = {
+  /** Check permission */
+  check: (req: IamCheckPermissionRequest) =>
+    iamRequest<IamCheckPermissionResponse>('/v1/iam/permissions/check', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    }),
+
+  /** Write relationship */
+  writeRelationship: (relationship: IamRelationship) =>
+    iamRequest<{ consistencyToken?: string }>('/v1/iam/relationships', {
+      method: 'POST',
+      body: JSON.stringify(relationship),
+    }),
+
+  /** Delete relationship */
+  deleteRelationship: (filter: {
+    resourceType?: string;
+    resourceId?: string;
+    relation?: string;
+    subjectType?: string;
+    subjectId?: string;
+    subjectRelation?: string;
+  }) =>
+    iamRequest<{ consistencyToken?: string }>('/v1/iam/relationships/delete', {
+      method: 'POST',
+      body: JSON.stringify({ filter }),
+    }),
+};
+
+export const iamProjectApi = {
+  /** Create organization */
+  createOrganization: (org: { slug: string; displayName?: string; casdoorOrg?: string }) =>
+    iamRequest<IamCpOrganization>('/v1/iam/control-plane/orgs', {
+      method: 'POST',
+      body: JSON.stringify(org),
+    }),
+
+  /** Get organization */
+  getOrganization: (orgId: string) =>
+    iamRequest<IamCpOrganization>(`/v1/iam/control-plane/orgs/${encodeURIComponent(orgId)}`),
+
+  /** List organizations */
+  listOrganizations: () =>
+    iamRequest<{ organizations: IamCpOrganization[] }>('/v1/iam/control-plane/orgs'),
+
+  /** Update organization */
+  updateOrganization: (orgId: string, org: Partial<IamCpOrganization>) =>
+    iamRequest<IamCpOrganization>(`/v1/iam/control-plane/orgs/${encodeURIComponent(orgId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(org),
+    }),
+
+  /** Create project */
+  createProject: (orgId: string, project: { slug: string; displayName?: string; description?: string }) =>
+    iamRequest<IamProject>(`/v1/iam/control-plane/orgs/${encodeURIComponent(orgId)}/projects`, {
+      method: 'POST',
+      body: JSON.stringify(project),
+    }),
+
+  /** Get project */
+  getProject: (projectId: string) =>
+    iamRequest<IamProject>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}`),
+
+  /** List projects */
+  listProjects: () =>
+    iamRequest<{ projects: IamProject[] }>('/v1/iam/control-plane/projects'),
+
+  /** Update project */
+  updateProject: (projectId: string, project: Partial<IamProject>) =>
+    iamRequest<IamProject>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(project),
+    }),
+
+  /** Archive project */
+  archiveProject: (projectId: string) =>
+    iamRequest<unknown>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/archive`, {
+      method: 'POST',
+    }),
+
+  /** List capabilities */
+  listCapabilities: () =>
+    iamRequest<{ capabilities: IamCapability[] }>('/v1/iam/control-plane/capabilities'),
+
+  /** Register capability */
+  registerCapability: (cap: { name: string; displayName?: string; ownerService?: string }) =>
+    iamRequest<IamCapability>('/v1/iam/control-plane/capabilities', {
+      method: 'POST',
+      body: JSON.stringify(cap),
+    }),
+
+  /** List project capabilities */
+  listProjectCapabilities: (projectId: string) =>
+    iamRequest<{ projectCapabilities: IamProjectCapability[] }>(
+      `/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/capabilities`,
+    ),
+
+  /** Enable project capability */
+  enableProjectCapability: (projectId: string, capabilityId: string) =>
+    iamRequest<unknown>(
+      `/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/capabilities/${encodeURIComponent(capabilityId)}:enable`,
+      { method: 'POST' },
+    ),
+
+  /** Disable project capability */
+  disableProjectCapability: (projectId: string, capabilityId: string) =>
+    iamRequest<unknown>(
+      `/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}/capabilities/${encodeURIComponent(capabilityId)}:disable`,
+      { method: 'POST' },
+    ),
+};
+
+export const iamResourceService = {
+  /** Register resource type */
+  registerResourceType: (rt: {
+    type: string;
+    displayName?: string;
+    description?: string;
+    spicedbType?: string;
+    relations?: string[];
+    permissions?: string[];
+  }) =>
+    iamRequest<IamResourceType>('/v1/iam/control-plane/resource-types', {
+      method: 'POST',
+      body: JSON.stringify(rt),
+    }),
+
+  /** Get resource type */
+  getResourceType: (type: string) =>
+    iamRequest<IamResourceType>(`/v1/iam/control-plane/resource-types/${encodeURIComponent(type)}`),
+
+  /** List resource types */
+  listResourceTypes: () =>
+    iamRequest<{ resourceTypes: IamResourceType[] }>('/v1/iam/control-plane/resource-types'),
+
+  /** List resources */
+  listResources: (params: { resourceType?: string; projectId?: string } = {}) =>
+    iamRequest<{ resources: IamResource[] }>(`/v1/iam/control-plane/resources?${toQuery(params)}`),
+
+  /** Get resource */
+  getResource: (resourceType: string, resourceId: string) =>
+    iamRequest<IamResource>(
+      `/v1/iam/control-plane/resources/${encodeURIComponent(resourceType)}/${encodeURIComponent(resourceId)}`,
+    ),
+
+  /** List resource bindings */
+  listResourceBindings: (params: { sourceType?: string; sourceId?: string } = {}) =>
+    iamRequest<{ resourceBindings: IamResourceBinding[] }>(
+      `/v1/iam/control-plane/resource-bindings?${toQuery(params)}`,
+    ),
+};
+
+export const iamGrantService = {
+  /** Register role template */
+  registerRoleTemplate: (rt: {
+    resourceType?: string;
+    roleKey: string;
+    displayName?: string;
+    description?: string;
+    relation?: string;
+  }) =>
+    iamRequest<IamRoleTemplate>('/v1/iam/control-plane/role-templates', {
+      method: 'POST',
+      body: JSON.stringify(rt),
+    }),
+
+  /** List role templates */
+  listRoleTemplates: () =>
+    iamRequest<{ roleTemplates: IamRoleTemplate[] }>('/v1/iam/control-plane/role-templates'),
+
+  /** Grant access */
+  grantAccess: (grant: {
+    resource: IamResourceRef;
+    roleKey?: string;
+    relation?: string;
+    subject: IamSubjectRef;
+    reason?: string;
+    expiresAt?: string;
+  }) =>
+    iamRequest<IamGrant>('/v1/iam/control-plane/grants', {
+      method: 'POST',
+      body: JSON.stringify(grant),
+    }),
+
+  /** Revoke access */
+  revokeAccess: (grantId: string) =>
+    iamRequest<unknown>(`/v1/iam/control-plane/grants/${encodeURIComponent(grantId)}/revoke`, {
+      method: 'POST',
+    }),
+
+  /** List grants */
+  listGrants: (params: { resourceType?: string; resourceId?: string } = {}) =>
+    iamRequest<{ grants: IamGrant[] }>(`/v1/iam/control-plane/grants?${toQuery(params)}`),
+
+  /** Explain access */
+  explainAccess: (req: {
+    resource: IamResourceRef;
+    subject: IamSubjectRef;
+  }) =>
+    iamRequest<{ steps: unknown[] }>('/v1/iam/control-plane/access:explain', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    }),
+};
+
 export const namespaceApi = {
   list: () => request<NamespaceInfo[]>("/v3/admin/namespaces"),
   save: (data: Record<string, unknown>) =>
@@ -748,8 +1333,17 @@ export const socialApi = {
 };
 
 export const auditApi = {
-  list: (params: Record<string, unknown>) =>
-    request<Page<AuditLog>>(`/v3/admin/audit/logs?${toQuery(params)}`),
+  /**
+   * Query audit records. Mirrors the new hub's /v1/audit/records RPC.
+   *
+   * Filter fields are all optional — empty fields are wildcards.
+   * Returns records sorted by time descending (newest first).
+   */
+  list: (params: Record<string, unknown> = {}) =>
+    request<{
+      records: AuditLog[];
+      total: number;
+    }>(`/v1/audit/records?${toQuery(params)}`),
 };
 
 export const tokenApi = {
@@ -807,7 +1401,7 @@ function resourcePath(
 ): string {
   switch (resourceType) {
     case "skill":
-      return `/v3/aihub/skills/${encodeURIComponent(resourceId)}/shares`;
+      return `/v1/skills/${encodeURIComponent(resourceId)}/shares`;
     case "agent":
       return `/v3/aihub/agents/${encodeURIComponent(resourceId)}/shares`;
     case "tool":
@@ -815,7 +1409,7 @@ function resourcePath(
     case "workflow":
       return `/v3/aihub/workflows/${encodeURIComponent(resourceId)}/shares`;
     default:
-      return `/v3/aihub/skills/${encodeURIComponent(resourceId)}/shares`;
+      return `/v1/skills/${encodeURIComponent(resourceId)}/shares`;
   }
 }
 
@@ -927,17 +1521,98 @@ function backendShareBody(
   };
 }
 
+/**
+ * sharesApi — resource sharing via authz relationships.
+ *
+ * The new hub implements sharing through SpiceDB relationships:
+ *   - List shares → ReadRelationships (filter by resource)
+ *   - Create share → WriteRelationships (resource#relation@subject)
+ *   - Delete share → DeleteRelationships (by resource + subject)
+ *
+ * For skills, the dedicated /v1/skills/{name}/shares endpoints wrap
+ * these authz calls with skill-specific authz checks (only owner /
+ * editor can share). For other resource types (agent / tool / workflow)
+ * the new hub does not yet have dedicated share endpoints — calls will
+ * 404 until those modules are migrated.
+ *
+ * grantId convention: "subjectType:subjectId" (e.g. "user:u_123").
+ * The delete endpoint path is /shares/{subjectType}/{subjectId}.
+ */
+
+/** Parse a grantId ("subjectType:subjectId") into parts. */
+function parseGrantId(grantId: string): { subjectType: string; subjectId: string } {
+  const idx = grantId.indexOf(':');
+  if (idx < 0) return { subjectType: 'user', subjectId: grantId };
+  return {
+    subjectType: grantId.slice(0, idx),
+    subjectId: grantId.slice(idx + 1),
+  };
+}
+
+/** Build a ResourceGrant id from subject parts, matching parseGrantId. */
+function buildGrantId(subjectType: string, subjectId: string): string {
+  return `${subjectType}:${subjectId}`;
+}
+
+function publicGrant(resourceType: AihubResourceType, resourceId: string): ResourceGrant {
+  return {
+    id: buildGrantId("public", "*"),
+    app: "aihub",
+    resourceType,
+    resourceId,
+    object: `${resourceType}:${resourceId}`,
+    subjectType: "public",
+    subjectId: "*",
+    role: "viewer",
+    effect: "allow",
+    actions: [],
+  };
+}
+
 export const sharesApi = {
   list: async (
     resourceType: AihubResourceType,
     resourceId: string,
-    params: Record<string, unknown> = {},
+    _params: Record<string, unknown> = {},
   ) => {
-    const q = toQuery(params);
-    const raw = await request<unknown>(
-      `${resourcePath(resourceType, resourceId)}${q ? `?${q}` : ""}`,
-    );
-    return normalizeShareList(resourceType, resourceId, raw);
+    if (resourceType !== 'skill') {
+      // Non-skill resources not yet supported in new hub.
+      return { items: [], total: 0, accessMode: 'private', canManage: false } as ShareListResponse;
+    }
+    const [raw, skill] = await Promise.all([
+      request<{
+      shares?: Array<{
+        resourceType?: string;
+        resourceId?: string;
+        relation?: string;
+        subjectType?: string;
+        subjectId?: string;
+        subjectRelation?: string;
+      }>;
+      }>(`/v1/skills/${encodeURIComponent(resourceId)}/shares`),
+      request<Skill>(`/v1/skills/${encodeURIComponent(resourceId)}`).catch(() => null),
+    ]);
+    const items: ResourceGrant[] = (raw.shares || []).map((s) => ({
+      id: buildGrantId(s.subjectType || 'user', s.subjectId || ''),
+      app: 'aihub',
+      resourceType: 'skill',
+      resourceId,
+      object: `skill:${resourceId}`,
+      subjectType: (s.subjectType || 'user') as ResourceGrant['subjectType'],
+      subjectId: s.subjectId || '',
+      role: normalizeShareRole(s.relation),
+      effect: 'allow',
+      actions: [],
+    }));
+    if (skill?.visibility === "public" && !items.some((x) => x.subjectType === "public")) {
+      items.unshift(publicGrant("skill", resourceId));
+    }
+    return {
+      items,
+      total: items.length,
+      accessMode: skill?.visibility === "public" ? "public" : deriveAccessMode(items),
+      canManage: true,
+    } as ShareListResponse;
   },
 
   create: async (
@@ -945,25 +1620,60 @@ export const sharesApi = {
     resourceId: string,
     body: CreateShareRequest,
   ) => {
-    const raw = await request<unknown>(resourcePath(resourceType, resourceId), {
+    if (resourceType !== 'skill') {
+      throw new Error(`sharing for ${resourceType} not yet supported in new hub`);
+    }
+    if (body.subjectType === "public") {
+      await skillApi.scope(resourceId, "public");
+      return publicGrant("skill", resourceId);
+    }
+    const raw = await request<{
+      resourceType?: string;
+      resourceId?: string;
+      relation?: string;
+      subjectType?: string;
+      subjectId?: string;
+      subjectRelation?: string;
+    }>(`/v1/skills/${encodeURIComponent(resourceId)}/shares`, {
       method: "POST",
-      body: JSON.stringify(backendShareBody(resourceType, resourceId, body)),
+      body: JSON.stringify({
+        relation: toBackendShareRole(resourceType, body.role),
+        subjectType: body.subjectType,
+        subjectId: body.subjectId,
+        subjectRelation: body.subjectRelation,
+      }),
     });
-    if (resourceType === "skill")
-      return normalizeShareList(resourceType, resourceId, { shares: [raw] })
-        .items[0];
-    return raw as ResourceGrant;
+    return {
+      id: buildGrantId(raw.subjectType || body.subjectType, raw.subjectId || body.subjectId),
+      app: 'aihub',
+      resourceType: 'skill',
+      resourceId,
+      object: `skill:${resourceId}`,
+      subjectType: (raw.subjectType || body.subjectType) as ResourceGrant['subjectType'],
+      subjectId: raw.subjectId || body.subjectId,
+      role: normalizeShareRole(raw.relation),
+      effect: 'allow',
+      actions: [],
+    } as ResourceGrant;
   },
 
   remove: (
     resourceType: AihubResourceType,
     resourceId: string,
     grantId: string,
-  ) =>
-    request<{ deleted: boolean; id: string }>(
-      `${resourcePath(resourceType, resourceId)}/${encodeURIComponent(grantId)}`,
+  ) => {
+    if (resourceType !== 'skill') {
+      throw new Error(`sharing for ${resourceType} not yet supported in new hub`);
+    }
+    const { subjectType, subjectId } = parseGrantId(grantId);
+    if (subjectType === "public") {
+      return skillApi.scope(resourceId, "private");
+    }
+    return request<unknown>(
+      `/v1/skills/${encodeURIComponent(resourceId)}/shares/${encodeURIComponent(subjectType)}/${encodeURIComponent(subjectId)}`,
       { method: "DELETE" },
-    ),
+    );
+  },
 
   listSkillShares: (skillName: string) => sharesApi.list("skill", skillName),
   createSkillShare: (skillName: string, body: CreateShareRequest) =>
