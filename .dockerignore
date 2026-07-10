@@ -1,7 +1,10 @@
-node_modules/
-.next/
-.git/
+.git
 .gitignore
+.github
+.next
+node_modules
+*.log
+*.zip
 *.md
 .env
 .env.local
@@ -11,3 +14,6 @@ Dockerfile
 .gitkeep
 *.tsbuildinfo
 next-env.d.ts
+db
+examples
+worklog.md
