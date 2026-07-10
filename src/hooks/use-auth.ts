@@ -10,11 +10,13 @@ import {
   clearTokens,
   registerRefreshFn,
   onAuthEvent,
+  IS_GATEWAY_OIDC,
+  GATEWAY_LOGOUT_PATH,
 } from '@/lib/api/client';
 import { useEffect } from 'react';
 
 // Register the refresh implementation once on module load.
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && !IS_GATEWAY_OIDC) {
   registerRefreshFn(async () => {
     const rt = getRefreshToken();
     if (!rt) throw new Error('no refresh token');
@@ -40,7 +42,7 @@ export function useMe() {
         null;
       return principal;
     },
-    enabled: Boolean(getToken()),
+    enabled: IS_GATEWAY_OIDC || Boolean(getToken()),
     staleTime: 60_000,
     retry: 0,
   });
@@ -49,6 +51,14 @@ export function useMe() {
 export function useLogout() {
   const queryClient = useQueryClient();
   return async (options?: { postLogoutRedirectUri?: string }) => {
+    if (IS_GATEWAY_OIDC) {
+      queryClient.clear();
+      if (typeof window !== 'undefined') {
+        window.location.href = GATEWAY_LOGOUT_PATH;
+      }
+      return;
+    }
+
     const idToken = getIdToken();
     const redirect =
       options?.postLogoutRedirectUri ||

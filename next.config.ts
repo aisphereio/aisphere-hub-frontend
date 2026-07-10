@@ -30,7 +30,10 @@ import type { NextConfig } from "next";
  * real reverse proxy (Caddy / nginx) in front that routes /v1/* to
  * hub and /* to Next.js — that is one hop, not two.
  */
-const hubUrl = process.env.NEXT_PUBLIC_HUB_URL || "http://127.0.0.1:18001";
+const hubUrl = process.env.NEXT_PUBLIC_HUB_URL ?? "http://127.0.0.1:18001";
+const iamUrl = process.env.NEXT_PUBLIC_IAM_URL ?? "http://127.0.0.1:18080";
+const authMode = process.env.NEXT_PUBLIC_AUTH_MODE ?? "token";
+const gatewayLogoutPath = process.env.NEXT_PUBLIC_GATEWAY_LOGOUT_PATH ?? "/logout";
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -42,6 +45,9 @@ const nextConfig: NextConfig = {
   // The hub must have CORS enabled for the frontend origin.
   env: {
     NEXT_PUBLIC_HUB_URL: hubUrl,
+    NEXT_PUBLIC_IAM_URL: iamUrl,
+    NEXT_PUBLIC_AUTH_MODE: authMode,
+    NEXT_PUBLIC_GATEWAY_LOGOUT_PATH: gatewayLogoutPath,
   },
 };
 

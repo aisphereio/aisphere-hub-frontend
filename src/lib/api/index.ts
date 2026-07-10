@@ -31,7 +31,7 @@
  * migrated. The frontend code structure is correct; only the path prefix
  * needs updating when each backend module lands.
  */
-import { request, toQuery, loginBrowserUrl, logoutBrowserUrl, HUB_URL, getToken } from "./client";
+import { request, toQuery, loginBrowserUrl, logoutBrowserUrl, HUB_URL, getToken, IS_GATEWAY_OIDC } from "./client";
 import { deriveAccessMode } from "./types";
 import type {
   Page,
@@ -999,20 +999,29 @@ export const iamApi = {
 // The IAM service URL is configured via NEXT_PUBLIC_IAM_URL env var
 // (defaults to http://127.0.0.1:18080 for local dev).
 
+const configuredIamUrl = process.env.NEXT_PUBLIC_IAM_URL;
 const IAM_URL: string = (
-  process.env.NEXT_PUBLIC_IAM_URL || 'http://127.0.0.1:18080'
+  configuredIamUrl === undefined ? 'http://127.0.0.1:18080' : configuredIamUrl
 ).replace(/\/+$/, '');
 
 function iamRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const fullUrl = IAM_URL + path;
   const headers = new Headers(init.headers || []);
   const token = getToken();
-  if (token) headers.set('Authorization', `Bearer ${token}`);
+  if (!IS_GATEWAY_OIDC && token) headers.set('Authorization', `Bearer ${token}`);
+  if (IS_GATEWAY_OIDC) headers.set('X-Requested-With', 'XMLHttpRequest');
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
-  return fetch(fullUrl, { ...init, headers }).then(async (res) => {
+  return fetch(fullUrl, {
+    ...init,
+    headers,
+    credentials: init.credentials || 'same-origin',
+  }).then(async (res) => {
     if (!res.ok) {
+      if (res.status === 401 && IS_GATEWAY_OIDC && typeof window !== 'undefined') {
+        window.location.replace('/');
+      }
       let msg = `${res.status} ${res.statusText}`;
       try {
         const j = await res.json();

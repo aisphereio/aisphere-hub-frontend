@@ -29,9 +29,19 @@ const REFRESH_KEY = 'aihub_console_refresh';
 const ID_TOKEN_KEY = 'aihub_console_id_token';
 const EXPIRES_KEY = 'aihub_console_expires';
 
-/** Hub base URL. Always ends without trailing slash. */
+export const AUTH_MODE =
+  process.env.NEXT_PUBLIC_AUTH_MODE === 'gateway_oidc' ? 'gateway_oidc' : 'token';
+export const IS_GATEWAY_OIDC = AUTH_MODE === 'gateway_oidc';
+export const GATEWAY_LOGOUT_PATH =
+  process.env.NEXT_PUBLIC_GATEWAY_LOGOUT_PATH || '/logout';
+
+/**
+ * Hub base URL. An explicit empty value means same-origin, which is the
+ * production default when Envoy Gateway routes both the UI and /v1 APIs.
+ */
+const configuredHubUrl = process.env.NEXT_PUBLIC_HUB_URL;
 export const HUB_URL: string = (
-  process.env.NEXT_PUBLIC_HUB_URL || 'http://127.0.0.1:18001'
+  configuredHubUrl === undefined ? 'http://127.0.0.1:18001' : configuredHubUrl
 ).replace(/\/+$/, '');
 
 /** Listeners fired when the session becomes invalid (401) or on explicit logout. */
@@ -216,20 +226,35 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
   const fullUrl = apiUrl(url);
   const headers = new Headers(init.headers || []);
   const token = getToken();
-  if (token) headers.set('Authorization', `Bearer ${token}`);
+  if (!IS_GATEWAY_OIDC && token) headers.set('Authorization', `Bearer ${token}`);
+  if (IS_GATEWAY_OIDC) headers.set('X-Requested-With', 'XMLHttpRequest');
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
-  let res = await fetch(fullUrl, { ...init, headers });
+  let res = await fetch(fullUrl, {
+    ...init,
+    headers,
+    credentials: init.credentials || 'same-origin',
+  });
 
   // Try one automatic refresh on 401 if we have a refresh token.
   // Skip the refresh endpoint itself to avoid infinite loops.
-  if (res.status === 401 && token && getRefreshToken() && !url.endsWith('/v1/authn/refresh')) {
+  if (
+    !IS_GATEWAY_OIDC &&
+    res.status === 401 &&
+    token &&
+    getRefreshToken() &&
+    !url.endsWith('/v1/authn/refresh')
+  ) {
     try {
       const newToken = await refreshAccessToken();
       headers.set('Authorization', `Bearer ${newToken}`);
-      res = await fetch(fullUrl, { ...init, headers });
+      res = await fetch(fullUrl, {
+        ...init,
+        headers,
+        credentials: init.credentials || 'same-origin',
+      });
     } catch {
       clearTokens('expired');
       throw new Error('session expired');
@@ -239,7 +264,15 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
   const contentType = res.headers.get('content-type') || '';
 
   if (!res.ok) {
-    if (res.status === 401) clearTokens('expired');
+    if (res.status === 401) {
+      if (IS_GATEWAY_OIDC && typeof window !== 'undefined') {
+        // API requests deliberately suppress an OIDC 302. Reloading a normal
+        // document request lets Envoy restart the browser login flow.
+        window.location.replace('/');
+      } else {
+        clearTokens('expired');
+      }
+    }
     let msg = `${res.status} ${res.statusText}`;
     try {
       if (contentType.includes('json')) {
