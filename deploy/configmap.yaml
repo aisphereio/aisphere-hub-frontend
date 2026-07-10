@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aisphere-hub-front-config
+  namespace: aisphere
+  labels:
+    app: aisphere-hub-front
+    service: hub-front
+data:
+  NEXT_PUBLIC_HUB_URL: "https://api.weagent.cc:30723"
+  NEXT_PUBLIC_IAM_URL: "https://api.weagent.cc:30723"
+  NODE_ENV: "production"
