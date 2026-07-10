@@ -5,8 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Sidebar, MobileSidebar } from './sidebar';
 import { Topbar } from './topbar';
-import { authApi } from '@/lib/api';
-import { getToken, getAccessSpace, onAuthEvent } from '@/lib/api/client';
+import { getToken, getAccessSpace, onAuthEvent, IS_GATEWAY_OIDC } from '@/lib/api/client';
 import { useMe, useLogout } from '@/hooks/use-auth';
 import { LoginPage } from '@/components/auth/login-page';
 import { SkillEditor } from '@/components/editor/skill-editor';
@@ -30,7 +29,7 @@ export function AppShell({ children }: AppShellProps) {
 
   // Defer auth check to client to avoid SSR/CSR hydration mismatch.
   useEffect(() => {
-    queueMicrotask(() => setAuthed(Boolean(getToken())));
+    queueMicrotask(() => setAuthed(IS_GATEWAY_OIDC || Boolean(getToken())));
   }, []);
 
   // useMe is enabled only when authed so the principal is fetched lazily after login.
@@ -41,6 +40,7 @@ export function AppShell({ children }: AppShellProps) {
 
   // Listen for forced-logout events (401, refresh failure) so the UI flips back to LoginPage.
   useEffect(() => {
+    if (IS_GATEWAY_OIDC) return;
     if (!authed) return;
     const off = onAuthEvent((reason) => {
       if (reason === 'expired' || reason === 'logout') {
@@ -53,6 +53,7 @@ export function AppShell({ children }: AppShellProps) {
 
   // Re-check token presence on focus / storage events so multiple tabs stay in sync.
   useEffect(() => {
+    if (IS_GATEWAY_OIDC) return;
     if (typeof window === 'undefined') return;
     const check = () => {
       const hasToken = Boolean(getToken());
