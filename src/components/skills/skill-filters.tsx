@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { Search, RefreshCw, Upload, Plus, Filter, LayoutGrid, Layers3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -88,8 +88,9 @@ export function SkillFilters({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">{t('common.all')}</SelectItem>
-          <SelectItem value="public">{t('accessMode.public')}</SelectItem>
           <SelectItem value="private">{t('accessMode.private')}</SelectItem>
+          <SelectItem value="internal">{t('accessMode.internal')}</SelectItem>
+          <SelectItem value="public">{t('accessMode.public')}</SelectItem>
         </SelectContent>
       </Select>
 

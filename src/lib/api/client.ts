@@ -102,7 +102,12 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
   if (!res.ok) {
     if (res.status === 401) {
       if (IS_GATEWAY_OIDC && typeof window !== 'undefined') {
-        window.location.replace('/');
+        // In gateway_oidc mode, a 401 means the Envoy session is missing or
+        // the gateway-trusted principal was not injected. Do NOT replace('/')
+        // here — that would create an infinite redirect loop because the
+        // frontend itself is behind OIDC protection. The app-shell will
+        // show the login page when useMe returns no principal.
+        throw new Error('Authentication required');
       } else {
         clearToken();
       }

@@ -49,14 +49,14 @@ export function useSkillShares(skillName: string | null) {
   });
 }
 
-export function useSkillShareTargets(open: boolean, query: string) {
+export function useSkillShareTargets(open: boolean, query: string, governingOrgId?: string) {
   const targetsQuery = useQuery({
-    queryKey: ['iam', 'share-targets'],
+    queryKey: ['iam', 'share-targets', governingOrgId || 'current'],
     enabled: open,
     staleTime: 30_000,
     queryFn: async () => {
       const me = await iamAuthApi.getMe();
-      const orgId = me.orgId || me.tenantId || '';
+      const orgId = governingOrgId || me.orgId || me.tenantId || '';
       if (!orgId) return [] as SkillShareTarget[];
 
       const [usersResult, groupsResult] = await Promise.allSettled([
@@ -85,7 +85,7 @@ export function useSkillShareTargets(open: boolean, query: string) {
 export function useGrantSkillShare(skillName: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ target, role }: { target: SkillShareTarget; role: Extract<ShareRole, 'viewer' | 'editor'> }) => {
+    mutationFn: async ({ target, role }: { target: SkillShareTarget; role: Extract<ShareRole, 'viewer' | 'editor' | 'reviewer'> }) => {
       if (!skillName) throw new Error('skillName is required');
       return sharesApi.createSkillShare(skillName, {
         subjectType: target.subjectType,
@@ -120,7 +120,7 @@ export function useRevokeSkillShare(skillName: string | null) {
 export function useUpdateSkillPublicVisibility(skillName: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (visibility: 'private' | 'public') => {
+    mutationFn: async (visibility: 'private' | 'internal' | 'public') => {
       if (!skillName) throw new Error('skillName is required');
       return skillApi.scope(skillName, visibility);
     },

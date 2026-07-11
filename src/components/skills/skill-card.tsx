@@ -37,6 +37,7 @@ export function SkillCard({ skill, onClick, onAction }: SkillCardProps) {
   const statusLabel = t(`skills.status${statusKeySuffix.charAt(0).toUpperCase()}${statusKeySuffix.slice(1)}`);
   const stableVersion = skill.labels?.stable || skill.stableVersion;
   const latestVersion = skill.labels?.latest || skill.latestVersion;
+  const visibility = (skill.visibility || skill.scope || 'private').toLowerCase();
 
   return (
     <motion.div
@@ -106,12 +107,8 @@ export function SkillCard({ skill, onClick, onAction }: SkillCardProps) {
             <Badge variant="secondary" className={`text-[10px] px-1.5 h-4 ${getStatusColor(status)}`}>
               {statusLabel}
             </Badge>
-            <Badge variant="outline" className={`text-[10px] px-1.5 h-4 ${getScopeColor(skill.scope)}`}>
-              {/* Display the legacy `scope` field using access-mode labels.
-                  The backend may eventually stop returning `scope` in favor
-                  of the IAM ResourceGrant-derived `accessMode`. Until then,
-                  we map public→公开/Public, private→私有/Private. */}
-              {t(`accessMode.${(skill.scope || 'public').toLowerCase() === 'public' ? 'public' : 'private'}`)}
+            <Badge variant="outline" className={`text-[10px] px-1.5 h-4 ${getScopeColor(visibility)}`}>
+              {t(`accessMode.${visibility}`)}
             </Badge>
             {skill.bizTags && Array.isArray(skill.bizTags) && skill.bizTags.length > 0 && (
               skill.bizTags.slice(0, 2).map((tag) => (

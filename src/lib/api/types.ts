@@ -13,6 +13,8 @@ export type Page<T> = {
   totalCount?: number;
 };
 
+export type SkillVisibility = 'private' | 'internal' | 'public';
+
 export type Skill = {
   namespaceId?: string;
   namespaceID?: string;
@@ -21,8 +23,8 @@ export type Skill = {
   description?: string;
   version?: string;
   status?: string;
-  visibility?: string;
-  scope?: string;
+  visibility?: SkillVisibility;
+  scope?: SkillVisibility;
   owner?: string;
   ownerId?: string;
   orgId?: string;
@@ -1125,7 +1127,7 @@ export type ShareRole =
   | "admin" // manage resource and shares
   | "owner"; // resource owner, frontend should not create this
 
-export type AccessMode = "private" | "shared" | "public";
+export type AccessMode = "private" | "internal" | "shared" | "public";
 
 export interface ResourceGrant {
   id: string;
@@ -1172,6 +1174,8 @@ export interface ShareListResponse {
   offset?: number;
   // Optional hints from backend; if absent, frontend derives them.
   accessMode?: AccessMode;
+  visibility?: SkillVisibility;
+  governingOrgId?: string;
   canManage?: boolean;
 }
 

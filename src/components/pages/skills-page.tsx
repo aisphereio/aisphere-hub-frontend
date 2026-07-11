@@ -53,7 +53,7 @@ export function SkillsPage() {
       if (statusFilter === 'published' && status !== 'published') return false;
     }
     if (scopeFilter !== 'all') {
-      if ((s.scope || 'public').toLowerCase() !== scopeFilter) return false;
+      if ((s.visibility || s.scope || 'private').toLowerCase() !== scopeFilter) return false;
     }
     return true;
   }), [items, statusFilter, scopeFilter]);
@@ -153,7 +153,7 @@ export function SkillsPage() {
           <StatCard
             icon={<Globe className="h-4 w-4" />}
             label={t('skills.public')}
-            value={items.filter(s => (s.scope || 'public').toLowerCase() === 'public').length}
+            value={items.filter(s => (s.visibility || s.scope || 'private').toLowerCase() === 'public').length}
             accent="emerald"
           />
           <StatCard
