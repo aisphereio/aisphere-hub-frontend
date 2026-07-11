@@ -108,6 +108,8 @@ export function getScopeColor(scope?: string): string {
   switch (scope?.toUpperCase()) {
     case 'PUBLIC':
       return 'text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/50';
+    case 'INTERNAL':
+      return 'text-sky-600 bg-sky-50 dark:text-sky-400 dark:bg-sky-950/50';
     case 'PRIVATE':
       return 'text-violet-600 bg-violet-50 dark:text-violet-400 dark:bg-violet-950/50';
     default:
@@ -142,12 +144,14 @@ export function isValidVersion(v: string): boolean {
 
 // ─── Access mode helpers (replaces scope) ───────────────────────────
 
-export type AccessMode = 'private' | 'shared' | 'public';
+export type AccessMode = 'private' | 'internal' | 'shared' | 'public';
 
 export function getAccessModeColor(mode?: string): string {
   switch (mode?.toLowerCase()) {
     case 'public':
       return 'text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/50';
+    case 'internal':
+      return 'text-sky-600 bg-sky-50 dark:text-sky-400 dark:bg-sky-950/50';
     case 'shared':
       return 'text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/50';
     case 'private':
@@ -161,6 +165,7 @@ export function getAccessModeIcon(mode?: string): string {
   // Returns a lucide icon name (caller maps to component)
   switch (mode?.toLowerCase()) {
     case 'public': return 'globe';
+    case 'internal': return 'building';
     case 'shared': return 'users';
     case 'private': return 'lock';
     default: return 'circle';

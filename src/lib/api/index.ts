@@ -752,8 +752,8 @@ export const skillApi = {
     skillApi.update(skillName, { name: skillName, metadata }),
   scope: async (skillName: string, scope: string) => {
     const visibility = String(scope || "").toLowerCase();
-    if (visibility !== "private" && visibility !== "public") {
-      throw new Error("Skill visibility must be private or public");
+    if (!["private", "internal", "public"].includes(visibility)) {
+      throw new Error("Skill visibility must be private, internal, or public");
     }
     const updated = await request<Skill>(
       `/v1/skills/${encodeURIComponent(skillName)}:visibility`,
@@ -1443,7 +1443,6 @@ function toBackendShareRole(
   if (resourceType === "skill") {
     if (role === "runner") return "consumer";
     if (role === "admin") return "owner";
-    if (role === "reviewer") return "viewer";
   }
   return role;
 }
@@ -1613,14 +1612,20 @@ export const sharesApi = {
       effect: 'allow',
       actions: [],
     }));
-    if (skill?.visibility === "public" && !items.some((x) => x.subjectType === "public")) {
+    const visibility = String(skill?.visibility || skill?.scope || "private").toLowerCase() as "private" | "internal" | "public";
+    if (visibility === "public" && !items.some((x) => x.subjectType === "public")) {
       items.unshift(publicGrant("skill", resourceId));
     }
     return {
       items,
       total: items.length,
-      accessMode: skill?.visibility === "public" ? "public" : deriveAccessMode(items),
-      canManage: true,
+      visibility,
+      governingOrgId: skill?.orgId,
+      accessMode: visibility === "public"
+        ? "public"
+        : visibility === "internal"
+          ? "internal"
+          : deriveAccessMode(items),
     } as ShareListResponse;
   },
 
