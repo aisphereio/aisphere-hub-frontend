@@ -13,7 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useT } from '@/lib/i18n';
 import { toast } from 'sonner';
-import { getTokenExpiresAt } from '@/lib/api/client';
+import { IS_GATEWAY_OIDC } from '@/lib/api/client';
 
 interface UserPanelSheetProps {
   open: boolean;
@@ -48,7 +48,7 @@ export function UserPanelSheet({ open, onOpenChange, principal, onLogout }: User
   const permissions = ((principal?.permissions as string[]) || []).filter(Boolean);
 
   const initials = (displayName || subjectId || 'U').slice(0, 2).toUpperCase();
-  const expiresAt = getTokenExpiresAt();
+  const expiresAt = 0;
 
   const copyText = async (text: string, label: string) => {
     try {
@@ -137,7 +137,7 @@ export function UserPanelSheet({ open, onOpenChange, principal, onLogout }: User
                   value={projectId}
                 />
               )}
-              {expiresAt > 0 && (
+              {!IS_GATEWAY_OIDC && expiresAt > 0 && (
                 <DetailRow
                   icon={<Clock className="h-3.5 w-3.5" />}
                   label={t('user.tokenExpires')}

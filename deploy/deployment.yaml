@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aisphere-hub-front
+  namespace: aisphere
+  labels:
+    app: aisphere-hub-front
+    service: hub-front
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aisphere-hub-front
+  template:
+    metadata:
+      labels:
+        app: aisphere-hub-front
+        service: hub-front
+    spec:
+      serviceAccountName: aisphere-hub-front
+      imagePullSecrets:
+        - name: aliyun-registry
+      volumes:
+        - name: config
+          configMap:
+            name: aisphere-hub-front-config
+      containers:
+        - name: hub-front
+          image: registry.cn-beijing.aliyuncs.com/ainfracn/aisphere-hub-front:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: aisphere-hub-front-config
+          env:
+            - name: TZ
+              value: "Asia/Shanghai"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aisphere-hub-front
+  namespace: aisphere

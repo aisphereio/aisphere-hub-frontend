@@ -1,13 +1,12 @@
-﻿'use client';
+'use client';
 
 import { useState, useCallback, useMemo } from 'react';
 import { Cpu, Globe, Download, Zap, AlertTriangle, Package, Layers, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { StatCard, CardGridSkeleton, EmptyState, ConfirmDialog } from '@/components/shared';
 import {
-  SkillCard, SkillCardCompact, SkillUploadDialog, SkillCreateDialog, SkillFilters,
+  SkillCard, SkillCardCompact, SkillUploadDialog, SkillCreateDialog, SkillShareDialog, SkillFilters,
   type SkillViewMode,
 } from '@/components/skills';
 import { useOpenSkillEditor } from '@/components/layout/app-shell';
@@ -27,6 +26,7 @@ export function SkillsPage() {
   const [viewMode, setViewMode] = useState<SkillViewMode>('grid');
   const [uploadOpen, setUploadOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [shareSkill, setShareSkill] = useState<Skill | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ action: string; skill: Skill } | null>(null);
 
   const { data: items = [], isLoading, error, refetch } = useSkills({
@@ -83,6 +83,10 @@ export function SkillsPage() {
   }, [filteredItems]);
 
   const handleAction = (action: string, skill: Skill) => {
+    if (action === 'share') {
+      setShareSkill(skill);
+      return;
+    }
     if (action === 'delete' || action === 'offline') {
       setConfirmAction({ action, skill });
     } else {
@@ -192,7 +196,7 @@ export function SkillsPage() {
           </div>
         )}
 
-        {/* Skills 鈥?Grid view */}
+        {/* Skills Grid view */}
         {viewMode === 'grid' && (
           <>
             {isLoading ? (
@@ -230,7 +234,7 @@ export function SkillsPage() {
           </>
         )}
 
-        {/* Skills 鈥?Grouped view */}
+        {/* Skills Grouped view */}
         {viewMode === 'skillset' && (
           <>
             {isLoading ? (
@@ -330,6 +334,14 @@ export function SkillsPage() {
             refetch();
             openSkillEditor(name);
           }}
+        />
+
+        {/* Share Dialog */}
+        <SkillShareDialog
+          skill={shareSkill}
+          open={Boolean(shareSkill)}
+          onOpenChange={(open) => { if (!open) setShareSkill(null); }}
+          onChanged={() => refetch()}
         />
 
         {/* Confirm Dialog */}

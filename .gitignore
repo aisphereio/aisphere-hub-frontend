@@ -84,4 +84,4 @@ next-env.d.ts
 /tailwind.config.ts.front
 /tsconfig.json.front
 /package.json.front
-/package-lock.json
+/package-lock.json.worktrees/

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: aisphere-hub-front
+  namespace: aisphere
+  labels:
+    app: aisphere-hub-front
+    service: hub-front
+spec:
+  type: ClusterIP
+  selector:
+    app: aisphere-hub-front
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
