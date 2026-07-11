@@ -7,6 +7,6 @@ metadata:
     app: aisphere-hub-front
     service: hub-front
 data:
-  NEXT_PUBLIC_HUB_URL: "https://api.weagent.cc:30723"
-  NEXT_PUBLIC_IAM_URL: "https://api.weagent.cc:30723"
+  NEXT_PUBLIC_HUB_URL: ""
+  NEXT_PUBLIC_AUTH_MODE: "gateway_oidc"
   NODE_ENV: "production"

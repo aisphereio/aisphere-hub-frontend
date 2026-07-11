@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
-import { setTokens } from '@/lib/api/client';
+import { setToken } from '@/lib/api/client';
 import { authApi } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 
@@ -36,10 +36,7 @@ export default function AuthCallbackPage() {
         setMessage(t('login.storing'));
 
         if (accessToken) {
-          setTokens(accessToken, refreshToken || undefined, {
-            idToken: idToken || undefined,
-            expiresIn: expiresInRaw ? Number(expiresInRaw) : undefined,
-          });
+          setToken(accessToken);
         } else if (code) {
           const callbackPath = process.env.NEXT_PUBLIC_AUTH_CALLBACK_PATH || '/auth/callback';
           const redirectUri = callbackPath.startsWith('http')
@@ -50,10 +47,7 @@ export default function AuthCallbackPage() {
             setError(t('login.noToken'));
             return;
           }
-          setTokens(tokens.accessToken, tokens.refreshToken || undefined, {
-            idToken: tokens.idToken || undefined,
-            expiresIn: tokens.expiresIn,
-          });
+          setToken(tokens.accessToken);
         }
 
         window.history.replaceState({}, document.title, window.location.pathname);

@@ -6,20 +6,21 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useT } from '@/lib/i18n';
 import { LanguageToggle } from '@/components/layout/language-toggle';
-import { authApi } from '@/lib/api';
+import { buildGatewayLoginUrl } from '@/lib/api/client';
 
-export function LoginPage() {
+interface LoginPageProps {
+  onLogin?: () => void;
+}
+
+export function LoginPage({ onLogin }: LoginPageProps) {
   const t = useT();
 
   const loginWithCasdoor = () => {
-    const callbackPath = process.env.NEXT_PUBLIC_AUTH_CALLBACK_PATH || '/auth/callback';
-    const callbackUrl = callbackPath.startsWith('http')
-      ? callbackPath
-      : `${window.location.origin}${callbackPath}`;
-    // Preserve the page the user was trying to reach so we can bounce back after login.
-    const next = window.location.pathname + window.location.search;
-    const state = next && next !== '/' ? encodeURIComponent(next) : '';
-    window.location.href = authApi.login(callbackUrl, state);
+    if (onLogin) {
+      onLogin();
+    } else {
+      window.location.assign(buildGatewayLoginUrl());
+    }
   };
 
   return (

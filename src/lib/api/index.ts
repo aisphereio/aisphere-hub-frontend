@@ -31,7 +31,7 @@
  * migrated. The frontend code structure is correct; only the path prefix
  * needs updating when each backend module lands.
  */
-import { request, toQuery, loginBrowserUrl, logoutBrowserUrl, HUB_URL, getToken, IS_GATEWAY_OIDC } from "./client";
+import { request, toQuery, HUB_URL, getToken, IS_GATEWAY_OIDC, buildGatewayLoginUrl, GATEWAY_LOGOUT_PATH } from "./client";
 import { deriveAccessMode } from "./types";
 import type {
   Page,
@@ -262,7 +262,7 @@ export const authApi = {
     ).then((r) => r.loginUrl || r.login_url || ""),
   /** Browser entry point: returns the full hub URL for 302 redirect to Casdoor. */
   login: (redirectUri: string, state = "") =>
-    loginBrowserUrl(redirectUri, state),
+    buildGatewayLoginUrl(),
   /** Refresh the access token using a refresh token. */
   refresh: async (refreshToken: string) => {
     const raw = await request<{
@@ -299,7 +299,7 @@ export const authApi = {
   },
   /** Browser entry point: full hub URL for 302 redirect to Casdoor end-session. */
   logout: (postLogoutRedirectUri = "", idTokenHint = "", state = "") =>
-    logoutBrowserUrl(postLogoutRedirectUri, idTokenHint, state),
+    GATEWAY_LOGOUT_PATH,
   /** Returns the current authenticated principal. */
   me: () => request<Record<string, unknown>>("/v1/authn/me"),
 };
