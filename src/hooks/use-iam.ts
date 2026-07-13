@@ -1,8 +1,8 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { iamApi, iamDirectoryApi, iamProjectApi, iamResourceService, iamGrantService } from '@/lib/api';
-import type { LocalUser } from '@/lib/api/types';
+import { iamApi, iamDirectoryApi, iamProjectApi, iamResourceService, iamGrantService, iamGroupAdminApi, iamAuthzAdminApi } from '@/lib/api';
+import type { LocalUser, IamGroup, IamCheckPermissionRequest, IamRelationship } from '@/lib/api/types';
 
 // ─── Legacy Local User Hooks ───────────────────────────────────────────
 
@@ -209,5 +209,158 @@ export function useIamRevokeAccess() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['iam-cp', 'grants'] });
     },
+  });
+}
+
+// ─── Group Admin Hooks ───────────────────────────────────────────────────
+
+export function useIamCreateGroup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, group }: { orgId: string; group: { name: string; displayName?: string; type?: string; parentId?: string } }) =>
+      iamGroupAdminApi.createGroup(orgId, group),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['iam-directory', 'groups'] });
+    },
+  });
+}
+
+export function useIamUpdateGroup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, groupId, group }: { orgId: string; groupId: string; group: Partial<IamGroup> }) =>
+      iamGroupAdminApi.updateGroup(orgId, groupId, group),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['iam-directory', 'groups'] });
+    },
+  });
+}
+
+export function useIamDeleteGroup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, groupId, recursive }: { orgId: string; groupId: string; recursive?: boolean }) =>
+      iamGroupAdminApi.deleteGroup(orgId, groupId, recursive),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['iam-directory', 'groups'] });
+    },
+  });
+}
+
+export function useIamAssignUserToGroup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, groupId, userId }: { orgId: string; groupId: string; userId: string }) =>
+      iamGroupAdminApi.assignUserToGroup(orgId, groupId, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['iam-directory', 'groups'] });
+    },
+  });
+}
+
+export function useIamRemoveUserFromGroup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, groupId, userId }: { orgId: string; groupId: string; userId: string }) =>
+      iamGroupAdminApi.removeUserFromGroup(orgId, groupId, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['iam-directory', 'groups'] });
+    },
+  });
+}
+
+// ─── Authz Admin Hooks ───────────────────────────────────────────────────
+
+export function useIamAuthzSchema() {
+  return useQuery({
+    queryKey: ['iam-authz', 'schema'],
+    queryFn: () => iamAuthzAdminApi.getSchema(),
+    staleTime: 60_000,
+  });
+}
+
+export function useIamAuthzValidateSchema() {
+  return useMutation({
+    mutationFn: (text: string) => iamAuthzAdminApi.validateSchema(text),
+  });
+}
+
+export function useIamAuthzPublishSchema() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (text: string) => iamAuthzAdminApi.publishSchema(text),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['iam-authz', 'schema'] });
+    },
+  });
+}
+
+export function useIamAuthzRelationships(filter?: {
+  resourceType?: string;
+  resourceId?: string;
+  relation?: string;
+  subjectType?: string;
+  subjectId?: string;
+}) {
+  return useQuery({
+    queryKey: ['iam-authz', 'relationships', filter],
+    queryFn: () => iamAuthzAdminApi.listRelationships(filter),
+    staleTime: 30_000,
+  });
+}
+
+export function useIamAuthzWriteRelationships() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (relationships: IamRelationship[]) =>
+      iamAuthzAdminApi.writeRelationships(relationships),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['iam-authz', 'relationships'] });
+    },
+  });
+}
+
+export function useIamAuthzDeleteRelationships() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (filter: {
+      resourceType?: string;
+      resourceId?: string;
+      relation?: string;
+      subjectType?: string;
+      subjectId?: string;
+    }) => iamAuthzAdminApi.deleteRelationships(filter),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['iam-authz', 'relationships'] });
+    },
+  });
+}
+
+export function useIamAuthzCheckPermission() {
+  return useMutation({
+    mutationFn: (req: IamCheckPermissionRequest) =>
+      iamAuthzAdminApi.checkPermission(req),
+  });
+}
+
+export function useIamAuthzExplainPermission() {
+  return useMutation({
+    mutationFn: (req: IamCheckPermissionRequest) =>
+      iamAuthzAdminApi.explainPermission(req),
+  });
+}
+
+export function useIamAuthzEffectivePermissions(params: {
+  subjectType: string;
+  subjectId: string;
+  resourceType: string;
+  resourceId: string;
+  permissions?: string[];
+}) {
+  return useQuery({
+    queryKey: ['iam-authz', 'effective-permissions', params],
+    queryFn: () => iamAuthzAdminApi.getEffectivePermissions(params),
+    enabled: !!params.subjectId && !!params.resourceId,
+    staleTime: 30_000,
   });
 }

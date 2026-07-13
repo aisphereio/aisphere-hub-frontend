@@ -1033,6 +1033,7 @@ export type Tab =
   | "proposals"
   | "iam"
   | "access"
+  | "authz"
   | "docs";
 export type AccessResourceTemplate = {
   area: string;

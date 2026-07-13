@@ -1296,6 +1296,123 @@ export const iamGrantService = {
     }),
 };
 
+// ─── IAM Group Admin API (aisphere-iam /v1/iam/groups/*) ─────────────────
+export const iamGroupAdminApi = {
+  /** Create group */
+  createGroup: (orgId: string, group: { name: string; displayName?: string; type?: string; parentId?: string }) =>
+    iamRequest<IamGroup>('/v1/iam/groups', {
+      method: 'POST',
+      body: JSON.stringify({ org_id: orgId, group }),
+    }),
+
+  /** Update group */
+  updateGroup: (orgId: string, groupId: string, group: Partial<IamGroup>) =>
+    iamRequest<IamGroup>(`/v1/iam/groups/${encodeURIComponent(groupId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ org_id: orgId, group_id: groupId, group }),
+    }),
+
+  /** Delete group */
+  deleteGroup: (orgId: string, groupId: string, recursive = false) =>
+    iamRequest<unknown>(`/v1/iam/groups/${encodeURIComponent(groupId)}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ org_id: orgId, recursive }),
+    }),
+
+  /** Assign user to group */
+  assignUserToGroup: (orgId: string, groupId: string, userId: string) =>
+    iamRequest<unknown>(`/v1/iam/groups/${encodeURIComponent(groupId)}/users/${encodeURIComponent(userId)}`, {
+      method: 'POST',
+      body: JSON.stringify({ org_id: orgId }),
+    }),
+
+  /** Remove user from group */
+  removeUserFromGroup: (orgId: string, groupId: string, userId: string) =>
+    iamRequest<unknown>(`/v1/iam/groups/${encodeURIComponent(groupId)}/users/${encodeURIComponent(userId)}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ org_id: orgId }),
+    }),
+};
+
+// ─── IAM Authz Admin API (aisphere-iam /v1/iam/authz/*) ──────────────────────
+export const iamAuthzAdminApi = {
+  /** Get authorization schema */
+  getSchema: () =>
+    iamRequest<{ text: string; version: string }>('/v1/iam/authz/schema'),
+
+  /** Validate authorization schema */
+  validateSchema: (text: string) =>
+    iamRequest<{ valid: boolean; error?: string }>('/v1/iam/authz/schema:validate', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
+
+  /** Publish authorization schema */
+  publishSchema: (text: string) =>
+    iamRequest<{ published: boolean }>('/v1/iam/authz/schema:publish', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
+
+  /** List relationships */
+  listRelationships: (filter: {
+    resourceType?: string;
+    resourceId?: string;
+    relation?: string;
+    subjectType?: string;
+    subjectId?: string;
+    subjectRelation?: string;
+  } = {}) =>
+    iamRequest<{ relationships: IamRelationship[] }>(`/v1/iam/authz/relationships?${toQuery(filter)}`),
+
+  /** Write relationships */
+  writeRelationships: (relationships: IamRelationship[]) =>
+    iamRequest<{ written: number; consistencyToken?: string }>('/v1/iam/authz/relationships', {
+      method: 'POST',
+      body: JSON.stringify({ relationships }),
+    }),
+
+  /** Delete relationships */
+  deleteRelationships: (filter: {
+    resourceType?: string;
+    resourceId?: string;
+    relation?: string;
+    subjectType?: string;
+    subjectId?: string;
+    subjectRelation?: string;
+  }) =>
+    iamRequest<{ deleted: number; consistencyToken?: string }>('/v1/iam/authz/relationships:delete', {
+      method: 'POST',
+      body: JSON.stringify({ filter }),
+    }),
+
+  /** Check permission */
+  checkPermission: (req: IamCheckPermissionRequest) =>
+    iamRequest<IamCheckPermissionResponse>('/v1/iam/authz/permissions:check', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    }),
+
+  /** Explain permission */
+  explainPermission: (req: IamCheckPermissionRequest) =>
+    iamRequest<{ allowed: boolean; effect: string; reason: string; steps?: string[] }>(
+      '/v1/iam/authz/permissions:explain', {
+        method: 'POST',
+        body: JSON.stringify(req),
+      }),
+
+  /** Get effective permissions */
+  getEffectivePermissions: (params: {
+    subjectType: string;
+    subjectId: string;
+    resourceType: string;
+    resourceId: string;
+    permissions?: string[];
+  }) =>
+    iamRequest<Record<string, { allowed: boolean; effect: string }>>(
+      `/v1/iam/authz/effective-permissions?${toQuery(params)}`),
+};
+
 export const namespaceApi = {
   list: () => request<NamespaceInfo[]>("/v3/admin/namespaces"),
   save: (data: Record<string, unknown>) =>

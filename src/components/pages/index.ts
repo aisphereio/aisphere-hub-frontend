@@ -17,3 +17,5 @@ export { SandboxesPage } from './sandboxes-page';
 export { SandboxProfilesPage } from './sandbox-profiles-page';
 
 export { ModelProfilesPage } from './model-profiles-page';
+
+export { AuthzAdminPage } from './authz-admin-page';
