@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Cpu, Layers, Bot, Hammer, Boxes, Shield, ClipboardCheck, Activity, FileText, Users, BookOpen,
+  Cpu, Layers, Bot, Hammer, Boxes, Shield, ShieldCheck, ClipboardCheck, Activity, FileText, Users, BookOpen,
   ChevronDown, ChevronRight, LogOut, Moon, Sun, X, Sparkles, CircleDot, UserCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -42,6 +42,7 @@ const navSections: { titleKey: string; items: { key: Tab; labelKey: string; hint
     titleKey: 'nav.access',
     items: [
       { key: 'access', labelKey: 'nav.access', hintKey: 'nav.access.hint', icon: <Shield className="h-4 w-4" /> },
+      { key: 'authz', labelKey: 'Authz Admin', hintKey: 'SpiceDB management', icon: <ShieldCheck className="h-4 w-4" /> },
       { key: 'iam', labelKey: 'nav.iam', hintKey: 'nav.iam.hint', icon: <Users className="h-4 w-4" /> },
     ],
   },

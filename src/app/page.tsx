@@ -17,6 +17,7 @@ import {
   AccessPage,
   OpsPage,
   DocsPage,
+  AuthzAdminPage,
 } from '@/components/pages';
 import type { Tab } from '@/lib/api/types';
 
@@ -44,6 +45,7 @@ function PageRouter({ tab }: { tab: Tab }) {
     case 'proposals': return <ProposalsPage />;
     case 'iam': return <IamPage />;
     case 'access': return <AccessPage />;
+    case 'authz': return <AuthzAdminPage />;
     case 'docs': return <DocsPage />;
     default: return <SkillsPage />;
   }
