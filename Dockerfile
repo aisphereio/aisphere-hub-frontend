@@ -1,11 +1,11 @@
-ARG BUN_VERSION=1.3.4
+ARG NODE_VERSION=22-alpine
 
-FROM oven/bun:${BUN_VERSION}-alpine AS deps
+FROM node:${NODE_VERSION} AS deps
 WORKDIR /app
-COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+COPY package.json package-lock.json ./
+RUN npm ci
 
-FROM oven/bun:${BUN_VERSION}-alpine AS builder
+FROM node:${NODE_VERSION} AS builder
 WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -23,7 +23,7 @@ ENV NEXT_PUBLIC_IAM_URL=${NEXT_PUBLIC_IAM_URL}
 ENV NEXT_PUBLIC_AUTH_MODE=${NEXT_PUBLIC_AUTH_MODE}
 ENV NEXT_PUBLIC_GATEWAY_LOGOUT_PATH=${NEXT_PUBLIC_GATEWAY_LOGOUT_PATH}
 
-RUN bun run build
+RUN npm run build
 
 FROM node:22-alpine AS runner
 WORKDIR /app
