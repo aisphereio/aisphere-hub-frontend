@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Switch } from '@/components/ui/switch';
 import { ConfirmDialog } from '@/components/shared';
 import { useSkillSetBind, useSkillSetUnbind, useSkillSetUpdateMember } from '@/hooks/use-skillsets';
 import { useSkills } from '@/hooks/use-skills';
@@ -21,13 +20,8 @@ interface SkillSetMemberListProps {
 
 export function SkillSetMemberList({ group, onUpdate }: SkillSetMemberListProps) {
   const t = useT();
-  const [search, setSearch] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newSkillName, setNewSkillName] = useState('');
-  const [newVersion, setNewVersion] = useState('');
-  const [newLabel, setNewLabel] = useState('stable');
-  const [newRequired, setNewRequired] = useState(true);
-  const [newOrder, setNewOrder] = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [quickPickQuery, setQuickPickQuery] = useState('');
 
@@ -36,25 +30,20 @@ export function SkillSetMemberList({ group, onUpdate }: SkillSetMemberListProps)
   const updateMemberMutation = useSkillSetUpdateMember();
   const { data: allSkills, isLoading: skillsLoading } = useSkills({ pageNo: 1, pageSize: 200 });
 
-  const handleBind = async () => {
-    if (!newSkillName) return;
+  const members = [...(group.members || [])].sort((a, b) =>
+    (a.order ?? 0) - (b.order ?? 0) || a.skillName.localeCompare(b.skillName),
+  );
+
+  const handleBind = async (skillName = newSkillName) => {
+    if (!skillName) return;
     try {
       await bindMutation.mutateAsync({
         skillSetName: group.name,
-        member: {
-          skillName: newSkillName,
-          version: newVersion || undefined,
-          label: newLabel || undefined,
-          required: newRequired,
-          order: newOrder,
-        } as SkillSetMember,
+        member: { skillName, order: members.length },
       });
-      toast.success(t('skillset.member.bound') + ': ' + newSkillName);
+      toast.success(t('skillset.member.bound') + ': ' + skillName);
       setNewSkillName('');
-      setNewVersion('');
-      setNewLabel('stable');
-      setNewRequired(true);
-      setNewOrder(0);
+      setQuickPickQuery('');
       setShowAddDialog(false);
       onUpdate();
     } catch (e: unknown) {
@@ -73,24 +62,37 @@ export function SkillSetMemberList({ group, onUpdate }: SkillSetMemberListProps)
     }
   };
 
-  const handleUpdateMember = async (skillName: string, patch: Partial<SkillSetMember>) => {
+  const moveMember = async (member: SkillSetMember, direction: -1 | 1) => {
+    const index = members.findIndex((item) => item.skillName === member.skillName);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= members.length) return;
+
+    const target = members[targetIndex];
     try {
-      await updateMemberMutation.mutateAsync({
-        skillSetName: group.name,
-        skillName,
-        member: patch,
-      });
+      await Promise.all([
+        updateMemberMutation.mutateAsync({
+          skillSetName: group.name,
+          skillName: member.skillName,
+          member: { order: target.order ?? targetIndex },
+        }),
+        updateMemberMutation.mutateAsync({
+          skillSetName: group.name,
+          skillName: target.skillName,
+          member: { order: member.order ?? index },
+        }),
+      ]);
       onUpdate();
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Failed to update');
+      toast.error(e instanceof Error ? e.message : t('skillset.detail.updateFailed'));
     }
   };
 
-  const members = group.members || [];
-
   const quickPickSkills = (allSkills || [])
-    .filter((s) => !members.some((m) => m.skillName === s.name))
-    .filter((s) => !quickPickQuery || s.name.toLowerCase().includes(quickPickQuery.toLowerCase()))
+    .filter((skill) => !members.some((member) => member.skillName === skill.name))
+    .filter((skill) => {
+      const text = `${skill.name} ${skill.displayName || ''}`.toLowerCase();
+      return !quickPickQuery || text.includes(quickPickQuery.toLowerCase());
+    })
     .slice(0, 12);
 
   return (
@@ -98,16 +100,13 @@ export function SkillSetMemberList({ group, onUpdate }: SkillSetMemberListProps)
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="text-[10px]">{members.length} {t('skillset.detail.skills')}</Badge>
-          {updateMemberMutation.isPending && (
-            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-          )}
+          {updateMemberMutation.isPending && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
         </div>
         <Button size="sm" onClick={() => setShowAddDialog(true)} className="bg-gradient-to-r from-violet-600 to-fuchsia-500">
           <Plus className="h-3.5 w-3.5 mr-1" /> {t('skillset.member.add')}
         </Button>
       </div>
 
-      {/* Add Skill form */}
       {showAddDialog && (
         <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
           <div className="flex items-center gap-2">
@@ -117,38 +116,13 @@ export function SkillSetMemberList({ group, onUpdate }: SkillSetMemberListProps)
               onChange={(e) => setNewSkillName(e.target.value)}
               className="h-8 text-xs flex-1"
             />
-            <Input
-              placeholder={t('skillset.member.version')}
-              value={newVersion}
-              onChange={(e) => setNewVersion(e.target.value)}
-              className="h-8 text-xs w-24"
-            />
-            <Input
-              placeholder={t('skillset.member.label')}
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
-              className="h-8 text-xs w-24"
-            />
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Switch checked={newRequired} onCheckedChange={setNewRequired} />
-              <span className="text-xs text-muted-foreground">{t('skillset.member.required')}</span>
-            </div>
-            <Input
-              type="number"
-              placeholder={t('skillset.member.order')}
-              value={newOrder}
-              onChange={(e) => setNewOrder(Number(e.target.value))}
-              className="h-8 text-xs w-20"
-            />
-            <Button size="sm" onClick={handleBind} disabled={!newSkillName || bindMutation.isPending} className="bg-gradient-to-r from-violet-600 to-fuchsia-500">
-              {bindMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+            <Button size="sm" onClick={() => handleBind()} disabled={!newSkillName || bindMutation.isPending} className="bg-gradient-to-r from-violet-600 to-fuchsia-500">
+              {bindMutation.isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
               {t('skillset.member.add')}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setShowAddDialog(false)}>{t('skillset.cancel')}</Button>
           </div>
-          {/* Quick pick from registry */}
+
           {allSkills && allSkills.length > 0 && (
             <div className="pt-1 space-y-1.5">
               <div className="relative">
@@ -161,17 +135,15 @@ export function SkillSetMemberList({ group, onUpdate }: SkillSetMemberListProps)
                 />
               </div>
               <div className="flex flex-wrap gap-1">
-                {quickPickSkills.length === 0 && !skillsLoading && (
-                  <span className="text-[10px] text-muted-foreground">No matching skills</span>
-                )}
-                {quickPickSkills.map((s) => (
+                {quickPickSkills.length === 0 && !skillsLoading && <span className="text-[10px] text-muted-foreground">No matching skills</span>}
+                {quickPickSkills.map((skill) => (
                   <Badge
-                    key={s.name}
+                    key={skill.name}
                     variant="outline"
                     className="text-[10px] cursor-pointer hover:bg-violet-500/10 hover:border-violet-500/40"
-                    onClick={() => setNewSkillName(s.name)}
+                    onClick={() => handleBind(skill.name)}
                   >
-                    {s.name}
+                    {skill.displayName || skill.name}
                   </Badge>
                 ))}
               </div>
@@ -180,63 +152,39 @@ export function SkillSetMemberList({ group, onUpdate }: SkillSetMemberListProps)
         </div>
       )}
 
-      {/* Members table */}
       {members.length === 0 ? (
-        <div className="text-xs text-muted-foreground text-center py-6">
-          {t('skillset.member.empty')}
-        </div>
+        <div className="text-xs text-muted-foreground text-center py-6">{t('skillset.member.empty')}</div>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="text-xs">{t('skillset.member.skillName')}</TableHead>
-              <TableHead className="text-xs">{t('skillset.member.version')}</TableHead>
-              <TableHead className="text-xs">{t('skillset.member.label')}</TableHead>
-              <TableHead className="text-xs">{t('skillset.member.required')}</TableHead>
-              <TableHead className="text-xs">{t('skillset.member.order')}</TableHead>
-              <TableHead className="text-xs w-10"></TableHead>
+              <TableHead className="text-xs">当前版本</TableHead>
+              <TableHead className="text-xs">排序</TableHead>
+              <TableHead className="text-xs w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {members.map((m, i) => (
-              <TableRow key={`${m.skillName}-${i}`}>
-                <TableCell className="font-medium text-xs">{m.skillName}</TableCell>
-                <TableCell className="text-xs font-mono">{m.version || '-'}</TableCell>
-                <TableCell className="text-xs">{m.label || '-'}</TableCell>
-                <TableCell>
-                  <Switch
-                    checked={!!m.required}
-                    onCheckedChange={(checked) => handleUpdateMember(m.skillName, { required: checked })}
-                  />
+            {members.map((member, index) => (
+              <TableRow key={member.skillName}>
+                <TableCell className="text-xs">
+                  <div className="font-medium">{member.displayName || member.skillName}</div>
+                  {member.displayName && <div className="font-mono text-[10px] text-muted-foreground">{member.skillName}</div>}
                 </TableCell>
+                <TableCell className="text-xs font-mono">{member.version || '-'}</TableCell>
                 <TableCell className="text-xs">
                   <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5"
-                      onClick={() => handleUpdateMember(m.skillName, { order: (m.order || 0) - 1 })}
-                    >
-                      <ArrowUp className="h-2.5 w-2.5" />
+                    <Button variant="ghost" size="icon" className="h-6 w-6" disabled={index === 0} onClick={() => moveMember(member, -1)}>
+                      <ArrowUp className="h-3 w-3" />
                     </Button>
-                    <span className="tabular-nums">{m.order || 0}</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5"
-                      onClick={() => handleUpdateMember(m.skillName, { order: (m.order || 0) + 1 })}
-                    >
-                      <ArrowDown className="h-2.5 w-2.5" />
+                    <span className="min-w-5 text-center tabular-nums">{index + 1}</span>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" disabled={index === members.length - 1} onClick={() => moveMember(member, 1)}>
+                      <ArrowDown className="h-3 w-3" />
                     </Button>
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 text-destructive"
-                    onClick={() => setDeleteConfirm(m.skillName)}
-                  >
+                  <Button variant="ghost" size="sm" className="h-6 w-6 text-destructive" onClick={() => setDeleteConfirm(member.skillName)}>
                     <Trash2 className="h-3 w-3" />
                   </Button>
                 </TableCell>
@@ -245,6 +193,10 @@ export function SkillSetMemberList({ group, onUpdate }: SkillSetMemberListProps)
           </TableBody>
         </Table>
       )}
+
+      <div className="rounded-md border bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+        SkillSet 仅维护 Skill 引用和展示顺序。版本来自 Skill 当前发版，不在集合中锁定。
+      </div>
 
       <ConfirmDialog
         open={Boolean(deleteConfirm)}
