@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, Loader2, Plus, Save, Search, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,10 +39,6 @@ export function SkillSetMemberList({ group, onUpdate }: SkillSetMemberListProps)
   const [query, setQuery] = useState('');
   const replaceMutation = useSkillSetReplaceMembers();
   const { data: allSkills = [], isLoading: skillsLoading } = useSkills({ pageNo: 1, pageSize: 200 });
-
-  useEffect(() => {
-    setMembers(normalizeMembers(group));
-  }, [group]);
 
   const persistedMembers = useMemo(() => normalizeMembers(group), [group]);
   const dirty = JSON.stringify(members) !== JSON.stringify(persistedMembers);
@@ -87,7 +83,8 @@ export function SkillSetMemberList({ group, onUpdate }: SkillSetMemberListProps)
 
   const saveMembers = async () => {
     try {
-      await replaceMutation.mutateAsync({ skillSetName: group.name, members });
+      const saved = await replaceMutation.mutateAsync({ skillSetName: group.name, members });
+      setMembers(normalizeMembers(saved));
       toast.success(t('skillset.detail.settingsUpdated'));
       onUpdate();
     } catch (error: unknown) {
