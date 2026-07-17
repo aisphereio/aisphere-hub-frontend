@@ -36,6 +36,10 @@ export function SkillSetDetailSheet({ skillSetName, open, onOpenChange }: SkillS
 
   useEffect(() => {
     if (!detail) return;
+    // Sync the editable local copies when the loaded detail changes (e.g.
+    // on first load or after refetch). This is the intended use of an
+    // effect: mirroring external query state into editable form fields.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setEditDisplayName(detail.displayName || '');
     setEditDescription(detail.description || '');
   }, [detail]);
