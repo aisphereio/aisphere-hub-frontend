@@ -275,6 +275,39 @@ export function useSkillSubmit() {
   });
 }
 
+export function useSkillCommit() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      skillName,
+      version,
+      commitMsg,
+      submit,
+      publish,
+      online,
+    }: {
+      skillName: string;
+      version: string;
+      commitMsg?: string;
+      submit?: boolean;
+      publish?: boolean;
+      online?: boolean;
+    }) =>
+      skillApi.commitDraft(skillName, version, {
+        commitMsg,
+        submit,
+        publish,
+        online,
+      }),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({
+        queryKey: ["skills", "detail", vars.skillName],
+      });
+      queryClient.invalidateQueries({ queryKey: ["skills", "list"] });
+    },
+  });
+}
+
 export function useSkillOnline() {
   const queryClient = useQueryClient();
   return useMutation({

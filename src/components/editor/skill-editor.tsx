@@ -27,6 +27,7 @@ import {
   Eye,
   Pencil,
   Share2,
+  GitCommitHorizontal,
   Users,
   Columns2,
   AlertCircle,
@@ -38,6 +39,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -72,6 +82,7 @@ import {
   useSkillDelete,
   useSkillPublish,
   useSkillSubmit,
+  useSkillCommit,
   useSkillOnline,
   useSkillOffline,
   useSkillBizTags,
@@ -124,6 +135,17 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
   const [rightTab, setRightTab] = useState<RightPanelTab>("overview");
   const [showRightPanel, setShowRightPanel] = useState(true);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  // Commit draft dialog state. `commitTargetVersion` is the draft version
+  // being committed; null means the dialog is closed.
+  const [commitTargetVersion, setCommitTargetVersion] = useState<string | null>(
+    null,
+  );
+  const [commitMsg, setCommitMsg] = useState("");
+  const [commitCascade, setCommitCascade] = useState<{
+    submit: boolean;
+    publish: boolean;
+    online: boolean;
+  }>({ submit: false, publish: false, online: false });
 
   // Dirty content per file path (uncommitted edits).
   const [dirtyMap, setDirtyMap] = useState<Record<string, string>>({});
@@ -186,6 +208,7 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
   const deleteMutation = useSkillDelete();
   const publishMutation = useSkillPublish();
   const submitMutation = useSkillSubmit();
+  const commitMutation = useSkillCommit();
   const onlineMutation = useSkillOnline();
   const offlineMutation = useSkillOffline();
   const bizTagsMutation = useSkillBizTags();
@@ -202,6 +225,7 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
   const versionActionPending =
     submitMutation.isPending ||
     publishMutation.isPending ||
+    commitMutation.isPending ||
     onlineMutation.isPending ||
     offlineMutation.isPending ||
     ensureDraftMutation.isPending;
@@ -473,6 +497,11 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
     if (!detail) return;
     try {
       switch (action) {
+        case "commit":
+          // Commit needs a commit message + cascade options — open the
+          // dialog instead of running inline.
+          openCommitDialog(version);
+          return;
         case "submit":
           await submitMutation.mutateAsync({ skillName: detail.name, version });
           toast.success(t("editor.versionSubmitted"));
@@ -514,7 +543,10 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
   const versionActionsFor = (v: SkillVersion) => {
     switch (v.status) {
       case "draft":
-        return [{ action: "submit", label: t("editor.submit"), icon: Send }];
+        return [
+          { action: "commit", label: t("editor.commit"), icon: GitCommitHorizontal },
+          { action: "submit", label: t("editor.submit"), icon: Send },
+        ];
       case "submitted":
         return [{ action: "publish", label: t("editor.publish"), icon: CheckCircle2 }];
       case "published":
@@ -523,6 +555,47 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
         return [{ action: "offline", label: t("editor.takeOffline"), icon: Pause }];
       default:
         return [];
+    }
+  };
+
+  // Open the commit dialog for a draft version. The actual commit runs in
+  // `handleCommit` once the user confirms the message + cascade options.
+  const openCommitDialog = (version: string) => {
+    setCommitMsg("");
+    setCommitCascade({ submit: false, publish: false, online: false });
+    setCommitTargetVersion(version);
+  };
+
+  const handleCommit = async () => {
+    if (!detail || !commitTargetVersion) return;
+    try {
+      await commitMutation.mutateAsync({
+        skillName: detail.name,
+        version: commitTargetVersion,
+        commitMsg: commitMsg.trim() || undefined,
+        submit: commitCascade.submit,
+        publish: commitCascade.publish,
+        online: commitCascade.online,
+      });
+      toast.success(t("editor.committed"));
+      const committedVersion = commitTargetVersion;
+      setCommitTargetVersion(null);
+      await refetchDetail();
+      // If the commit cascaded to "online", switch the editor to a fresh
+      // draft so the user can keep editing.
+      if (commitCascade.online) {
+        try {
+          const draft = await ensureDraftMutation.mutateAsync({
+            skillName: detail.name,
+            baseVersion: committedVersion,
+          });
+          setUserVersionChoice(draft.version);
+        } catch {
+          toast.info(t("editor.draftNeeded"));
+        }
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : t("skills.actionFailed"));
     }
   };
 
@@ -1483,6 +1556,86 @@ GET /v3/aihub/catalog/skills/${detail.name}/versions/${activeVersion || "1.0.0"}
         variant="destructive"
         onConfirm={handleDelete}
       />
+
+      <Dialog
+        open={commitTargetVersion !== null}
+        onOpenChange={(open) => {
+          if (!open) setCommitTargetVersion(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GitCommitHorizontal className="h-4 w-4" />
+              {t("editor.commitDraft")}
+            </DialogTitle>
+            <DialogDescription>
+              {t("editor.commitDraftDescription", {
+                version: commitTargetVersion ?? "",
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="commit-msg">{t("editor.commitMessage")}</Label>
+              <Textarea
+                id="commit-msg"
+                value={commitMsg}
+                onChange={(e) => setCommitMsg(e.target.value)}
+                placeholder={t("editor.commitMessagePlaceholder")}
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{t("editor.commitCascade")}</Label>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={commitCascade.submit}
+                    onCheckedChange={(v) =>
+                      setCommitCascade((c) => ({ ...c, submit: v === true }))
+                    }
+                  />
+                  {t("editor.cascadeSubmit")}
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={commitCascade.publish}
+                    onCheckedChange={(v) =>
+                      setCommitCascade((c) => ({ ...c, publish: v === true }))
+                    }
+                  />
+                  {t("editor.cascadePublish")}
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={commitCascade.online}
+                    onCheckedChange={(v) =>
+                      setCommitCascade((c) => ({ ...c, online: v === true }))
+                    }
+                  />
+                  {t("editor.cascadeOnline")}
+                </label>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCommitTargetVersion(null)}
+              disabled={commitMutation.isPending}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button onClick={handleCommit} disabled={commitMutation.isPending}>
+              {commitMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {t("editor.commit")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
