@@ -168,8 +168,8 @@ export function SkillSetMemberList({ group, onUpdate }: SkillSetMemberListProps)
             {members.map((member, index) => (
               <TableRow key={member.skillName}>
                 <TableCell className="text-xs">
-                  <div className="font-medium">{member.displayName || member.skillName}</div>
-                  {member.displayName && <div className="font-mono text-[10px] text-muted-foreground">{member.skillName}</div>}
+                  <div className="font-medium">{member.label || member.skillName}</div>
+                  {member.label && <div className="font-mono text-[10px] text-muted-foreground">{member.skillName}</div>}
                 </TableCell>
                 <TableCell className="text-xs font-mono">{member.version || '-'}</TableCell>
                 <TableCell className="text-xs">
