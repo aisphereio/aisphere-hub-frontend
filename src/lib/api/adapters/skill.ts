@@ -434,6 +434,8 @@ export const skillApi = {
       version: data.version,
       status: 'active',
       visibility: data.scope || 'private',
+      orgId: data.orgId,
+      projectId: data.projectId,
       manifestJson: data.metadata
         ? JSON.stringify({ metadata: data.metadata })
         : '{}',

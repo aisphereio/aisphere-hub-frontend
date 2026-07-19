@@ -998,6 +998,8 @@ export type SkillDraft = {
   bizTags?: string[];
   metadata?: Record<string, unknown>;
   version?: string;
+  orgId?: string;
+  projectId?: string;
 };
 
 export type SkillScopeUpdate = {

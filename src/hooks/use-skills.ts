@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { skillApi, socialApi } from "@/lib/api";
 import { asItems } from "@/lib/api/client";
+import { useMe } from "@/hooks/use-auth";
 import type { Skill, SkillDraft } from "@/lib/api/types";
 
 const ENABLE_SKILL_SOCIAL =
@@ -366,8 +367,13 @@ export function useSkillLabels() {
 
 export function useSkillDraft() {
   const queryClient = useQueryClient();
+  const { data: principal } = useMe();
   return useMutation({
-    mutationFn: (data: SkillDraft) => skillApi.draft(data),
+    mutationFn: (data: SkillDraft) => {
+      const orgId = data.orgId || (principal?.orgId as string | undefined);
+      const projectId = data.projectId || (principal?.projectId as string | undefined);
+      return skillApi.draft({ ...data, orgId, projectId });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["skills", "list"] });
     },
