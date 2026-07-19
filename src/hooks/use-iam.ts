@@ -95,10 +95,11 @@ export function useIamCreateOrganization() {
 
 // ─── Control Plane: Projects ───────────────────────────────────────────
 
-export function useIamProjects() {
+export function useIamProjects(orgId?: string) {
   return useQuery({
-    queryKey: ['iam-cp', 'projects'],
-    queryFn: () => iamProjectApi.listProjects(),
+    queryKey: ['iam-cp', 'projects', orgId],
+    queryFn: () => iamProjectApi.listProjects(orgId!),
+    enabled: !!orgId,
     staleTime: 30_000,
   });
 }

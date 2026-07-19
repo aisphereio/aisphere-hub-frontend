@@ -26,7 +26,8 @@ interface SkillCreateDialogProps {
 export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreateDialogProps) {
   const t = useT();
   const { data: principal } = useMe();
-  const { data: projectsData, isLoading: projectsLoading } = useIamProjects();
+  const orgId = (principal?.orgId as string | undefined) || '';
+  const { data: projectsData, isLoading: projectsLoading } = useIamProjects(orgId);
   const projects = projectsData?.projects ?? [];
   const [form, setForm] = useState<SkillDraft>({
     name: '',
@@ -39,7 +40,6 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
   const [bizTagsText, setBizTagsText] = useState('');
   const draftMutation = useSkillDraft();
 
-  const orgId = (principal?.orgId as string | undefined) || '';
   const selectedProject = projects.find((p) => p.id === form.projectId);
   const canSubmit = form.name && isValidResourceId(form.name) && form.projectId && !draftMutation.isPending;
 
