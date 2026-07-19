@@ -5,10 +5,13 @@ import { Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { ResourceIdInput } from '@/components/shared';
 import { useSkillDraft } from '@/hooks/use-skills';
+import { useIamProjects } from '@/hooks/use-iam';
+import { useMe } from '@/hooks/use-auth';
 import { useT } from '@/lib/i18n';
 import { isValidResourceId, isValidVersion } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -22,6 +25,9 @@ interface SkillCreateDialogProps {
 
 export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreateDialogProps) {
   const t = useT();
+  const { data: principal } = useMe();
+  const { data: projectsData, isLoading: projectsLoading } = useIamProjects();
+  const projects = projectsData?.projects ?? [];
   const [form, setForm] = useState<SkillDraft>({
     name: '',
     displayName: '',
@@ -32,6 +38,10 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
   const [keywordsText, setKeywordsText] = useState('');
   const [bizTagsText, setBizTagsText] = useState('');
   const draftMutation = useSkillDraft();
+
+  const orgId = (principal?.orgId as string | undefined) || '';
+  const selectedProject = projects.find((p) => p.id === form.projectId);
+  const canSubmit = form.name && isValidResourceId(form.name) && form.projectId && !draftMutation.isPending;
 
   const handleCreate = async () => {
     if (!form.name) {
@@ -46,9 +56,14 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
       toast.error(t('id.versionInvalid'));
       return;
     }
+    if (!form.projectId) {
+      toast.error(t('create.projectRequired') || 'Please select a project');
+      return;
+    }
     try {
       const data: SkillDraft = {
         ...form,
+        orgId: orgId,
         // Note: scope is intentionally omitted — access mode is now
         // managed by the ResourceSharePanel via IAM ResourceGrants.
         keywords: keywordsText.split(',').map((x) => x.trim()).filter(Boolean),
@@ -92,6 +107,31 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
                 disabled={draftMutation.isPending}
               />
             </div>
+          </div>
+          {/* Project selector — required for authz create_skill check */}
+          <div className="space-y-1.5">
+            <Label>{t('create.project') || 'Project'} <span className="text-destructive">*</span></Label>
+            <Select
+              value={form.projectId || ''}
+              onValueChange={(v) => setForm({ ...form, projectId: v })}
+              disabled={draftMutation.isPending || projectsLoading}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={projectsLoading ? t('create.project.loading') || 'Loading projects...' : t('create.project.placeholder') || 'Select a project'} />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.displayName || p.slug}
+                  </SelectItem>
+                ))}
+                {projects.length === 0 && !projectsLoading && (
+                  <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                    {t('create.project.noProjects') || 'No projects available'}
+                  </div>
+                )}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5">
             <Label>{t('create.description')}</Label>
@@ -137,7 +177,7 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={draftMutation.isPending}>{t('create.cancel')}</Button>
           <Button
             onClick={handleCreate}
-            disabled={!form.name || !isValidResourceId(form.name) || draftMutation.isPending}
+            disabled={!canSubmit}
             className="bg-gradient-to-r from-violet-600 to-fuchsia-500"
           >
             {draftMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
