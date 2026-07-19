@@ -98,7 +98,7 @@
 | ART | REQ | Path | Description |
 |--------|-----|------|-------------|
 | ART-0039 | REQ-FE-SKILL-001 | `src/components/pages/skills-page.tsx` | Skill list |
-| ART-0040 | REQ-FE-SKILL-002 | `src/components/pages/skills-page.tsx` | Skill create |
+| ART-0040 | REQ-FE-SKILL-002 | `src/components/skills/skill-create-dialog.tsx`, `src/hooks/use-iam.ts`, `src/hooks/use-skills.ts` | Project-scoped Skill create |
 | ART-0041 | REQ-FE-SKILL-003 | `src/components/pages/skills-page.tsx` | Skill detail view |
 | ART-0042 | REQ-FE-SKILL-004 | `src/components/editor/code-editor.tsx` | Skill file editor |
 | ART-0043 | REQ-FE-SKILL-005 | `src/components/pages/skills-page.tsx` | Skill version management |
@@ -115,7 +115,7 @@
 | ART-0049 | REQ-FE-SKILLSET-001 | `src/components/pages/skillsets-page.tsx` | SkillSet list |
 | ART-0050 | REQ-FE-SKILLSET-002 | `src/components/pages/skillsets-page.tsx` | SkillSet create |
 | ART-0051 | REQ-FE-SKILLSET-003 | `src/components/pages/skillsets-page.tsx` | SkillSet detail |
-| ART-0052 | REQ-FE-SKILLSET-004 | `src/components/pages/skillsets-page.tsx` | SkillSet member management |
+| ART-0052 | REQ-FE-SKILLSET-004 | `src/components/skillsets/skillset-member-list.tsx` | SkillSet member management |
 | ART-0053 | REQ-FE-SKILLSET-005 | `src/components/pages/skillsets-page.tsx` | SkillSet delete |
 | ART-0054 | REQ-FE-SKILLSET-006 | `src/components/pages/skillsets-page.tsx` | SkillSet required flag |
 

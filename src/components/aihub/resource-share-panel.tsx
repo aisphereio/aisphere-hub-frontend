@@ -150,6 +150,8 @@ function accessModeColor(mode: AccessMode): string {
       return "text-violet-600 bg-violet-50 dark:text-violet-300 dark:bg-violet-950/40 border-violet-500/30";
     case "shared":
       return "text-amber-600 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/40 border-amber-500/30";
+    case "internal":
+      return "text-blue-600 bg-blue-50 dark:text-blue-300 dark:bg-blue-950/40 border-blue-500/30";
     case "public":
       return "text-emerald-600 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40 border-emerald-500/30";
   }

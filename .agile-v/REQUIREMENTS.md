@@ -504,10 +504,10 @@ These requirements define the expected behavior of the Aisphere Hub Frontend (Sk
 
 ## REQ-FE-SKILL-002 — Skill Create
 - **Priority:** P0 | **Status:** `OBSERVED_IMPLEMENTED`
-- **Requirement:** Create new skills.
-- **API:** `POST /v1/skills` → `{ name, displayName, description, version, status, visibility, manifestJson, tags }` → `Skill`
-- **UI:** Dialog with: name (required, lowercase-hyphens), displayName, description, type, icon. Validation. Submit loading. Success toast.
-- **Verification:** 1) Form validates. 2) Submit calls API. 3) Success navigates to detail.
+- **Requirement:** Create a globally named Skill only in an IAM Project where the authenticated Zone member has `create_skill` permission.
+- **API:** `POST /v1/skills` → `{ name, displayName, description, version, orgId, projectId }` → `Skill`
+- **UI:** Dialog with name validation and a required Project selector populated from `GET /v1/iam/orgs/{principal.orgId}/projects`. Submission is disabled when the Principal has no Zone or no Project is selected.
+- **Verification:** 1) Form validates. 2) Project list is scoped to the Principal's Zone. 3) Submit includes `orgId` and `projectId`. 4) Success navigates to detail.
 - **Done criteria:** Component test.
 
 ## REQ-FE-SKILL-003 — Skill Detail View

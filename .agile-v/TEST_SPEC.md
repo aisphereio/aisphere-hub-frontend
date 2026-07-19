@@ -36,13 +36,14 @@ Framework: vitest + @testing-library/react + happy-dom
 | TC-FE-015 | REQ-FE-AUTHZADMIN-007 | Permission check shows result | Shows ALLOWED/DENIED after check | component | 1. Fill form. 2. Click Check. 3. Verify result display. |
 | TC-FE-016 | REQ-FE-AUTHZADMIN-008 | Permission explain shows steps | Shows explanation steps after explain | component | 1. Fill form. 2. Click Explain. 3. Verify steps display. |
 | TC-FE-017 | REQ-FE-AUTHZADMIN-009 | Effective permissions renders | Shows permission table | component | 1. Fill form. 2. Submit. 3. Verify table renders. |
+| TC-FE-018 | REQ-FE-SKILL-002 | Skill create requires Principal Zone and selected Project | Submit stays disabled without either value and sends both values when complete | component | 1. Mock Principal and Project list. 2. Render create dialog. 3. Select Project. 4. Verify create mutation receives `orgId` and `projectId`. |
 
 ## 3. Summary
 
 | Dimension | Count |
 |-----------|:-----:|
-| Total TCs | 17 |
-| Component tests | 17 |
-| P0 priority | 17 |
+| Total TCs | 18 |
+| Component tests | 18 |
+| P0 priority | 18 |
 | **Implemented** | **8** (TC-FE-001~008) |
-| **Pending** | **9** (TC-FE-009~017) |
+| **Pending** | **10** (TC-FE-009~018) |

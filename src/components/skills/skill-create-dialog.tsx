@@ -40,8 +40,7 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
   const [bizTagsText, setBizTagsText] = useState('');
   const draftMutation = useSkillDraft();
 
-  const selectedProject = projects.find((p) => p.id === form.projectId);
-  const canSubmit = form.name && isValidResourceId(form.name) && form.projectId && !draftMutation.isPending;
+  const canSubmit = Boolean(orgId && form.name && isValidResourceId(form.name) && form.projectId && !draftMutation.isPending);
 
   const handleCreate = async () => {
     if (!form.name) {
@@ -56,6 +55,10 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
       toast.error(t('id.versionInvalid'));
       return;
     }
+    if (!orgId) {
+      toast.error(t('create.organizationRequired') || 'Your account is not assigned to an organization');
+      return;
+    }
     if (!form.projectId) {
       toast.error(t('create.projectRequired') || 'Please select a project');
       return;
@@ -63,7 +66,7 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
     try {
       const data: SkillDraft = {
         ...form,
-        orgId: orgId,
+        orgId,
         // Note: scope is intentionally omitted — access mode is now
         // managed by the ResourceSharePanel via IAM ResourceGrants.
         keywords: keywordsText.split(',').map((x) => x.trim()).filter(Boolean),
@@ -114,7 +117,7 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
             <Select
               value={form.projectId || ''}
               onValueChange={(v) => setForm({ ...form, projectId: v })}
-              disabled={draftMutation.isPending || projectsLoading}
+              disabled={!orgId || draftMutation.isPending || projectsLoading}
             >
               <SelectTrigger>
                 <SelectValue placeholder={projectsLoading ? t('create.project.loading') || 'Loading projects...' : t('create.project.placeholder') || 'Select a project'} />
@@ -127,7 +130,9 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
                 ))}
                 {projects.length === 0 && !projectsLoading && (
                   <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                    {t('create.project.noProjects') || 'No projects available'}
+                    {!orgId
+                      ? t('create.organizationRequired') || 'Your account is not assigned to an organization'
+                      : t('create.project.noProjects') || 'No projects available'}
                   </div>
                 )}
               </SelectContent>
