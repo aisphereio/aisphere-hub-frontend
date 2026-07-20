@@ -661,9 +661,9 @@ export const iamProjectApi = {
   getProject: (projectId: string) =>
     iamRequest<IamProject>(`/v1/iam/control-plane/projects/${encodeURIComponent(projectId)}`),
 
-  /** List projects for an organization */
+  /** List active projects for an organization */
   listProjects: (orgId: string) =>
-    iamRequest<{ projects: IamProject[] }>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/projects`),
+    iamRequest<{ projects: IamProject[] }>(`/v1/iam/orgs/${encodeURIComponent(orgId)}/projects?status=ACTIVE`),
 
   /** Update project */
   updateProject: (projectId: string, project: Partial<IamProject>) =>
