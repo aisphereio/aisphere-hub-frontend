@@ -5,12 +5,10 @@ import { Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { ResourceIdInput } from '@/components/shared';
 import { useSkillDraft } from '@/hooks/use-skills';
-import { useIamProjects } from '@/hooks/use-iam';
 import { useMe } from '@/hooks/use-auth';
 import { useT } from '@/lib/i18n';
 import { isValidResourceId, isValidVersion } from '@/lib/utils';
@@ -26,9 +24,12 @@ interface SkillCreateDialogProps {
 export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreateDialogProps) {
   const t = useT();
   const { data: principal } = useMe();
-  const orgId = (principal?.orgId as string | undefined) || '';
-  const { data: projectsData, isLoading: projectsLoading } = useIamProjects(orgId);
-  const projects = projectsData?.projects ?? [];
+  const principalRecord = (principal || {}) as Record<string, unknown>;
+  const orgId =
+    (principalRecord.orgId as string | undefined) ||
+    (principalRecord.org_id as string | undefined) ||
+    (principalRecord.organization as string | undefined) ||
+    '';
   const [form, setForm] = useState<SkillDraft>({
     name: '',
     displayName: '',
@@ -106,34 +107,6 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
                 disabled={draftMutation.isPending}
               />
             </div>
-          </div>
-          {/* Project selector — optional classification field */}
-          <div className="space-y-1.5">
-            <Label>{t('create.project') || 'Project'}</Label>
-            <Select
-              value={form.projectId || ''}
-              onValueChange={(v) => setForm({ ...form, projectId: v === '__none__' ? '' : v })}
-              disabled={!orgId || draftMutation.isPending || projectsLoading}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={projectsLoading ? t('create.project.loading') || 'Loading projects...' : t('create.project.placeholder') || 'Select a project (optional)'} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">{t('create.project.none') || 'None (Zone-level)'}</SelectItem>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.displayName || p.slug}
-                  </SelectItem>
-                ))}
-                {projects.length === 0 && !projectsLoading && (
-                  <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                    {!orgId
-                      ? t('create.organizationRequired') || 'Your account is not assigned to an organization'
-                      : t('create.project.noProjects') || 'No projects available'}
-                  </div>
-                )}
-              </SelectContent>
-            </Select>
           </div>
           <div className="space-y-1.5">
             <Label>{t('create.description')}</Label>
