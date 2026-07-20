@@ -118,10 +118,17 @@ export async function hubFetch<T>(
   }
   if (
     requestInit.body &&
-    !(requestInit.body instanceof FormData) &&
-    !headers.has('Content-Type')
+    !(requestInit.body instanceof FormData)
   ) {
-    headers.set('Content-Type', 'application/json');
+    // Force application/protojson for request bodies so the Hub backend
+    // (kernel transportx) routes the body through the protojson codec, which
+    // accepts BOTH camelCase and snake_case field names per the proto JSON
+    // spec. The plain "json" codec only honors struct tags (snake_case),
+    // which breaks orval-generated clients that send camelCase (e.g. orgId in
+    // CreateSkillRequest). We override rather than default because orval's
+    // generated functions hardcode 'Content-Type: application/json'.
+    // Responses are still regular JSON and parse fine with JSON.parse below.
+    headers.set('Content-Type', 'application/protojson');
   }
 
   const res = await fetch(apiUrl(url), {
