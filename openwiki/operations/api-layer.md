@@ -2,25 +2,44 @@
 
 ## Architecture
 
-The frontend communicates **directly** with the hub backend API. There are no Next.js rewrites. The API layer is in `src/lib/api/` and consists of:
+The frontend communicates **directly** with the hub backend API. There are no Next.js rewrites. The API layer is in `src/lib/api/` and runs on **two parallel paths**:
 
 ```
 src/lib/api/
-├── client.ts    # Core request function, auth, URL building
-├── index.ts     # All API modules (authApi, skillApi, authzApi, etc.)
-└── types.ts     # TypeScript types for all domain models
+├── client.ts        # Hand-written core: request<T>(), auth, URL building
+├── index.ts         # All API modules (authApi, skillApi, authzApi, …)
+├── types.ts         # TypeScript types for all domain models
+├── hub-fetch.ts     # Fetch mutator used by the orval-generated client
+├── adapters/        # Thin wrappers: generated RPCs → skillApi/authApi shape
+│   ├── skill.ts  auth.ts  authz.ts  shares.ts  audit.ts  internal.ts
+└── generated/       # orval-generated client + models (DO NOT hand-edit)
+    ├── skill-service/  authn-service/  authz-service/  audit-service/
+    └── model/
 ```
+
+### Two API paths
+
+| Path | Used by | Transport | Body encoding |
+|------|---------|-----------|---------------|
+| **Generated** — `generated/*` → `adapters/*` → `hubFetch` | Migrated modules (`authApi`, `authzApi`, `skillApi`, `sharesApi`, `auditApi`) | `hubFetch` (mutator) | `application/protojson` (forced) |
+| **Hand-written** — `index.ts` → `request<T>()` (in `client.ts`) | Not-yet-migrated modules (`agentApi`, `toolApi`, `iamApi`, …) | `request<T>()` | `application/json` (auto-set) |
+
+Migrated modules live in `adapters/`: each adapter calls the orval-generated RPC and normalizes the sparse proto response into the richer domain type (e.g. `skillApi.draft` → `skillServiceCreateSkill` → `toSkill`). Consumers keep importing from `index.ts` unchanged.
 
 ## Core Request Function (`client.ts`)
 
-The `request<T>(url, init)` function is the foundation:
+The `request<T>(url, init)` function is the foundation of the **hand-written** path:
 
 1. **URL building** — `apiUrl(path)` prepends `HUB_URL` to relative paths
 2. **Auth headers** — In token mode, adds `Authorization: Bearer <token>`. In gateway_oidc mode, adds `X-Requested-With: XMLHttpRequest`
-3. **Content-Type** — Auto-sets `application/json` for non-FormData bodies
+3. **Content-Type** — Auto-sets `application/json` for non-FormData bodies (hand-written path only; the generated path forces `application/protojson` — see [Request body encoding](#request-body-encoding-camelcase--snake_case) below)
 4. **Credentials** — Defaults to `same-origin`
 5. **Error handling** — On 401 in gateway_oidc mode, throws without clearing token (avoids redirect loops). On other errors, parses JSON error body or falls back to status text
 6. **Response parsing** — Handles JSON, binary (zip/octet-stream), and text responses
+
+## Generated Path (`hub-fetch.ts` + `adapters/`)
+
+`hubFetch` is the fetch mutator registered in `orval.config.ts`. Every generated RPC (`skillServiceCreateSkill`, `authzApi.check`, …) routes through it. It mirrors `request<T>()`'s dual auth model and error-envelope parsing, but differs in one critical way — see below.
 
 ### Key Exports
 
@@ -91,6 +110,24 @@ See [SkillSets Domain](../domain/skillsets.md) for full details.
 | `sandboxProfileApi` | `/v3/aihub/sandbox-profiles/*` | ⏳ Awaiting migration |
 | `modelProfileApi` | `/v3/aihub/model-profiles/*` | ⏳ Awaiting migration |
 
+## Request body encoding (camelCase / snake_case)
+
+> Why the generated path forces `Content-Type: application/protojson` instead of `application/json`.
+
+The Hub backend (kernel `transportx/http`) picks the JSON codec by the request `Content-Type`:
+
+- `application/json` → the plain `json` codec, which uses stdlib `encoding/json` and honors **only** the struct tags on the generated `*.pb.go` types. Those tags are snake_case (`json:"org_id,omitempty"`), so a body like `{"orgId":"aisphere"}` decodes to an **empty** `OrgId` → `ORG_ID_REQUIRED`.
+- `application/protojson` → the `protojson` codec (`google.golang.org/protobuf/encoding/protojson`), which accepts **both** camelCase and snake_case per the proto JSON spec.
+
+Because orval-generated request types are camelCase (`orgId`, `projectId`, `displayName`) and `JSON.stringify` emits those names verbatim, the generated path must send `application/protojson` or the backend silently drops every camelCased field. `hubFetch` therefore **overrides** (not just defaults) the Content-Type for any request with a body — orval's generated functions hardcode `Content-Type: application/json`, which would otherwise win.
+
+Practical rules for anyone editing this layer:
+
+- **Never** remove the protojson override in `hub-fetch.ts` for request bodies. If a future endpoint truly needs `application/json`, pass it explicitly per-call and confirm the backend type's struct tags match the field names you send.
+- **Responses** are still regular JSON (the backend encodes with protojson, whose output is valid JSON); `JSON.parse` in both `request<T>()` and `hubFetch` works unchanged.
+- New proto messages consumed by the frontend are safe as-is — protojson handles camelCase ↔ snake_case bidirectionally. The contract only breaks if someone adds a hand-written HTTP handler on the backend that decodes with `encoding/json` and expects camelCase.
+- Regenerating the client (`orval --config orval.config.ts`) is safe; the mutator config preserves this behavior.
+
 ## Response Normalization
 
 The API layer normalizes backend responses to handle inconsistencies:
@@ -131,6 +168,12 @@ The types file defines all domain models:
 
 | File | Purpose |
 |------|---------|
-| `src/lib/api/client.ts` | Core request function, auth, URL building |
-| `src/lib/api/index.ts` | All API modules |
+| `src/lib/api/client.ts` | Hand-written core: `request<T>()`, auth, URL building |
+| `src/lib/api/index.ts` | All API modules (consumers import from here) |
 | `src/lib/api/types.ts` | TypeScript type definitions |
+| `src/lib/api/hub-fetch.ts` | Fetch mutator for the orval-generated client; forces `application/protojson` on request bodies |
+| `src/lib/api/adapters/*.ts` | Wrap generated RPCs into the `skillApi`/`authApi`/… module shape and normalize proto → domain types |
+| `src/lib/api/generated/` | orval-generated client + models from `openapi/aisphere-hub.swagger.json` (regenerated via `orval --config orval.config.ts`; do not hand-edit) |
+| `orval.config.ts` | orval generation config (fetch client, `hubFetch` mutator, `unsafe.disableValidation` for proto-map query params) |
+| `scripts/sync-contract.mjs` | Sync the OpenAPI spec / contract lock from the backend |
+| `scripts/verify-contract-lock.mjs` | Verify the contract lock is in sync (run in CI / before generate) |
