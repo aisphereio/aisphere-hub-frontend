@@ -368,11 +368,9 @@ export function useSkillDraft() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: SkillDraft) => {
-      // orgId and projectId must be explicitly provided by the caller
-      // (e.g., from the project selector in SkillCreateDialog).
-      // The implicit fallback to principal.projectId is removed because
-      // the authz check now requires a specific project: create_skill
-      // on project:{org_id}/{project_id}.
+      // orgId is required. projectId is optional — when provided it is
+      // stored as a classification field; the authz check now uses
+      // create_skill on zone:{org_id} instead of project:{org_id}/{project_id}.
       return skillApi.draft(data);
     },
     onSuccess: () => {

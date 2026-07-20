@@ -40,7 +40,7 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
   const [bizTagsText, setBizTagsText] = useState('');
   const draftMutation = useSkillDraft();
 
-  const canSubmit = Boolean(orgId && form.name && isValidResourceId(form.name) && form.projectId && !draftMutation.isPending);
+  const canSubmit = Boolean(orgId && form.name && isValidResourceId(form.name) && !draftMutation.isPending);
 
   const handleCreate = async () => {
     if (!form.name) {
@@ -57,10 +57,6 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
     }
     if (!orgId) {
       toast.error(t('create.organizationRequired') || 'Your account is not assigned to an organization');
-      return;
-    }
-    if (!form.projectId) {
-      toast.error(t('create.projectRequired') || 'Please select a project');
       return;
     }
     try {
@@ -111,18 +107,19 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
               />
             </div>
           </div>
-          {/* Project selector — required for authz create_skill check */}
+          {/* Project selector — optional classification field */}
           <div className="space-y-1.5">
-            <Label>{t('create.project') || 'Project'} <span className="text-destructive">*</span></Label>
+            <Label>{t('create.project') || 'Project'}</Label>
             <Select
               value={form.projectId || ''}
-              onValueChange={(v) => setForm({ ...form, projectId: v })}
+              onValueChange={(v) => setForm({ ...form, projectId: v === '__none__' ? '' : v })}
               disabled={!orgId || draftMutation.isPending || projectsLoading}
             >
               <SelectTrigger>
-                <SelectValue placeholder={projectsLoading ? t('create.project.loading') || 'Loading projects...' : t('create.project.placeholder') || 'Select a project'} />
+                <SelectValue placeholder={projectsLoading ? t('create.project.loading') || 'Loading projects...' : t('create.project.placeholder') || 'Select a project (optional)'} />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="__none__">{t('create.project.none') || 'None (Zone-level)'}</SelectItem>
                 {projects.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.displayName || p.slug}
