@@ -795,7 +795,7 @@ export function GroupsTab() {
   const [showMembers, setShowMembers] = useState(false);
   const [memberUserId, setMemberUserId] = useState('');
   const [showUpdate, setShowUpdate] = useState(false);
-  const [updateForm, setUpdateForm] = useState({ displayName: '', type: 'folder' });
+  const [updateForm, setUpdateForm] = useState({ displayName: '', type: 'folder', parentId: '' });
 
   const orgId = 'aisphere';
   const { data: groupsData, isLoading, refetch } = useIamDirectoryGroups(orgId);
@@ -847,7 +847,11 @@ export function GroupsTab() {
       await updateMutation.mutateAsync({
         orgId,
         groupId: selectedGroup.id,
-        group: { displayName: updateForm.displayName, type: updateForm.type },
+        group: {
+          displayName: updateForm.displayName,
+          type: updateForm.type,
+          parentId: updateForm.parentId || undefined,
+        },
       });
       toast.success('Group updated');
       setShowUpdate(false);
@@ -939,7 +943,7 @@ export function GroupsTab() {
                           <Button variant="ghost" size="icon" className="h-6 w-6"
                             onClick={() => {
                               setSelectedGroup(group);
-                              setUpdateForm({ displayName: group.displayName || '', type: group.type || 'folder' });
+                              setUpdateForm({ displayName: group.displayName || '', type: group.type || 'folder', parentId: group.parentId || '' });
                               setShowUpdate(true);
                             }}>
                             <Pencil className="h-3 w-3" />
@@ -1045,6 +1049,20 @@ export function GroupsTab() {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <label className="text-xs font-medium">Parent Group (optional)</label>
+              <Select value={createForm.parentId} onValueChange={(v) => setCreateForm({ ...createForm, parentId: v })}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="（顶级组织，无父级）" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">（顶级组织，无父级）</SelectItem>
+                  {items.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>{g.displayName || g.name} ({g.type || 'folder'})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setShowCreate(false)}>Cancel</Button>
@@ -1081,6 +1099,20 @@ export function GroupsTab() {
                 <SelectContent>
                   <SelectItem value="folder">Folder</SelectItem>
                   <SelectItem value="group">Group</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs font-medium">Parent Group (optional)</label>
+              <Select value={updateForm.parentId} onValueChange={(v) => setUpdateForm({ ...updateForm, parentId: v })}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="（顶级组织，无父级）" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">（顶级组织，无父级）</SelectItem>
+                  {items.filter((g) => g.id !== selectedGroup?.id).map((g) => (
+                    <SelectItem key={g.id} value={g.id}>{g.displayName || g.name} ({g.type || 'folder'})</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
