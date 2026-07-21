@@ -31,18 +31,17 @@ export const getAuthnServiceExchangeUrl = () => {
 }
 
 /**
+ * Supports PKCE via the optional `code_verifier` field for public clients
+ * (SPAs, mobile apps) that cannot safely store a client secret. When the
+ * authorization request was made with a `code_challenge`, the same
+ * `code_verifier` MUST be supplied here.
+ *
+ * NOTE: kernel authn exposes CodeVerifier on AuthCodeExchangeRequest, but
+ * the current Casdoor SDK adapter (kernel/authn/casdoor/token.go) does not
+ * yet forward it to GetOAuthToken. The field is accepted on the wire for
+ * forward compatibility; verify the kernel version before relying on PKCE
+ * enforcement server-side.
  * @summary Exchange exchanges an OAuth authorization code for IdP tokens.
-
-Supports PKCE via the optional `code_verifier` field for public clients
-(SPAs, mobile apps) that cannot safely store a client secret. When the
-authorization request was made with a `code_challenge`, the same
-`code_verifier` MUST be supplied here.
-
-NOTE: kernel authn exposes CodeVerifier on AuthCodeExchangeRequest, but
-the current Casdoor SDK adapter (kernel/authn/casdoor/token.go) does not
-yet forward it to GetOAuthToken. The field is accepted on the wire for
-forward compatibility; verify the kernel version before relying on PKCE
-enforcement server-side.
  */
 export const authnServiceExchange = async (v1ExchangeRequest: V1ExchangeRequest, options?: RequestInit): Promise<V1ExchangeResponse> => {
 
@@ -65,13 +64,12 @@ export const getAuthnServiceIntrospectUrl = () => {
 }
 
 /**
+ * Useful for debug tools, third-party integrations, and service-to-service
+ * calls that need to verify a token's validity and identity without going
+ * through the full request middleware chain. Mirrors RFC 7662 token
+ * introspection semantics (active=false when the token is invalid,
+ * expired, or revoked).
  * @summary Introspect validates a token and returns the principal it represents.
-
-Useful for debug tools, third-party integrations, and service-to-service
-calls that need to verify a token's validity and identity without going
-through the full request middleware chain. Mirrors RFC 7662 token
-introspection semantics (active=false when the token is invalid,
-expired, or revoked).
  */
 export const authnServiceIntrospect = async (v1IntrospectRequest: V1IntrospectRequest, options?: RequestInit): Promise<V1IntrospectResponse> => {
 
@@ -101,11 +99,10 @@ export const getAuthnServiceLoginURLUrl = (params: AuthnServiceLoginURLParams,) 
 }
 
 /**
+ * Browser users should prefer GET /v1/authn/login, which is registered as a
+ * direct HTTP 302 route by the service implementation. See the service
+ * comment above.
  * @summary LoginURL returns the IdP authorization URL as JSON for SPA/debug usage.
-
-Browser users should prefer GET /v1/authn/login, which is registered as a
-direct HTTP 302 route by the service implementation. See the service
-comment above.
  */
 export const authnServiceLoginURL = async (params: AuthnServiceLoginURLParams, options?: RequestInit): Promise<V1LoginURLResponse> => {
 
@@ -135,23 +132,22 @@ export const getAuthnServiceLogoutURLUrl = (params?: AuthnServiceLogoutURLParams
 }
 
 /**
+ * Browser users can also call GET /v1/authn/logout for a direct HTTP 302.
+ *
+ * Side effect: token revocation. When the request carries an
+ * `Authorization: Bearer <access_token>` header, OR an explicit
+ * `access_token` field is supplied in the request body, the implementation
+ * calls Revoke on that access token before returning the IdP logout URL.
+ * This adds the token to the local session blacklist so subsequent API
+ * calls with the same token are rejected even before the IdP session
+ * expires. The `access_token` field makes this previously-implicit side
+ * effect visible in the API contract.
+ *
+ *
+ * The logout URL is built by kernel authn.LogoutService (implemented by
+ * the Casdoor adapter in kernel/authn/casdoor). The hub data layer
+ * delegates to Resources.LogoutService.BuildLogoutURL().
  * @summary LogoutURL returns the IdP logout URL as JSON for SPA/debug usage.
-
-Browser users can also call GET /v1/authn/logout for a direct HTTP 302.
-
-Side effect: token revocation. When the request carries an
-`Authorization: Bearer <access_token>` header, OR an explicit
-`access_token` field is supplied in the request body, the implementation
-calls Revoke on that access token before returning the IdP logout URL.
-This adds the token to the local session blacklist so subsequent API
-calls with the same token are rejected even before the IdP session
-expires. The `access_token` field makes this previously-implicit side
-effect visible in the API contract.
-
-
-The logout URL is built by kernel authn.LogoutService (implemented by
-the Casdoor adapter in kernel/authn/casdoor). The hub data layer
-delegates to Resources.LogoutService.BuildLogoutURL().
  */
 export const authnServiceLogoutURL = async (params?: AuthnServiceLogoutURLParams, options?: RequestInit): Promise<V1LogoutURLResponse> => {
 
@@ -174,12 +170,11 @@ export const getAuthnServiceMeUrl = () => {
 }
 
 /**
+ * Requires `Authorization: Bearer <access_token>`. The returned Principal
+ * includes `expires_at` so frontends can schedule proactive token refreshes
+ * before the token expires, rather than waiting for a 401 to trigger a
+ * reactive refresh.
  * @summary Me returns the current authenticated principal.
-
-Requires `Authorization: Bearer <access_token>`. The returned Principal
-includes `expires_at` so frontends can schedule proactive token refreshes
-before the token expires, rather than waiting for a 401 to trigger a
-reactive refresh.
  */
 export const authnServiceMe = async ( options?: RequestInit): Promise<V1MeResponse> => {
 
@@ -225,21 +220,20 @@ export const getAuthnServiceRevokeUrl = () => {
 }
 
 /**
+ * Use this for multi-device session management (e.g. "sign out everywhere"
+ * flows) where the caller wants to invalidate a token without navigating
+ * the IdP logout page.
+ *
+ * IdP-side revocation is best-effort; the local session blacklist is
+ * always updated so the token is rejected at the next API call regardless
+ * of whether the IdP actually revokes it.
+ *
+ * NOTE: the current Casdoor SDK adapter (kernel/authn/casdoor/token.go)
+ * returns ErrIdentityBackendFailed("casdoor sdk does not expose token
+ * revocation"). Until the kernel adapter is updated, this RPC will only
+ * update the local blacklist and return a warning. Callers that need
+ * full IdP-side revocation should use LogoutURL with id_token_hint.
  * @summary Revoke explicitly revokes an access or refresh token.
-
-Use this for multi-device session management (e.g. "sign out everywhere"
-flows) where the caller wants to invalidate a token without navigating
-the IdP logout page.
-
-IdP-side revocation is best-effort; the local session blacklist is
-always updated so the token is rejected at the next API call regardless
-of whether the IdP actually revokes it.
-
-NOTE: the current Casdoor SDK adapter (kernel/authn/casdoor/token.go)
-returns ErrIdentityBackendFailed("casdoor sdk does not expose token
-revocation"). Until the kernel adapter is updated, this RPC will only
-update the local blacklist and return a warning. Callers that need
-full IdP-side revocation should use LogoutURL with id_token_hint.
  */
 export const authnServiceRevoke = async (v1RevokeRequest: V1RevokeRequest, options?: RequestInit): Promise<V1RevokeResponse> => {
 

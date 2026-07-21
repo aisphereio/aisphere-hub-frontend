@@ -90,12 +90,9 @@ export function MonacoSkillEditor({
   const [value, setValue] = useState(initialContent);
   const [localSha, setLocalSha] = useState(sha);
   const saveMutation = useSaveFile();
-  // Reset internal state whenever the parent swaps to a different file
-  // or refetches content (e.g. after a conflict resolution).
-  useEffect(() => {
-    setValue(initialContent);
-    setLocalSha(sha);
-  }, [filePath, initialContent, sha]);
+  // Internal state reset on file/content change is handled by the parent
+  // via the `key` prop (editorPath + sha + mode) — remounting this component
+  // reinitializes useState below, so no in-effect setState is needed here.
 
   const dirty = value !== initialContent;
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
@@ -114,7 +111,6 @@ export function MonacoSkillEditor({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, dirty, localSha, create, filePath, skillName, branch]);
 
   const language = useMemo(() => languageFor(filePath), [filePath]);

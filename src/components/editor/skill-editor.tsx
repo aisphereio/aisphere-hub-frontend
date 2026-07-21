@@ -650,7 +650,7 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
       <ResizablePanel defaultSize={78} minSize={40}>
         {editorPath ? (
           <MonacoSkillEditor
-            key={editorPath + (editorCreate ? ":create" : ":edit")}
+            key={editorPath + (editorCreate ? ":create" : ":edit") + (editorSha || "")}
             skillName={skillName}
             filePath={editorPath}
             branch={defaultBranch}

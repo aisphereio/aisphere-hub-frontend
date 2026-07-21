@@ -15,6 +15,15 @@
       "name": "AuthzService"
     },
     {
+      "name": "ClusterService"
+    },
+    {
+      "name": "NamespaceService"
+    },
+    {
+      "name": "FileService"
+    },
+    {
       "name": "SkillService"
     }
   ],
@@ -129,7 +138,8 @@
     },
     "/v1/authn/exchange": {
       "post": {
-        "summary": "Exchange exchanges an OAuth authorization code for IdP tokens.\r\n\r\nSupports PKCE via the optional `code_verifier` field for public clients\r\n(SPAs, mobile apps) that cannot safely store a client secret. When the\r\nauthorization request was made with a `code_challenge`, the same\r\n`code_verifier` MUST be supplied here.\r\n\r\nNOTE: kernel authn exposes CodeVerifier on AuthCodeExchangeRequest, but\r\nthe current Casdoor SDK adapter (kernel/authn/casdoor/token.go) does not\r\nyet forward it to GetOAuthToken. The field is accepted on the wire for\r\nforward compatibility; verify the kernel version before relying on PKCE\r\nenforcement server-side.",
+        "summary": "Exchange exchanges an OAuth authorization code for IdP tokens.",
+        "description": "Supports PKCE via the optional `code_verifier` field for public clients\n(SPAs, mobile apps) that cannot safely store a client secret. When the\nauthorization request was made with a `code_challenge`, the same\n`code_verifier` MUST be supplied here.\n\nNOTE: kernel authn exposes CodeVerifier on AuthCodeExchangeRequest, but\nthe current Casdoor SDK adapter (kernel/authn/casdoor/token.go) does not\nyet forward it to GetOAuthToken. The field is accepted on the wire for\nforward compatibility; verify the kernel version before relying on PKCE\nenforcement server-side.",
         "operationId": "AuthnService_Exchange",
         "responses": {
           "200": {
@@ -162,7 +172,8 @@
     },
     "/v1/authn/introspect": {
       "post": {
-        "summary": "Introspect validates a token and returns the principal it represents.\r\n\r\nUseful for debug tools, third-party integrations, and service-to-service\r\ncalls that need to verify a token's validity and identity without going\r\nthrough the full request middleware chain. Mirrors RFC 7662 token\r\nintrospection semantics (active=false when the token is invalid,\r\nexpired, or revoked).",
+        "summary": "Introspect validates a token and returns the principal it represents.",
+        "description": "Useful for debug tools, third-party integrations, and service-to-service\ncalls that need to verify a token's validity and identity without going\nthrough the full request middleware chain. Mirrors RFC 7662 token\nintrospection semantics (active=false when the token is invalid,\nexpired, or revoked).",
         "operationId": "AuthnService_Introspect",
         "responses": {
           "200": {
@@ -195,7 +206,8 @@
     },
     "/v1/authn/login-url": {
       "get": {
-        "summary": "LoginURL returns the IdP authorization URL as JSON for SPA/debug usage.\r\n\r\nBrowser users should prefer GET /v1/authn/login, which is registered as a\r\ndirect HTTP 302 route by the service implementation. See the service\r\ncomment above.",
+        "summary": "LoginURL returns the IdP authorization URL as JSON for SPA/debug usage.",
+        "description": "Browser users should prefer GET /v1/authn/login, which is registered as a\ndirect HTTP 302 route by the service implementation. See the service\ncomment above.",
         "operationId": "AuthnService_LoginURL",
         "responses": {
           "200": {
@@ -238,14 +250,14 @@
           },
           {
             "name": "orgId",
-            "description": "org_id optionally overrides the globally configured Casdoor organization\r\nfor this login URL. When unset, the global config organization is used.\r\nMaps to kernel authn.LoginURLRequest.OrgID.",
+            "description": "org_id optionally overrides the globally configured Casdoor organization\nfor this login URL. When unset, the global config organization is used.\nMaps to kernel authn.LoginURLRequest.OrgID.",
             "in": "query",
             "required": false,
             "type": "string"
           },
           {
             "name": "appId",
-            "description": "app_id optionally overrides the globally configured Casdoor application.\r\nMaps to kernel authn.LoginURLRequest.AppID.",
+            "description": "app_id optionally overrides the globally configured Casdoor application.\nMaps to kernel authn.LoginURLRequest.AppID.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -258,7 +270,8 @@
     },
     "/v1/authn/logout-url": {
       "get": {
-        "summary": "LogoutURL returns the IdP logout URL as JSON for SPA/debug usage.\r\n\r\nBrowser users can also call GET /v1/authn/logout for a direct HTTP 302.\r\n\r\nSide effect: token revocation. When the request carries an\r\n`Authorization: Bearer \u003caccess_token\u003e` header, OR an explicit\r\n`access_token` field is supplied in the request body, the implementation\r\ncalls Revoke on that access token before returning the IdP logout URL.\r\nThis adds the token to the local session blacklist so subsequent API\r\ncalls with the same token are rejected even before the IdP session\r\nexpires. The `access_token` field makes this previously-implicit side\r\neffect visible in the API contract.\r\n\r\n\r\nThe logout URL is built by kernel authn.LogoutService (implemented by\r\nthe Casdoor adapter in kernel/authn/casdoor). The hub data layer\r\ndelegates to Resources.LogoutService.BuildLogoutURL().",
+        "summary": "LogoutURL returns the IdP logout URL as JSON for SPA/debug usage.",
+        "description": "Browser users can also call GET /v1/authn/logout for a direct HTTP 302.\n\nSide effect: token revocation. When the request carries an\n`Authorization: Bearer \u003caccess_token\u003e` header, OR an explicit\n`access_token` field is supplied in the request body, the implementation\ncalls Revoke on that access token before returning the IdP logout URL.\nThis adds the token to the local session blacklist so subsequent API\ncalls with the same token are rejected even before the IdP session\nexpires. The `access_token` field makes this previously-implicit side\neffect visible in the API contract.\n\n\nThe logout URL is built by kernel authn.LogoutService (implemented by\nthe Casdoor adapter in kernel/authn/casdoor). The hub data layer\ndelegates to Resources.LogoutService.BuildLogoutURL().",
         "operationId": "AuthnService_LogoutURL",
         "responses": {
           "200": {
@@ -295,7 +308,7 @@
           },
           {
             "name": "accessToken",
-            "description": "access_token explicitly identifies the token to revoke locally before\r\nreturning the IdP logout URL. When unset, the implementation falls back\r\nto the `Authorization: Bearer \u003caccess_token\u003e` request header.\r\n\r\nThis field makes the implicit revocation side effect of LogoutURL\r\nvisible in the API contract instead of being hidden in service code\r\n(legacy backend internal/biz/auth.go:LogoutURL).\r\n\r\nRevoke is best-effort. If the local session manager is unavailable the\r\nimplementation MUST still return the logout URL and log a warning.",
+            "description": "access_token explicitly identifies the token to revoke locally before\nreturning the IdP logout URL. When unset, the implementation falls back\nto the `Authorization: Bearer \u003caccess_token\u003e` request header.\n\nThis field makes the implicit revocation side effect of LogoutURL\nvisible in the API contract instead of being hidden in service code\n(legacy backend internal/biz/auth.go:LogoutURL).\n\nRevoke is best-effort. If the local session manager is unavailable the\nimplementation MUST still return the logout URL and log a warning.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -320,7 +333,8 @@
     },
     "/v1/authn/me": {
       "get": {
-        "summary": "Me returns the current authenticated principal.\r\n\r\nRequires `Authorization: Bearer \u003caccess_token\u003e`. The returned Principal\r\nincludes `expires_at` so frontends can schedule proactive token refreshes\r\nbefore the token expires, rather than waiting for a 401 to trigger a\r\nreactive refresh.",
+        "summary": "Me returns the current authenticated principal.",
+        "description": "Requires `Authorization: Bearer \u003caccess_token\u003e`. The returned Principal\nincludes `expires_at` so frontends can schedule proactive token refreshes\nbefore the token expires, rather than waiting for a 401 to trigger a\nreactive refresh.",
         "operationId": "AuthnService_Me",
         "responses": {
           "200": {
@@ -376,7 +390,8 @@
     },
     "/v1/authn/revoke": {
       "post": {
-        "summary": "Revoke explicitly revokes an access or refresh token.\r\n\r\nUse this for multi-device session management (e.g. \"sign out everywhere\"\r\nflows) where the caller wants to invalidate a token without navigating\r\nthe IdP logout page.\r\n\r\nIdP-side revocation is best-effort; the local session blacklist is\r\nalways updated so the token is rejected at the next API call regardless\r\nof whether the IdP actually revokes it.\r\n\r\nNOTE: the current Casdoor SDK adapter (kernel/authn/casdoor/token.go)\r\nreturns ErrIdentityBackendFailed(\"casdoor sdk does not expose token\r\nrevocation\"). Until the kernel adapter is updated, this RPC will only\r\nupdate the local blacklist and return a warning. Callers that need\r\nfull IdP-side revocation should use LogoutURL with id_token_hint.",
+        "summary": "Revoke explicitly revokes an access or refresh token.",
+        "description": "Use this for multi-device session management (e.g. \"sign out everywhere\"\nflows) where the caller wants to invalidate a token without navigating\nthe IdP logout page.\n\nIdP-side revocation is best-effort; the local session blacklist is\nalways updated so the token is rejected at the next API call regardless\nof whether the IdP actually revokes it.\n\nNOTE: the current Casdoor SDK adapter (kernel/authn/casdoor/token.go)\nreturns ErrIdentityBackendFailed(\"casdoor sdk does not expose token\nrevocation\"). Until the kernel adapter is updated, this RPC will only\nupdate the local blacklist and return a warning. Callers that need\nfull IdP-side revocation should use LogoutURL with id_token_hint.",
         "operationId": "AuthnService_Revoke",
         "responses": {
           "200": {
@@ -878,6 +893,684 @@
         ],
         "tags": [
           "AuthzService"
+        ]
+      }
+    },
+    "/v1/clusters": {
+      "get": {
+        "operationId": "ClusterService_ListClusters",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListClustersResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageToken",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "orgId",
+            "description": "org_id overrides the principal's zone. Requires view_zone in that zone\n(design §7.6.4). V1 does not provide cross-zone aggregation; there is\nno all_orgs parameter.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ClusterService"
+        ]
+      },
+      "post": {
+        "operationId": "ClusterService_CreateCluster",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/v1Cluster"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateClusterRequest"
+            }
+          }
+        ],
+        "tags": [
+          "ClusterService"
+        ]
+      }
+    },
+    "/v1/clusters/{clusterId}/namespaces": {
+      "get": {
+        "operationId": "NamespaceService_ListClusterNamespaces",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListClusterNamespacesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "clusterId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageToken",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "NamespaceService"
+        ]
+      },
+      "post": {
+        "operationId": "NamespaceService_CreateNamespace",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/v1Namespace"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "clusterId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/NamespaceServiceCreateNamespaceBody"
+            }
+          }
+        ],
+        "tags": [
+          "NamespaceService"
+        ]
+      }
+    },
+    "/v1/clusters/{clusterId}/namespaces:sync": {
+      "post": {
+        "operationId": "NamespaceService_SyncNamespaces",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SyncNamespacesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "clusterId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "NamespaceService"
+        ]
+      }
+    },
+    "/v1/clusters/{id}": {
+      "get": {
+        "operationId": "ClusterService_GetCluster",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/v1Cluster"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ClusterService"
+        ]
+      },
+      "delete": {
+        "operationId": "ClusterService_DeleteCluster",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteClusterResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "expectedRevision",
+            "in": "query",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "deletePolicy",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "DELETE_POLICY_UNSPECIFIED",
+              "DELETE_POLICY_DETACH_ONLY",
+              "DELETE_POLICY_CASCADE"
+            ],
+            "default": "DELETE_POLICY_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "ClusterService"
+        ]
+      },
+      "put": {
+        "operationId": "ClusterService_UpdateCluster",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/v1Cluster"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ClusterServiceUpdateClusterBody"
+            }
+          }
+        ],
+        "tags": [
+          "ClusterService"
+        ]
+      }
+    },
+    "/v1/clusters/{id}:probe": {
+      "post": {
+        "operationId": "ClusterService_ProbeCluster",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/v1Cluster"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ClusterService"
+        ]
+      }
+    },
+    "/v1/clusters/{id}:rotate-credential": {
+      "post": {
+        "operationId": "ClusterService_RotateCredential",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/v1Cluster"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ClusterServiceRotateCredentialBody"
+            }
+          }
+        ],
+        "tags": [
+          "ClusterService"
+        ]
+      }
+    },
+    "/v1/namespaces": {
+      "get": {
+        "operationId": "NamespaceService_ListNamespaces",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListNamespacesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "pageToken",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "orgId",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "NamespaceService"
+        ]
+      }
+    },
+    "/v1/namespaces/{id}": {
+      "get": {
+        "operationId": "NamespaceService_GetNamespace",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/v1Namespace"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "NamespaceService"
+        ]
+      },
+      "delete": {
+        "operationId": "NamespaceService_DeleteNamespace",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteNamespaceResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "expectedRevision",
+            "in": "query",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "deletePolicy",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "DELETE_POLICY_UNSPECIFIED",
+              "DELETE_POLICY_DETACH_ONLY",
+              "DELETE_POLICY_CASCADE"
+            ],
+            "default": "DELETE_POLICY_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "NamespaceService"
+        ]
+      },
+      "put": {
+        "operationId": "NamespaceService_UpdateNamespace",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/v1Namespace"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/NamespaceServiceUpdateNamespaceBody"
+            }
+          }
+        ],
+        "tags": [
+          "NamespaceService"
+        ]
+      }
+    },
+    "/v1/namespaces/{id}/shares": {
+      "get": {
+        "operationId": "NamespaceService_ListNamespaceShares",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListNamespaceSharesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "NamespaceService"
+        ]
+      },
+      "post": {
+        "operationId": "NamespaceService_CreateNamespaceShare",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateNamespaceShareResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/NamespaceServiceCreateNamespaceShareBody"
+            }
+          }
+        ],
+        "tags": [
+          "NamespaceService"
+        ]
+      }
+    },
+    "/v1/namespaces/{id}/shares/{relation}/{subjectType}/{subjectId}": {
+      "delete": {
+        "operationId": "NamespaceService_DeleteNamespaceShare",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteNamespaceShareResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "relation",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "enum": [
+              "NAMESPACE_SHARE_RELATION_UNSPECIFIED",
+              "NAMESPACE_SHARE_RELATION_VIEWER",
+              "NAMESPACE_SHARE_RELATION_USER",
+              "NAMESPACE_SHARE_RELATION_EDITOR"
+            ]
+          },
+          {
+            "name": "subjectType",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "subjectId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "NamespaceService"
+        ]
+      }
+    },
+    "/v1/namespaces/{id}:visibility": {
+      "post": {
+        "operationId": "NamespaceService_UpdateNamespaceVisibility",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/v1Namespace"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/NamespaceServiceUpdateNamespaceVisibilityBody"
+            }
+          }
+        ],
+        "tags": [
+          "NamespaceService"
         ]
       }
     },
@@ -1488,9 +2181,420 @@
           "SkillService"
         ]
       }
+    },
+    "/v1/skills/{skillName}/contents/**": {
+      "get": {
+        "operationId": "FileService_ListFiles",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1FileContents"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "skillName",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "ref",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "FileService"
+        ]
+      }
+    },
+    "/v1/skills/{skillName}/contents/{path}": {
+      "delete": {
+        "operationId": "FileService_DeleteFile",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteFileResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "skillName",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "pattern": ".+"
+          },
+          {
+            "name": "message",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sha",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "committerName",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "committerEmail",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "FileService"
+        ]
+      },
+      "post": {
+        "operationId": "FileService_CreateFile",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1FileContent"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "skillName",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "pattern": ".+"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/FileServiceCreateFileBody"
+            }
+          }
+        ],
+        "tags": [
+          "FileService"
+        ]
+      },
+      "put": {
+        "operationId": "FileService_UpdateFile",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1FileContent"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "skillName",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "pattern": ".+"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/FileServiceUpdateFileBody"
+            }
+          }
+        ],
+        "tags": [
+          "FileService"
+        ]
+      }
+    },
+    "/v1/skills/{skillName}/raw/{path}": {
+      "get": {
+        "operationId": "FileService_GetFile",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1FileContent"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "skillName",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "pattern": ".+"
+          },
+          {
+            "name": "ref",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "FileService"
+        ]
+      }
     }
   },
   "definitions": {
+    "ClusterServiceRotateCredentialBody": {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "string",
+          "format": "int64"
+        },
+        "credential": {
+          "$ref": "#/definitions/v1ClusterCredentialInput"
+        }
+      },
+      "description": "RotateCredentialRequest follows the six-step protocol in design §5.7.3:\nPut new credential -\u003e probe with temp client -\u003e CAS switch -\u003e invalidate\npool -\u003e delayed old_ref cleanup. expected_revision guards CAS.",
+      "required": [
+        "expectedRevision",
+        "credential"
+      ]
+    },
+    "ClusterServiceUpdateClusterBody": {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "string",
+          "format": "int64"
+        },
+        "updateMask": {
+          "type": "string"
+        },
+        "cluster": {
+          "$ref": "#/definitions/v1Cluster"
+        }
+      },
+      "description": "UpdateClusterRequest uses FieldMask to avoid PUT clearing unset fields\n(design §5.3.2/§5.7.4). expected_revision is the CAS guard; mismatch\nreturns REVISION_CONFLICT. Immutable fields in update_mask return\nINVALID_ARGUMENT.",
+      "required": [
+        "expectedRevision",
+        "updateMask"
+      ]
+    },
+    "FileServiceCreateFileBody": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "committerName": {
+          "type": "string"
+        },
+        "committerEmail": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "content"
+      ]
+    },
+    "FileServiceUpdateFileBody": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "branch": {
+          "type": "string"
+        },
+        "committerName": {
+          "type": "string"
+        },
+        "committerEmail": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "content"
+      ]
+    },
+    "NamespaceServiceCreateNamespaceBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "createMode": {
+          "$ref": "#/definitions/v1CreateMode"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "visibility": {
+          "$ref": "#/definitions/v1NamespaceVisibility"
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "ownerType": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "NamespaceServiceCreateNamespaceShareBody": {
+      "type": "object",
+      "properties": {
+        "relation": {
+          "$ref": "#/definitions/v1NamespaceShareRelation"
+        },
+        "subjectType": {
+          "type": "string"
+        },
+        "subjectId": {
+          "type": "string"
+        },
+        "subjectRelation": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "relation",
+        "subjectType",
+        "subjectId"
+      ]
+    },
+    "NamespaceServiceUpdateNamespaceBody": {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "string",
+          "format": "int64"
+        },
+        "updateMask": {
+          "type": "string"
+        },
+        "namespace": {
+          "$ref": "#/definitions/v1Namespace"
+        }
+      },
+      "required": [
+        "expectedRevision",
+        "updateMask"
+      ]
+    },
+    "NamespaceServiceUpdateNamespaceVisibilityBody": {
+      "type": "object",
+      "properties": {
+        "visibility": {
+          "$ref": "#/definitions/v1NamespaceVisibility"
+        }
+      },
+      "required": [
+        "visibility"
+      ]
+    },
     "SkillServiceClosePullRequestBody": {
       "type": "object"
     },
@@ -1826,6 +2930,202 @@
         }
       }
     },
+    "v1Cluster": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "orgId": {
+          "type": "string"
+        },
+        "serverUrl": {
+          "type": "string"
+        },
+        "distribution": {
+          "type": "string"
+        },
+        "kubernetesVersion": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/v1ClusterStatus"
+        },
+        "healthMessage": {
+          "type": "string"
+        },
+        "lastProbeTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "permissions": {
+          "$ref": "#/definitions/v1ClusterPermissions"
+        },
+        "createTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updateTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revision": {
+          "type": "string",
+          "format": "int64"
+        },
+        "ownerType": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        }
+      },
+      "description": "Cluster is the AISphere control-plane resource for a registered Kubernetes\ncluster. It is NOT the kubeconfig file. Credential material is never\nreturned by any RPC (design §5.2)."
+    },
+    "v1ClusterCredentialInput": {
+      "type": "object",
+      "properties": {
+        "kubeconfig": {
+          "type": "string",
+          "format": "byte"
+        },
+        "inCluster": {
+          "$ref": "#/definitions/v1InClusterCredential"
+        },
+        "serviceAccount": {
+          "$ref": "#/definitions/v1ServiceAccountCredential"
+        }
+      },
+      "description": "ClusterCredentialInput carries the credential supplied by the caller on\ncreate/rotate. Hub never persists plaintext; this message only flows into\nCredentialStore.Put. Logs must redact every field (design §5.4)."
+    },
+    "v1ClusterPermissions": {
+      "type": "object",
+      "properties": {
+        "canView": {
+          "type": "boolean"
+        },
+        "canOperate": {
+          "type": "boolean"
+        },
+        "canManage": {
+          "type": "boolean"
+        },
+        "canCreateNamespace": {
+          "type": "boolean"
+        },
+        "canDelete": {
+          "type": "boolean"
+        }
+      },
+      "description": "ClusterPermissions is derived from SpiceDB BatchCheck at read time\n(design §7.6.2). can_delete is derived from can_manage. Cluster V1 has no\nshare API, so can_share is intentionally omitted (design §5.2)."
+    },
+    "v1ClusterStatus": {
+      "type": "string",
+      "enum": [
+        "CLUSTER_STATUS_UNSPECIFIED",
+        "CLUSTER_STATUS_CREATING",
+        "CLUSTER_STATUS_READY",
+        "CLUSTER_STATUS_PROBING",
+        "CLUSTER_STATUS_DEGRADED",
+        "CLUSTER_STATUS_DELETING",
+        "CLUSTER_STATUS_DELETED",
+        "CLUSTER_STATUS_FAILED"
+      ],
+      "default": "CLUSTER_STATUS_UNSPECIFIED",
+      "description": "ClusterStatus mirrors the lifecycle state machine in design §5.7.1."
+    },
+    "v1CreateClusterRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "orgId": {
+          "type": "string"
+        },
+        "serverUrl": {
+          "type": "string"
+        },
+        "credential": {
+          "$ref": "#/definitions/v1ClusterCredentialInput"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "distribution": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "ownerType": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "orgId",
+        "serverUrl",
+        "credential"
+      ]
+    },
+    "v1CreateClusterResponse": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "$ref": "#/definitions/v1Cluster"
+        }
+      }
+    },
+    "v1CreateMode": {
+      "type": "string",
+      "enum": [
+        "CREATE_MODE_UNSPECIFIED",
+        "CREATE_MODE_CREATE_NEW",
+        "CREATE_MODE_IMPORT_EXISTING"
+      ],
+      "default": "CREATE_MODE_UNSPECIFIED"
+    },
+    "v1CreateNamespaceResponse": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "$ref": "#/definitions/v1Namespace"
+        }
+      }
+    },
+    "v1CreateNamespaceShareResponse": {
+      "type": "object",
+      "properties": {
+        "share": {
+          "$ref": "#/definitions/v1NamespaceShare"
+        }
+      }
+    },
     "v1CreatePullRequestResponse": {
       "type": "object",
       "properties": {
@@ -1877,6 +3177,46 @@
         }
       }
     },
+    "v1DeleteClusterResponse": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "$ref": "#/definitions/v1Cluster"
+        }
+      }
+    },
+    "v1DeleteFileResponse": {
+      "type": "object",
+      "properties": {
+        "commitSha": {
+          "type": "string"
+        },
+        "commitMessage": {
+          "type": "string"
+        }
+      }
+    },
+    "v1DeleteNamespaceResponse": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "$ref": "#/definitions/v1Namespace"
+        }
+      }
+    },
+    "v1DeleteNamespaceShareResponse": {
+      "type": "object"
+    },
+    "v1DeletePolicy": {
+      "type": "string",
+      "enum": [
+        "DELETE_POLICY_UNSPECIFIED",
+        "DELETE_POLICY_DETACH_ONLY",
+        "DELETE_POLICY_CASCADE"
+      ],
+      "default": "DELETE_POLICY_UNSPECIFIED",
+      "description": "DeletePolicy controls Namespace cleanup when a Cluster is deleted\n(design §5.7.5). DETACH_ONLY keeps remote Namespaces; CASCADE removes\nAISphere-managed Namespaces too."
+    },
     "v1DeleteRelationshipsRequest": {
       "type": "object",
       "properties": {
@@ -1906,6 +3246,18 @@
     "v1DeleteSkillShareResponse": {
       "type": "object"
     },
+    "v1EffectiveVisibility": {
+      "type": "string",
+      "enum": [
+        "EFFECTIVE_VISIBILITY_UNSPECIFIED",
+        "EFFECTIVE_VISIBILITY_PUBLIC",
+        "EFFECTIVE_VISIBILITY_PRIVATE",
+        "EFFECTIVE_VISIBILITY_PARTIAL",
+        "EFFECTIVE_VISIBILITY_UNKNOWN"
+      ],
+      "default": "EFFECTIVE_VISIBILITY_UNSPECIFIED",
+      "description": "EffectiveVisibility is the observed SpiceDB state (design §6.3). PARTIAL\ncovers partial-wildcard drift; UNKNOWN covers SpiceDB unreachable."
+    },
     "v1ExchangeRequest": {
       "type": "object",
       "properties": {
@@ -1920,7 +3272,7 @@
         },
         "codeVerifier": {
           "type": "string",
-          "description": "code_verifier is the PKCE code verifier. Required when the authorization\r\nrequest was made with a code_challenge; recommended for all public\r\nclients (SPAs, mobile apps) that cannot store a client secret.\r\nMaps to kernel authn.AuthCodeExchangeRequest.CodeVerifier.\r\n\r\nNOTE: see Exchange RPC comment — the current Casdoor adapter does not\r\nyet forward this to the SDK. The field is accepted on the wire for\r\nforward compatibility."
+          "description": "code_verifier is the PKCE code verifier. Required when the authorization\nrequest was made with a code_challenge; recommended for all public\nclients (SPAs, mobile apps) that cannot store a client secret.\nMaps to kernel authn.AuthCodeExchangeRequest.CodeVerifier.\n\nNOTE: see Exchange RPC comment — the current Casdoor adapter does not\nyet forward this to the SDK. The field is accepted on the wire for\nforward compatibility."
         },
         "orgId": {
           "type": "string"
@@ -1957,7 +3309,106 @@
           "type": "string"
         }
       },
-      "description": "ExchangeResponse is the OAuth2/OIDC token set returned by Exchange.\r\n\r\n`expires_in` is seconds from issue time to expiry (OAuth2 standard). For a\r\nwall-clock expiry, callers can compute issued_at + expires_in, or use the\r\n`expires_at` field on Principal returned by Me/Introspect."
+      "description": "ExchangeResponse is the OAuth2/OIDC token set returned by Exchange.\n\n`expires_in` is seconds from issue time to expiry (OAuth2 standard). For a\nwall-clock expiry, callers can compute issued_at + expires_in, or use the\n`expires_at` field on Principal returned by Me/Introspect."
+    },
+    "v1FileContent": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "size": {
+          "type": "string",
+          "format": "int64"
+        },
+        "content": {
+          "type": "string"
+        },
+        "encoding": {
+          "type": "string"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "commitSha": {
+          "type": "string"
+        },
+        "commitMessage": {
+          "type": "string"
+        },
+        "lastModified": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "v1FileContents": {
+      "type": "object",
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1FileInfo"
+          }
+        },
+        "ref": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      }
+    },
+    "v1FileInfo": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "size": {
+          "type": "string",
+          "format": "int64"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "sha": {
+          "type": "string"
+        },
+        "lastModified": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "v1GetClusterResponse": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "$ref": "#/definitions/v1Cluster"
+        }
+      }
+    },
+    "v1GetNamespaceResponse": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "$ref": "#/definitions/v1Namespace"
+        }
+      }
     },
     "v1GetPullRequestResponse": {
       "type": "object",
@@ -1982,6 +3433,10 @@
         }
       }
     },
+    "v1InClusterCredential": {
+      "type": "object",
+      "description": "Uses the Hub pod's service account token. V1 requires AllowInsecureDev\n because Hub is not necessarily in-cluster; reserved for local dev."
+    },
     "v1IntrospectRequest": {
       "type": "object",
       "properties": {
@@ -1991,18 +3446,18 @@
         },
         "tokenType": {
           "type": "string",
-          "description": "token_type hints which kind of token is being introspected. Accepted\r\nvalues: \"access_token\" (default), \"refresh_token\", \"id_token\".\r\nMaps to kernel authn.VerifyTokenRequest.TokenType."
+          "description": "token_type hints which kind of token is being introspected. Accepted\nvalues: \"access_token\" (default), \"refresh_token\", \"id_token\".\nMaps to kernel authn.VerifyTokenRequest.TokenType."
         },
         "issuer": {
           "type": "string",
-          "description": "issuer optionally restricts the accepted token issuer. When unset, the\r\nglobally configured IdP issuer is used."
+          "description": "issuer optionally restricts the accepted token issuer. When unset, the\nglobally configured IdP issuer is used."
         },
         "audience": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "audience optionally restricts the accepted token audience. When unset,\r\nthe audience check is skipped."
+          "description": "audience optionally restricts the accepted token audience. When unset,\nthe audience check is skipped."
         },
         "orgId": {
           "type": "string"
@@ -2020,7 +3475,7 @@
       "properties": {
         "active": {
           "type": "boolean",
-          "description": "active indicates whether the token is currently valid (not expired, not\r\nrevoked, signature OK, issuer/audience match if specified)."
+          "description": "active indicates whether the token is currently valid (not expired, not\nrevoked, signature OK, issuer/audience match if specified)."
         },
         "principal": {
           "$ref": "#/definitions/v1Principal"
@@ -2041,6 +3496,63 @@
         }
       },
       "description": "IntrospectResponse mirrors RFC 7662 token introspection."
+    },
+    "v1ListClusterNamespacesResponse": {
+      "type": "object",
+      "properties": {
+        "namespaces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Namespace"
+          }
+        },
+        "nextPageToken": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ListClustersResponse": {
+      "type": "object",
+      "properties": {
+        "clusters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Cluster"
+          }
+        },
+        "nextPageToken": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ListNamespaceSharesResponse": {
+      "type": "object",
+      "properties": {
+        "shares": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1NamespaceShare"
+          }
+        }
+      }
+    },
+    "v1ListNamespacesResponse": {
+      "type": "object",
+      "properties": {
+        "namespaces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Namespace"
+          }
+        },
+        "nextPageToken": {
+          "type": "string"
+        }
+      }
     },
     "v1ListPullRequestsResponse": {
       "type": "object",
@@ -2164,6 +3676,184 @@
         }
       }
     },
+    "v1Namespace": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "clusterId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "visibility": {
+          "$ref": "#/definitions/v1NamespaceVisibility"
+        },
+        "lifecycle": {
+          "$ref": "#/definitions/v1NamespaceLifecycle"
+        },
+        "managed": {
+          "type": "boolean"
+        },
+        "kubernetesUid": {
+          "type": "string"
+        },
+        "resourceVersion": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "permissions": {
+          "$ref": "#/definitions/v1NamespacePermissions"
+        },
+        "ownerId": {
+          "type": "string"
+        },
+        "lastSyncTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updateTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revision": {
+          "type": "string",
+          "format": "int64"
+        },
+        "ownerType": {
+          "type": "string"
+        },
+        "visibilitySyncStatus": {
+          "type": "string",
+          "description": "visibility_sync_status is the legacy string form. New code uses\nvisibility_sync_status_enum (field 23). Kept for backward compatibility."
+        },
+        "effectiveVisibility": {
+          "$ref": "#/definitions/v1EffectiveVisibility"
+        },
+        "createdByType": {
+          "type": "string"
+        },
+        "createdBy": {
+          "type": "string"
+        },
+        "visibilitySyncStatusEnum": {
+          "$ref": "#/definitions/v1VisibilitySyncStatus"
+        }
+      },
+      "description": "Namespace is the AISphere control-plane record (design §6.3). visibility is\nthe desired value persisted in DB; effective_visibility reflects SpiceDB\nstate. Product UI MUST use effective_visibility + visibility_sync_status_enum,\nnever visibility alone (design §7.5.2)."
+    },
+    "v1NamespaceLifecycle": {
+      "type": "string",
+      "enum": [
+        "NAMESPACE_LIFECYCLE_UNSPECIFIED",
+        "NAMESPACE_LIFECYCLE_CREATING",
+        "NAMESPACE_LIFECYCLE_READY",
+        "NAMESPACE_LIFECYCLE_TERMINATING",
+        "NAMESPACE_LIFECYCLE_FAILED",
+        "NAMESPACE_LIFECYCLE_DELETED"
+      ],
+      "default": "NAMESPACE_LIFECYCLE_UNSPECIFIED"
+    },
+    "v1NamespacePermissions": {
+      "type": "object",
+      "properties": {
+        "canView": {
+          "type": "boolean"
+        },
+        "canUse": {
+          "type": "boolean"
+        },
+        "canEdit": {
+          "type": "boolean"
+        },
+        "canManage": {
+          "type": "boolean"
+        },
+        "canShare": {
+          "type": "boolean"
+        },
+        "canDelete": {
+          "type": "boolean"
+        }
+      },
+      "description": "NamespacePermissions is derived from SpiceDB BatchCheck (design §7.6.2).\ncan_share and can_delete derive from can_manage."
+    },
+    "v1NamespaceShare": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "namespaceId": {
+          "type": "string"
+        },
+        "relation": {
+          "$ref": "#/definitions/v1NamespaceShareRelation"
+        },
+        "subjectType": {
+          "type": "string"
+        },
+        "subjectId": {
+          "type": "string"
+        },
+        "subjectRelation": {
+          "type": "string"
+        },
+        "syncStatus": {
+          "$ref": "#/definitions/v1VisibilitySyncStatus"
+        },
+        "createdByType": {
+          "type": "string"
+        },
+        "createdBy": {
+          "type": "string"
+        },
+        "createTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updateTime": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "v1NamespaceShareRelation": {
+      "type": "string",
+      "enum": [
+        "NAMESPACE_SHARE_RELATION_UNSPECIFIED",
+        "NAMESPACE_SHARE_RELATION_VIEWER",
+        "NAMESPACE_SHARE_RELATION_USER",
+        "NAMESPACE_SHARE_RELATION_EDITOR"
+      ],
+      "default": "NAMESPACE_SHARE_RELATION_UNSPECIFIED"
+    },
+    "v1NamespaceVisibility": {
+      "type": "string",
+      "enum": [
+        "NAMESPACE_VISIBILITY_UNSPECIFIED",
+        "NAMESPACE_VISIBILITY_PRIVATE",
+        "NAMESPACE_VISIBILITY_PUBLIC"
+      ],
+      "default": "NAMESPACE_VISIBILITY_UNSPECIFIED"
+    },
     "v1ObjectRef": {
       "type": "object",
       "properties": {
@@ -2226,30 +3916,38 @@
         },
         "phone": {
           "type": "string",
-          "description": "phone is the user's phone number when available from the IdP.\r\nMaps to kernel authn.Principal.Phone."
+          "description": "phone is the user's phone number when available from the IdP.\nMaps to kernel authn.Principal.Phone."
         },
         "scopes": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "scopes are the OAuth/OIDC scopes attached to the current access token.\r\nFrontends can use this to gate UI affordances (e.g. hide \"write\"\r\nbuttons when the token lacks the write scope).\r\nMaps to kernel authn.Principal.Scopes."
+          "description": "scopes are the OAuth/OIDC scopes attached to the current access token.\nFrontends can use this to gate UI affordances (e.g. hide \"write\"\nbuttons when the token lacks the write scope).\nMaps to kernel authn.Principal.Scopes."
         },
         "authMethod": {
           "type": "string",
-          "description": "auth_method records how the subject authenticated. Common values match\r\nthe kernel authn.AuthMethod* constants: \"oauth\", \"oidc\", \"jwt\",\r\n\"api_key\", \"mtls\", \"session\", \"dev_token\", \"none\".\r\nMaps to kernel authn.Principal.AuthMethod."
+          "description": "auth_method records how the subject authenticated. Common values match\nthe kernel authn.AuthMethod* constants: \"oauth\", \"oidc\", \"jwt\",\n\"api_key\", \"mtls\", \"session\", \"dev_token\", \"none\".\nMaps to kernel authn.Principal.AuthMethod."
         },
         "expiresAt": {
           "type": "string",
           "format": "date-time",
-          "description": "expires_at is when the current access token expires. Frontends should\r\nuse this to schedule proactive token refreshes before the token\r\nexpires, rather than waiting for a 401 to trigger a reactive refresh.\r\nZero value means the expiry is unknown (e.g. the IdP did not return\r\nan exp claim).\r\nMaps to kernel authn.Principal.ExpiresAt."
+          "description": "expires_at is when the current access token expires. Frontends should\nuse this to schedule proactive token refreshes before the token\nexpires, rather than waiting for a 401 to trigger a reactive refresh.\nZero value means the expiry is unknown (e.g. the IdP did not return\nan exp claim).\nMaps to kernel authn.Principal.ExpiresAt."
         },
         "attributes": {
           "type": "object",
-          "description": "attributes carries provider-specific claims (e.g. Casdoor owner/name,\r\nexternal ID, signin method, custom fields) that are not part of the\r\ncanonical Principal schema. Values must be JSON-serializable.\r\nMaps to kernel authn.Principal.Attributes.\r\n\r\nNOTE: some attributes (such as `access_token`) are sensitive and\r\nSHOULD be filtered out by the service layer before returning to\r\nfrontend clients. See kernel/authn/casdoor/token.go:principalFromClaims\r\nfor the list of attributes currently set by the Casdoor adapter."
+          "description": "attributes carries provider-specific claims (e.g. Casdoor owner/name,\nexternal ID, signin method, custom fields) that are not part of the\ncanonical Principal schema. Values must be JSON-serializable.\nMaps to kernel authn.Principal.Attributes.\n\nNOTE: some attributes (such as `access_token`) are sensitive and\nSHOULD be filtered out by the service layer before returning to\nfrontend clients. See kernel/authn/casdoor/token.go:principalFromClaims\nfor the list of attributes currently set by the Casdoor adapter."
         }
       },
-      "description": "Principal is the normalized identity of the current caller.\r\n\r\nField set is aligned with kernel authn.Principal (github.com/aisphereio/\r\nkernel/authn.Principal). The kernel type has additional internal fields\r\n(Provider, ExternalID, Issuer, Audience, TenantID, AppID, IssuedAt) that\r\nare not exposed here because they are not useful to typical frontend\r\nconsumers; if a future use case needs them, add fields rather than\r\nexposing the kernel struct verbatim."
+      "description": "Principal is the normalized identity of the current caller.\n\nField set is aligned with kernel authn.Principal (github.com/aisphereio/\nkernel/authn.Principal). The kernel type has additional internal fields\n(Provider, ExternalID, Issuer, Audience, TenantID, AppID, IssuedAt) that\nare not exposed here because they are not useful to typical frontend\nconsumers; if a future use case needs them, add fields rather than\nexposing the kernel struct verbatim."
+    },
+    "v1ProbeClusterResponse": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "$ref": "#/definitions/v1Cluster"
+        }
+      }
     },
     "v1PullRequest": {
       "type": "object",
@@ -2483,7 +4181,7 @@
         },
         "tokenType": {
           "type": "string",
-          "description": "token_type hints which kind of token is being revoked. Accepted values:\r\n  \"access_token\"  (default)\r\n  \"refresh_token\"\r\n  \"id_token\"\r\nMaps to kernel authn.RevokeTokenRequest.TokenType."
+          "description": "token_type hints which kind of token is being revoked. Accepted values:\n  \"access_token\"  (default)\n  \"refresh_token\"\n  \"id_token\"\nMaps to kernel authn.RevokeTokenRequest.TokenType."
         },
         "orgId": {
           "type": "string"
@@ -2502,18 +4200,40 @@
       "properties": {
         "revoked": {
           "type": "boolean",
-          "description": "revoked is true when the token was successfully revoked (either IdP-side\r\nor local blacklist)."
+          "description": "revoked is true when the token was successfully revoked (either IdP-side\nor local blacklist)."
         },
         "idpRevoked": {
           "type": "boolean",
-          "description": "idp_revoked is true when the IdP itself confirmed revocation. False\r\nmeans only the local session blacklist was updated; the token may still\r\nbe valid against other Resource Servers until it expires."
+          "description": "idp_revoked is true when the IdP itself confirmed revocation. False\nmeans only the local session blacklist was updated; the token may still\nbe valid against other Resource Servers until it expires."
         },
         "message": {
           "type": "string",
-          "description": "message carries a human-readable note, e.g. \"casdoor sdk does not expose\r\ntoken revocation; only local blacklist updated\"."
+          "description": "message carries a human-readable note, e.g. \"casdoor sdk does not expose\ntoken revocation; only local blacklist updated\"."
         }
       },
-      "description": "RevokeResponse returns the outcome of a Revoke call.\r\n\r\nWe do not use google.protobuf.Empty so callers can distinguish\r\n\"IdP-side revoked\" from \"only local blacklist updated\" — important for\r\nsecurity-sensitive flows where the caller needs to know whether the token\r\nmay still be valid against other Resource Servers."
+      "description": "RevokeResponse returns the outcome of a Revoke call.\n\nWe do not use google.protobuf.Empty so callers can distinguish\n\"IdP-side revoked\" from \"only local blacklist updated\" — important for\nsecurity-sensitive flows where the caller needs to know whether the token\nmay still be valid against other Resource Servers."
+    },
+    "v1RotateCredentialResponse": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "$ref": "#/definitions/v1Cluster"
+        }
+      }
+    },
+    "v1ServiceAccountCredential": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "Bearer token. Hub stores it AEAD-encrypted; never returned."
+        },
+        "caCert": {
+          "type": "string",
+          "format": "byte",
+          "description": "PEM-encoded CA bundle. Optional; when empty, system roots are used."
+        }
+      }
     },
     "v1Skill": {
       "type": "object",
@@ -2616,6 +4336,47 @@
         "id"
       ]
     },
+    "v1SyncNamespacesResponse": {
+      "type": "object",
+      "properties": {
+        "imported": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "updated": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "removed": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "v1UpdateClusterResponse": {
+      "type": "object",
+      "properties": {
+        "cluster": {
+          "$ref": "#/definitions/v1Cluster"
+        }
+      }
+    },
+    "v1UpdateNamespaceResponse": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "$ref": "#/definitions/v1Namespace"
+        }
+      }
+    },
+    "v1UpdateNamespaceVisibilityResponse": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "$ref": "#/definitions/v1Namespace"
+        }
+      }
+    },
     "v1UpdateSkillResponse": {
       "type": "object",
       "properties": {
@@ -2631,6 +4392,18 @@
           "$ref": "#/definitions/v1Skill"
         }
       }
+    },
+    "v1VisibilitySyncStatus": {
+      "type": "string",
+      "enum": [
+        "VISIBILITY_SYNC_UNSPECIFIED",
+        "VISIBILITY_SYNC_SYNCED",
+        "VISIBILITY_SYNC_PUBLISHING",
+        "VISIBILITY_SYNC_REVOKING",
+        "VISIBILITY_SYNC_FAILED"
+      ],
+      "default": "VISIBILITY_SYNC_UNSPECIFIED",
+      "description": "VisibilitySyncStatus records the SpiceDB projection state for visibility\n(design §7.5). Reconcile converges non-SYNCED rows toward SYNCED along the\nDB desired direction."
     },
     "v1WriteRelationshipsRequest": {
       "type": "object",
