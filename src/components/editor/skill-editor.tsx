@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { ArrowLeft, Loader2, Save, Trash2, Star, Bell } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Trash2, Star, Bell, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -29,6 +29,7 @@ import {
   useFileTree,
   useFileContent,
   useSaveFile,
+  useDeleteFile,
 } from "@/hooks/use-skill-files";
 import { useResourceShares } from "@/hooks/use-shares";
 import { getScopeColor, getStatusColor, fmtTime } from "@/lib/utils";
@@ -38,6 +39,7 @@ import { ResourceSharePanel } from "@/components/aihub";
 import { useT } from "@/lib/i18n";
 import type { Skill, AccessMode } from "@/lib/api/types";
 import { SkillFileTree } from "./skill-file-tree";
+import { PullRequestsPanel } from "./pull-requests-panel";
 
 // Monaco is the first next/dynamic({ ssr: false }) import in the repo.
 // It pulls in web workers and touches `self` at module load, so it must
@@ -60,7 +62,7 @@ interface SkillEditorProps {
   onBack: () => void;
 }
 
-type RightPanelTab = "overview" | "runtime" | "settings" | "shares";
+type RightPanelTab = "overview" | "runtime" | "settings" | "shares" | "prs";
 
 /**
  * SkillEditor — settings-focused editor for the Git-native Hub.
@@ -377,6 +379,12 @@ git add SKILL.md && git commit -m "update skill" && git push`}
                   >
                     Shares
                   </TabsTrigger>
+                  <TabsTrigger
+                    value="prs"
+                    className="text-xs h-8 px-3 data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
+                  >
+                    Pull Requests
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -437,6 +445,11 @@ GET /v3/aihub/catalog/skills/${detail.name}/manifest`}
                     resourceId={detail.name}
                     owner={detail.owner}
                   />
+                </TabsContent>
+
+                {/* PULL REQUESTS */}
+                <TabsContent value="prs" className="p-3 mt-0">
+                  <PullRequestsPanel skillName={detail.name} />
                 </TabsContent>
               </ScrollArea>
             </Tabs>
@@ -584,46 +597,80 @@ type SkillFileEditorPaneProps = {
 function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPaneProps) {
   const t = useT();
   const [currentPath, setCurrentPath] = useState("");
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [creatingFile, setCreatingFile] = useState<string | null>(null);
+  // Open tabs: one entry per file the user has opened. We keep both
+  // real files and in-progress new-file drafts here so each tab owns
+  // its own editor instance + dirty/sha state. `create` flips to false
+  // after the first successful save (POST → subsequent PUTs).
+  const [tabs, setTabs] = useState<{ path: string; create: boolean }[]>([]);
+  const [activePath, setActivePath] = useState<string | null>(null);
 
   const tree = useFileTree(skillName, currentPath, defaultBranch);
-  // Fetch the file the user selected, OR the in-progress new-file path
-  // (with create=true so the editor knows to POST instead of PUT).
-  const fileQuery = useFileContent(
-    skillName,
-    selectedFile ?? creatingFile,
-    defaultBranch,
-    { enabled: Boolean(selectedFile) },
-  );
-  const saveMutation = useSaveFile();
+  const deleteMutation = useDeleteFile();
 
-  // New-file flow: when the user asks to create a file we open the
-  // editor with an empty buffer and create=true. The actual POST fires
-  // on first save (see MonacoSkillEditor.doSave).
+  // Delete a file from the skill repo. We pass the optimistic-concurrency
+  // sha so the server rejects the delete if someone else moved the file
+  // out from under us. After the delete lands, the tree invalidates
+  // (see useDeleteFile.onSuccess) and we close any open tab for it.
+  const handleDeleteFile = (path: string, sha: string) => {
+    deleteMutation.mutate(
+      { skillName, path, sha, branch: defaultBranch },
+      {
+        onSuccess: () => {
+          closeTab(path);
+          toast.success(t("editor.fileDeleted"));
+        },
+        onError: (err) => {
+          const conflict = err as { isConflict?: boolean };
+          if (conflict?.isConflict) {
+            toast.warning(t("editor.conflict"));
+            tree.refetch();
+          } else {
+            toast.error(t("editor.deleteFailed"));
+          }
+        },
+      },
+    );
+  };
+
+  // New-file flow: open a fresh tab with create=true. The path is
+  // derived from the current directory so the new file lands where the
+  // user is looking. The actual POST fires on first save.
   const startCreate = () => {
-    setSelectedFile(null);
-    setCreatingFile(currentPath ? `${currentPath}/new-file.md` : "new-file.md");
+    const p = currentPath ? `${currentPath}/new-file.md` : "new-file.md";
+    openTab(p, true);
   };
 
-  // When the user picks a real file, drop out of create mode.
-  const selectFile = (p: string) => {
-    setCreatingFile(null);
-    setSelectedFile(p);
+  // Open a real file tab (or focus it if already open).
+  const openTab = (path: string, create: boolean) => {
+    setTabs((prev) => {
+      if (prev.some((tab) => tab.path === path)) return prev;
+      return [...prev, { path, create }];
+    });
+    setActivePath(path);
   };
 
-  // Editor content source: existing file content from the server, or
-  // empty for a brand-new file.
-  const editorInitial = creatingFile ? "" : (fileQuery.data?.content ?? "");
-  const editorSha = creatingFile ? undefined : fileQuery.data?.sha;
-  const editorPath = selectedFile ?? creatingFile;
-  const editorCreate = Boolean(creatingFile);
+  const closeTab = (path: string) => {
+    setTabs((prev) => {
+      const idx = prev.findIndex((tab) => tab.path === path);
+      if (idx < 0) return prev;
+      const next = prev.filter((tab) => tab.path !== path);
+      // If we closed the active tab, move focus to the neighbour.
+      setActivePath((cur) => {
+        if (cur !== path) return cur;
+        if (next.length === 0) return null;
+        const clamp = Math.min(idx, next.length - 1);
+        return next[clamp].path;
+      });
+      return next;
+    });
+  };
 
-  // Refetch on conflict so the editor adopts the server's current sha
-  // and content; the user then decides to overwrite (edit + save) or
-  // discard (revert). We do NOT auto-overwrite.
-  const handleConflict = () => {
-    if (selectedFile) fileQuery.refetch();
+  // After a new-file tab saves successfully, flip it to edit mode so the
+  // next save is a PUT (not another POST).
+  const markSaved = (path: string) => {
+    setTabs((prev) =>
+      prev.map((tab) => (tab.path === path ? { ...tab, create: false } : tab)),
+    );
   };
 
   return (
@@ -634,48 +681,140 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
           path={currentPath}
           entries={tree.data}
           isLoading={tree.isLoading}
-          selectedPath={selectedFile ?? undefined}
+          selectedPath={activePath ?? undefined}
+          deletingPath={deleteMutation.isPending ? deleteMutation.variables?.path ?? null : null}
           onNavigate={(p) => {
             setCurrentPath(p);
-            // Navigating into a directory clears the open file so the
-            // editor doesn't keep showing a file from another folder.
-            setSelectedFile(null);
-            setCreatingFile(null);
           }}
-          onSelectFile={selectFile}
+          onSelectFile={(p) => openTab(p, false)}
           onCreateFile={startCreate}
+          onDeleteFile={handleDeleteFile}
         />
       </ResizablePanel>
       <ResizableHandle withHandle />
       <ResizablePanel defaultSize={78} minSize={40}>
-        {editorPath ? (
-          <MonacoSkillEditor
-            key={editorPath + (editorCreate ? ":create" : ":edit") + (editorSha || "")}
-            skillName={skillName}
-            filePath={editorPath}
-            branch={defaultBranch}
-            initialContent={editorInitial}
-            sha={editorSha}
-            create={editorCreate}
-            readOnly={saveMutation.isPending}
-            onSaved={(_sha, _content) => {
-              // After a successful create, switch into edit mode so the
-              // next save is a PUT (not another POST).
-              if (creatingFile) {
-                setSelectedFile(creatingFile);
-                setCreatingFile(null);
-              }
-            }}
-            onConflict={handleConflict}
-          />
-        ) : (
+        {tabs.length === 0 ? (
           <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
             <div className="space-y-1">
               <p>{t("editor.empty") ?? "Select or create a file to start editing."}</p>
             </div>
           </div>
+        ) : (
+          <div className="flex h-full min-h-0 flex-col">
+            {/* Tab strip. Each tab shows the file basename + a close
+                button. The active tab is highlighted; inactive tabs are
+                still rendered below (hidden) so their Monaco state
+                survives tab switches. */}
+            <div className="flex h-9 shrink-0 items-stretch overflow-x-auto border-b bg-muted/30">
+              {tabs.map((tab) => {
+                const active = tab.path === activePath;
+                const name = tab.path.split("/").pop() ?? tab.path;
+                return (
+                  <div
+                    key={tab.path}
+                    role="button"
+                    tabIndex={0}
+                    className={
+                      "group flex shrink-0 items-center gap-1.5 border-r px-3 text-xs " +
+                      (active
+                        ? "bg-background font-medium text-foreground"
+                        : "text-muted-foreground hover:bg-muted/50")
+                    }
+                    onClick={() => setActivePath(tab.path)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setActivePath(tab.path);
+                      }
+                    }}
+                  >
+                    <span className="truncate max-w-[160px]">{name}</span>
+                    {tab.create && (
+                      <span className="rounded bg-sky-500/15 px-1 text-[9px] uppercase text-sky-600 dark:text-sky-300">
+                        new
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      className="rounded p-0.5 opacity-50 hover:bg-muted hover:opacity-100"
+                      title={t("editor.closeTab")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        closeTab(tab.path);
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Editor area: render every open tab, hide non-active ones.
+                This keeps each Monaco model alive (cursor, undo stack,
+                unsaved buffer) across tab switches. */}
+            <div className="min-h-0 flex-1">
+              {tabs.map((tab) => (
+                <div
+                  key={tab.path}
+                  className={tab.path === activePath ? "h-full" : "hidden"}
+                >
+                  <EditorTab
+                    skillName={skillName}
+                    filePath={tab.path}
+                    branch={defaultBranch}
+                    create={tab.create}
+                    active={tab.path === activePath}
+                    onSaved={() => markSaved(tab.path)}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </ResizablePanel>
     </ResizablePanelGroup>
+  );
+}
+
+// EditorTab wraps MonacoSkillEditor per open file. Each tab owns its
+// own useFileContent/useSaveFile so concurrent tabs don't share query
+// or mutation state. `active` is currently informational (Monaco loads
+// lazily); the parent hides non-active tabs via CSS.
+type EditorTabProps = {
+  skillName: string;
+  filePath: string;
+  branch: string;
+  create: boolean;
+  active: boolean;
+  onSaved: () => void;
+};
+
+function EditorTab({ skillName, filePath, branch, create, onSaved }: EditorTabProps) {
+  // Only fetch content for real files (create tabs start empty).
+  const fileQuery = useFileContent(skillName, filePath, branch, {
+    enabled: !create,
+  });
+  const saveMutation = useSaveFile();
+
+  const editorInitial = create ? "" : (fileQuery.data?.content ?? "");
+  const editorSha = create ? undefined : fileQuery.data?.sha;
+
+  const handleConflict = () => {
+    if (!create) fileQuery.refetch();
+  };
+
+  return (
+    <MonacoSkillEditor
+      key={filePath + (create ? ":create" : ":edit")}
+      skillName={skillName}
+      filePath={filePath}
+      branch={branch}
+      initialContent={editorInitial}
+      sha={editorSha}
+      create={create}
+      readOnly={saveMutation.isPending}
+      onSaved={(_sha, _content) => onSaved()}
+      onConflict={handleConflict}
+    />
   );
 }

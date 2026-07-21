@@ -107,6 +107,29 @@ export type SkillFile = {
   lastModified?: string;
 };
 
+/**
+ * PullRequest mirrors V1PullRequest with optional fields coerced to
+ * plain strings. state is one of "open" | "merged" | "closed" (the
+ * backend's canonical states); the adapter normalises empty/missing
+ * values so the UI can switch on them without null checks.
+ */
+export type PullRequest = {
+  id: string;
+  skillName: string;
+  sourceRef: string;
+  targetRef: string;
+  sourceSha: string;
+  targetSha: string;
+  title: string;
+  description: string;
+  state: "open" | "merged" | "closed";
+  authorId: string;
+  mergedSha: string;
+  createTime?: string;
+  updateTime?: string;
+  mergedTime?: string;
+};
+
 export type SkillSet = {
   namespaceId?: string;
   name: string;
