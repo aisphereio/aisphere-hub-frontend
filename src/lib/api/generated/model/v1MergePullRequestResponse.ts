@@ -4,5 +4,8 @@
  * aisphere/options/v1/authz.proto
  * OpenAPI spec version: version not set
  */
+import type { V1PullRequest } from './v1PullRequest';
 
-export interface V1MoveSkillDraftPathResponse { [key: string]: unknown }
+export interface V1MergePullRequestResponse {
+  pullRequest?: V1PullRequest;
+}

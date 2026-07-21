@@ -9,14 +9,7 @@ export interface V1CreateSkillRequest {
   name: string;
   displayName?: string;
   description?: string;
-  version?: string;
-  status?: string;
   visibility?: string;
-  ownerId?: string;
-  orgId?: string;
   projectId?: string;
-  sourceType?: string;
-  sourceUri?: string;
-  manifestJson?: string;
-  tags?: string[];
+  orgId: string;
 }

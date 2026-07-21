@@ -4,5 +4,8 @@
  * aisphere/options/v1/authz.proto
  * OpenAPI spec version: version not set
  */
+import type { V1SkillShare } from './v1SkillShare';
 
-export interface SkillServiceOfflineSkillVersionBody { [key: string]: unknown }
+export interface V1CreateSkillShareResponse {
+  share?: V1SkillShare;
+}

@@ -8,7 +8,6 @@
 export type SkillServiceListSkillsParams = {
 pageSize?: number;
 pageToken?: string;
-q?: string;
-status?: string;
+query?: string;
 visibility?: string;
 };

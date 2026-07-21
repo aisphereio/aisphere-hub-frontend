@@ -4,8 +4,10 @@
  * aisphere/options/v1/authz.proto
  * OpenAPI spec version: version not set
  */
-import type { V1SkillFile } from './v1SkillFile';
 
-export interface V1UpsertSkillDraftFileResponse {
-  file?: V1SkillFile;
+export interface V1SkillRelease {
+  tag?: string;
+  commitSha?: string;
+  manifestSha256?: string;
+  createTime?: string;
 }

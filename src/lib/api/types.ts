@@ -77,62 +77,6 @@ export type SkillVersion = {
   manifestJson?: string;
 };
 
-export type SkillFileInfo = {
-  path: string;
-  name: string;
-  type?: string;
-  size?: number;
-  binary?: boolean;
-};
-
-export type SkillFileList = {
-  namespaceId?: string;
-  skillName?: string;
-  version?: string;
-  files: SkillFileInfo[];
-};
-
-export type SkillFileContent = {
-  namespaceId?: string;
-  skillName: string;
-  version: string;
-  path: string;
-  content: string;
-  binary?: boolean;
-};
-
-export type SkillVersionCompare = {
-  baseVersion: string;
-  targetVersion: string;
-  baseSkillMd: string;
-  targetSkillMd: string;
-  baseFiles: SkillFileInfo[];
-  targetFiles: SkillFileInfo[];
-};
-
-export type SkillPackageDownload = {
-  skillName: string;
-  version: string;
-  etag?: string;
-  md5?: string;
-  sha256?: string;
-  notModified?: boolean;
-  packageBytes?: string;
-};
-
-export type SkillManifest = {
-  skillName: string;
-  version: string;
-  status?: string;
-  etag?: string;
-  md5?: string;
-  sha256?: string;
-  revision?: string;
-  manifestJson?: string;
-  files?: SkillFileInfo[];
-  notModified?: boolean;
-};
-
 export type SkillSet = {
   namespaceId?: string;
   name: string;
@@ -1073,13 +1017,6 @@ export type AccessOverview = {
   resources?: AccessResourceTemplate[];
   quickLinks?: AccessQuickLink[];
 };
-
-export type DetailTab =
-  | "overview"
-  | "versions"
-  | "files"
-  | "compare"
-  | "runtime";
 
 export type SkillSetDetailTab =
   | "overview"

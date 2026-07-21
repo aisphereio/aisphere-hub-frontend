@@ -5,6 +5,7 @@
  * OpenAPI spec version: version not set
  */
 
-export type SkillServiceListSkillDraftFilesParams = {
-version?: string;
-};
+export interface SkillServiceReviewPullRequestBody {
+  verdict: string;
+  comment?: string;
+}

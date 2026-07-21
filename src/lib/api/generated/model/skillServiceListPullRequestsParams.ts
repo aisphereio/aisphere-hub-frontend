@@ -5,4 +5,8 @@
  * OpenAPI spec version: version not set
  */
 
-export interface SkillServicePublishSkillVersionBody { [key: string]: unknown }
+export type SkillServiceListPullRequestsParams = {
+state?: string;
+pageSize?: number;
+pageToken?: string;
+};

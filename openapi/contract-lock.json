@@ -1,8 +1,8 @@
 {
   "repository": "https://github.com/aisphereio/aisphere-hub.git",
-  "git_sha": "913e784538319484893f234e9ed839cf710bff45",
-  "ref": "feat/root-skill-iam-share",
-  "sha256": "11eb6fc9a961af2004bc00ed92f4d04854577c06f18a901b582513c56581e4c4",
-  "kernel_version": "v0.4.2",
+  "git_sha": "e40e02fb8c711c073ccae82a2b6e1584fc13deb2",
+  "ref": "main",
+  "sha256": "6b98feb32e4378eca52d9f39f8e7d6483d8bc6755e597254bf43814e671c5383",
+  "kernel_version": "v0.4.17",
   "generator": "protoc-gen-openapiv2@v2.29.0"
 }

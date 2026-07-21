@@ -65,29 +65,6 @@ export function stringRecord(
   return Object.keys(out).length ? out : undefined;
 }
 
-export function contentTypeForPath(path: string): string {
-  const lower = path.toLowerCase();
-  if (lower.endsWith('.md') || lower.endsWith('.markdown'))
-    return 'text/markdown; charset=utf-8';
-  if (lower.endsWith('.json')) return 'application/json; charset=utf-8';
-  if (lower.endsWith('.yaml') || lower.endsWith('.yml'))
-    return 'application/yaml; charset=utf-8';
-  if (lower.endsWith('.py')) return 'text/x-python; charset=utf-8';
-  if (lower.endsWith('.js') || lower.endsWith('.ts'))
-    return 'text/javascript; charset=utf-8';
-  return 'text/plain; charset=utf-8';
-}
-
-export async function fileToBase64(file: File): Promise<string> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  let binary = '';
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
-
 export function normalizeSkill(skill: Skill): Skill {
   const manifest = parseJsonRecord(skill.manifestJson);
   const manifestLabels = stringRecord((manifest as any).labels);
@@ -188,18 +165,31 @@ export function toBackendShareRole(
 export function parseGrantId(grantId: string): {
   subjectType: string;
   subjectId: string;
+  relation?: string;
 } {
-  const idx = grantId.indexOf(':');
-  if (idx < 0) return { subjectType: 'user', subjectId: grantId };
+  // Format: subjectType:subjectId[:relation]. The relation segment was added
+  // when the Git-native Hub's DeleteSkillShare grew a `relation` path param
+  // (/v1/skills/{name}/shares/{relation}/{subjectType}/{subjectId}). Older
+  // grant ids without it still parse; callers default the relation.
+  const parts = grantId.split(':');
+  if (parts.length === 1) return { subjectType: 'user', subjectId: grantId };
+  const [subjectType, subjectId, relation] = parts;
   return {
-    subjectType: grantId.slice(0, idx),
-    subjectId: grantId.slice(idx + 1),
+    subjectType: subjectType || 'user',
+    subjectId: subjectId ?? '',
+    relation: relation || undefined,
   };
 }
 
 /** Build a ResourceGrant id from subject parts, matching parseGrantId. */
-export function buildGrantId(subjectType: string, subjectId: string): string {
-  return `${subjectType}:${subjectId}`;
+export function buildGrantId(
+  subjectType: string,
+  subjectId: string,
+  relation?: string,
+): string {
+  return relation
+    ? `${subjectType}:${subjectId}:${relation}`
+    : `${subjectType}:${subjectId}`;
 }
 
 export function publicGrant(

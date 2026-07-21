@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, RefreshCw, Upload, Plus, Filter, LayoutGrid, Layers3 } from 'lucide-react';
+import { Search, RefreshCw, Plus, Filter, LayoutGrid, Layers3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -21,7 +21,6 @@ interface SkillFiltersProps {
   scopeFilter: string;
   onScopeFilterChange: (v: string) => void;
   onRefresh: () => void;
-  onUploadClick: () => void;
   onCreateClick: () => void;
   viewMode: SkillViewMode;
   onViewModeChange: (v: SkillViewMode) => void;
@@ -37,7 +36,6 @@ export function SkillFilters({
   scopeFilter,
   onScopeFilterChange,
   onRefresh,
-  onUploadClick,
   onCreateClick,
   viewMode,
   onViewModeChange,
@@ -157,13 +155,6 @@ export function SkillFilters({
       </Button>
       <Button size="sm" variant="outline" className="h-9" onClick={onCreateClick}>
         <Plus className="h-3.5 w-3.5 mr-1.5" /> {t('skills.createDraft')}
-      </Button>
-      <Button
-        size="sm"
-        className="h-9 bg-gradient-to-r from-violet-600 to-fuchsia-500 hover:from-violet-700 hover:to-fuchsia-600 shadow-sm shadow-violet-500/20"
-        onClick={onUploadClick}
-      >
-        <Upload className="h-3.5 w-3.5 mr-1.5" /> {t('skills.uploadZip')}
       </Button>
     </div>
   );
