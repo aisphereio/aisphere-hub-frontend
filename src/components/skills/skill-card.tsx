@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Download, MoreHorizontal, Play, Pause, Send, CheckCircle2, Trash2, FileCode2, ChevronRight, Layers, Share2 } from 'lucide-react';
+import { Download, MoreHorizontal, Trash2, FileCode2, ChevronRight, Share2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -74,20 +74,6 @@ export function SkillCard({ skill, onClick, onAction }: SkillCardProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
-                <DropdownMenuItem onClick={() => onAction?.('online', skill)}>
-                  <Play className="h-3.5 w-3.5 mr-2" /> {t('skillCard.bringOnline')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onAction?.('offline', skill)}>
-                  <Pause className="h-3.5 w-3.5 mr-2" /> {t('skillCard.takeOffline')}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onAction?.('submit', skill)}>
-                  <Send className="h-3.5 w-3.5 mr-2" /> {t('skillCard.submit')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onAction?.('publish', skill)}>
-                  <CheckCircle2 className="h-3.5 w-3.5 mr-2" /> {t('skillCard.publish')}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => onAction?.('share', skill)}>
                   <Share2 className="h-3.5 w-3.5 mr-2" /> 分享权限
                 </DropdownMenuItem>

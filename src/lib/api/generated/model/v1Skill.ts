@@ -6,20 +6,15 @@
  */
 
 export interface V1Skill {
-  id?: string;
   name?: string;
   displayName?: string;
   description?: string;
-  version?: string;
-  status?: string;
   visibility?: string;
   ownerId?: string;
   orgId?: string;
   projectId?: string;
-  sourceType?: string;
-  sourceUri?: string;
-  manifestJson?: string;
-  tags?: string[];
+  defaultBranch?: string;
+  status?: string;
   createTime?: string;
   updateTime?: string;
 }

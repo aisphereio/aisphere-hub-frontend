@@ -5,39 +5,26 @@
  * OpenAPI spec version: version not set
  */
 import type {
-  SkillServiceCommitSkillDraftBody,
+  SkillServiceClosePullRequestBody,
+  SkillServiceCreatePullRequestBody,
   SkillServiceCreateSkillShareBody,
-  SkillServiceDeleteSkillDraftPathParams,
-  SkillServiceDownloadSkillVersionParams,
-  SkillServiceGetSkillDraftFileParams,
-  SkillServiceGetSkillVersionFileParams,
-  SkillServiceListSkillDraftFilesParams,
+  SkillServiceListPullRequestsParams,
   SkillServiceListSkillsParams,
-  SkillServiceMoveSkillDraftPathBody,
-  SkillServiceOfflineSkillVersionBody,
-  SkillServiceOnlineSkillVersionBody,
-  SkillServicePublishSkillVersionBody,
-  SkillServiceSubmitSkillVersionBody,
+  SkillServiceMergePullRequestBody,
+  SkillServiceReviewPullRequestBody,
   SkillServiceUpdateSkillBody,
   SkillServiceUpdateSkillVisibilityBody,
-  SkillServiceUpsertSkillDraftDirectoryBody,
-  SkillServiceUpsertSkillDraftFileBody,
   V1CreateSkillRequest,
-  V1DeleteSkillDraftPathResponse,
   V1DeleteSkillResponse,
   V1DeleteSkillShareResponse,
-  V1ListSkillDraftFilesResponse,
+  V1ListPullRequestsResponse,
+  V1ListSkillReleasesResponse,
   V1ListSkillSharesResponse,
-  V1ListSkillVersionFilesResponse,
-  V1ListSkillVersionsResponse,
   V1ListSkillsResponse,
-  V1MoveSkillDraftPathResponse,
+  V1PullRequest,
+  V1PullRequestReview,
   V1Skill,
-  V1SkillFile,
-  V1SkillPackageDownload,
-  V1SkillShare,
-  V1SkillVersion,
-  V1UploadSkillPackageRequest
+  V1SkillShare
 } from '../model';
 
 import { hubFetch } from '../../hub-fetch';
@@ -57,11 +44,6 @@ export const getSkillServiceListSkillsUrl = (params?: SkillServiceListSkillsPara
   return stringifiedParams.length > 0 ? `/v1/skills?${stringifiedParams}` : `/v1/skills`
 }
 
-/**
- * @summary ListSkills lists canonical skills visible to the caller. Visibility
-rules: caller sees (a) skills they own, (b) skills shared with them
-via accessx grants, (c) skills with visibility=public.
- */
 export const skillServiceListSkills = async (params?: SkillServiceListSkillsParams, options?: RequestInit): Promise<V1ListSkillsResponse> => {
 
   return hubFetch<V1ListSkillsResponse>(getSkillServiceListSkillsUrl(params),
@@ -82,9 +64,6 @@ export const getSkillServiceCreateSkillUrl = () => {
   return `/v1/skills`
 }
 
-/**
- * @summary CreateSkill creates one canonical skill. The caller becomes the owner.
- */
 export const skillServiceCreateSkill = async (v1CreateSkillRequest: V1CreateSkillRequest, options?: RequestInit): Promise<V1Skill> => {
 
   return hubFetch<V1Skill>(getSkillServiceCreateSkillUrl(),
@@ -105,9 +84,6 @@ export const getSkillServiceGetSkillUrl = (name: string,) => {
   return `/v1/skills/${encodeURIComponent(String(name))}`
 }
 
-/**
- * @summary GetSkill returns one canonical skill by name.
- */
 export const skillServiceGetSkill = async (name: string, options?: RequestInit): Promise<V1Skill> => {
 
   return hubFetch<V1Skill>(getSkillServiceGetSkillUrl(name),
@@ -128,11 +104,6 @@ export const getSkillServiceDeleteSkillUrl = (name: string,) => {
   return `/v1/skills/${encodeURIComponent(String(name))}`
 }
 
-/**
- * @summary DeleteSkill soft-deletes one canonical skill by name. Cascades to
-versions and files. S3 objects are purged best-effort after the DB
-transaction commits.
- */
 export const skillServiceDeleteSkill = async (name: string, options?: RequestInit): Promise<V1DeleteSkillResponse> => {
 
   return hubFetch<V1DeleteSkillResponse>(getSkillServiceDeleteSkillUrl(name),
@@ -153,11 +124,6 @@ export const getSkillServiceUpdateSkillUrl = (name: string,) => {
   return `/v1/skills/${encodeURIComponent(String(name))}`
 }
 
-/**
- * @summary UpdateSkill updates mutable fields of one canonical skill. owner_id /
-visibility / status are NOT updated by this RPC — they require
-separate lifecycle endpoints.
- */
 export const skillServiceUpdateSkill = async (name: string,
     skillServiceUpdateSkillBody: SkillServiceUpdateSkillBody, options?: RequestInit): Promise<V1Skill> => {
 
@@ -171,32 +137,8 @@ export const skillServiceUpdateSkill = async (name: string,
 );}
 
 
-export const getSkillServiceUpsertSkillDraftDirectoryUrl = (name: string,) => {
-
-
-
-
-  return `/v1/skills/${encodeURIComponent(String(name))}/draft/dir`
-}
-
-/**
- * @summary UpsertSkillDraftDirectory creates a directory in the draft workspace.
- */
-export const skillServiceUpsertSkillDraftDirectory = async (name: string,
-    skillServiceUpsertSkillDraftDirectoryBody: SkillServiceUpsertSkillDraftDirectoryBody, options?: RequestInit): Promise<V1SkillFile> => {
-
-  return hubFetch<V1SkillFile>(getSkillServiceUpsertSkillDraftDirectoryUrl(name),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(skillServiceUpsertSkillDraftDirectoryBody)
-  }
-);}
-
-
-export const getSkillServiceGetSkillDraftFileUrl = (name: string,
-    params: SkillServiceGetSkillDraftFileParams,) => {
+export const getSkillServiceListPullRequestsUrl = (name: string,
+    params?: SkillServiceListPullRequestsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -208,16 +150,13 @@ export const getSkillServiceGetSkillDraftFileUrl = (name: string,
 
   const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/v1/skills/${encodeURIComponent(String(name))}/draft/file?${stringifiedParams}` : `/v1/skills/${encodeURIComponent(String(name))}/draft/file`
+  return stringifiedParams.length > 0 ? `/v1/skills/${encodeURIComponent(String(name))}/pull-requests?${stringifiedParams}` : `/v1/skills/${encodeURIComponent(String(name))}/pull-requests`
 }
 
-/**
- * @summary GetSkillDraftFile returns one draft file's metadata and content.
- */
-export const skillServiceGetSkillDraftFile = async (name: string,
-    params: SkillServiceGetSkillDraftFileParams, options?: RequestInit): Promise<V1SkillFile> => {
+export const skillServiceListPullRequests = async (name: string,
+    params?: SkillServiceListPullRequestsParams, options?: RequestInit): Promise<V1ListPullRequestsResponse> => {
 
-  return hubFetch<V1SkillFile>(getSkillServiceGetSkillDraftFileUrl(name,params),
+  return hubFetch<V1ListPullRequestsResponse>(getSkillServiceListPullRequestsUrl(name,params),
   {
     ...options,
     method: 'GET'
@@ -227,53 +166,40 @@ export const skillServiceGetSkillDraftFile = async (name: string,
 );}
 
 
-export const getSkillServiceUpsertSkillDraftFileUrl = (name: string,) => {
+export const getSkillServiceCreatePullRequestUrl = (name: string,) => {
 
 
 
 
-  return `/v1/skills/${encodeURIComponent(String(name))}/draft/file`
+  return `/v1/skills/${encodeURIComponent(String(name))}/pull-requests`
 }
 
-/**
- * @summary UpsertSkillDraftFile creates or updates a draft file.
- */
-export const skillServiceUpsertSkillDraftFile = async (name: string,
-    skillServiceUpsertSkillDraftFileBody: SkillServiceUpsertSkillDraftFileBody, options?: RequestInit): Promise<V1SkillFile> => {
+export const skillServiceCreatePullRequest = async (name: string,
+    skillServiceCreatePullRequestBody: SkillServiceCreatePullRequestBody, options?: RequestInit): Promise<V1PullRequest> => {
 
-  return hubFetch<V1SkillFile>(getSkillServiceUpsertSkillDraftFileUrl(name),
+  return hubFetch<V1PullRequest>(getSkillServiceCreatePullRequestUrl(name),
   {
     ...options,
-    method: 'PUT',
+    method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(skillServiceUpsertSkillDraftFileBody)
+    body: JSON.stringify(skillServiceCreatePullRequestBody)
   }
 );}
 
 
-export const getSkillServiceListSkillDraftFilesUrl = (name: string,
-    params?: SkillServiceListSkillDraftFilesParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getSkillServiceGetPullRequestUrl = (name: string,
+    id: string,) => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
 
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : String(value))
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/v1/skills/${encodeURIComponent(String(name))}/draft/files?${stringifiedParams}` : `/v1/skills/${encodeURIComponent(String(name))}/draft/files`
+  return `/v1/skills/${encodeURIComponent(String(name))}/pull-requests/${encodeURIComponent(String(id))}`
 }
 
-/**
- * @summary ListSkillDraftFiles lists the editable draft workspace tree.
- */
-export const skillServiceListSkillDraftFiles = async (name: string,
-    params?: SkillServiceListSkillDraftFilesParams, options?: RequestInit): Promise<V1ListSkillDraftFilesResponse> => {
+export const skillServiceGetPullRequest = async (name: string,
+    id: string, options?: RequestInit): Promise<V1PullRequest> => {
 
-  return hubFetch<V1ListSkillDraftFilesResponse>(getSkillServiceListSkillDraftFilesUrl(name,params),
+  return hubFetch<V1PullRequest>(getSkillServiceGetPullRequestUrl(name,id),
   {
     ...options,
     method: 'GET'
@@ -283,82 +209,91 @@ export const skillServiceListSkillDraftFiles = async (name: string,
 );}
 
 
-export const getSkillServiceDeleteSkillDraftPathUrl = (name: string,
-    params: SkillServiceDeleteSkillDraftPathParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getSkillServiceClosePullRequestUrl = (name: string,
+    id: string,) => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
 
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : String(value))
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/v1/skills/${encodeURIComponent(String(name))}/draft/path?${stringifiedParams}` : `/v1/skills/${encodeURIComponent(String(name))}/draft/path`
+  return `/v1/skills/${encodeURIComponent(String(name))}/pull-requests/${encodeURIComponent(String(id))}:close`
 }
 
-/**
- * @summary DeleteSkillDraftPath deletes a file or directory from the draft workspace.
- */
-export const skillServiceDeleteSkillDraftPath = async (name: string,
-    params: SkillServiceDeleteSkillDraftPathParams, options?: RequestInit): Promise<V1DeleteSkillDraftPathResponse> => {
+export const skillServiceClosePullRequest = async (name: string,
+    id: string,
+    skillServiceClosePullRequestBody: SkillServiceClosePullRequestBody, options?: RequestInit): Promise<V1PullRequest> => {
 
-  return hubFetch<V1DeleteSkillDraftPathResponse>(getSkillServiceDeleteSkillDraftPathUrl(name,params),
-  {
-    ...options,
-    method: 'DELETE'
-
-
-  }
-);}
-
-
-export const getSkillServiceMoveSkillDraftPathUrl = (name: string,) => {
-
-
-
-
-  return `/v1/skills/${encodeURIComponent(String(name))}/draft/path:move`
-}
-
-/**
- * @summary MoveSkillDraftPath renames or moves a draft workspace path.
- */
-export const skillServiceMoveSkillDraftPath = async (name: string,
-    skillServiceMoveSkillDraftPathBody: SkillServiceMoveSkillDraftPathBody, options?: RequestInit): Promise<V1MoveSkillDraftPathResponse> => {
-
-  return hubFetch<V1MoveSkillDraftPathResponse>(getSkillServiceMoveSkillDraftPathUrl(name),
+  return hubFetch<V1PullRequest>(getSkillServiceClosePullRequestUrl(name,id),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(skillServiceMoveSkillDraftPathBody)
+    body: JSON.stringify(skillServiceClosePullRequestBody)
   }
 );}
 
 
-export const getSkillServiceCommitSkillDraftUrl = (name: string,) => {
+export const getSkillServiceMergePullRequestUrl = (name: string,
+    id: string,) => {
 
 
 
 
-  return `/v1/skills/${encodeURIComponent(String(name))}/draft:commit`
+  return `/v1/skills/${encodeURIComponent(String(name))}/pull-requests/${encodeURIComponent(String(id))}:merge`
 }
 
-/**
- * @summary CommitSkillDraft materializes the draft workspace into a SkillVersion.
- */
-export const skillServiceCommitSkillDraft = async (name: string,
-    skillServiceCommitSkillDraftBody: SkillServiceCommitSkillDraftBody, options?: RequestInit): Promise<V1SkillVersion> => {
+export const skillServiceMergePullRequest = async (name: string,
+    id: string,
+    skillServiceMergePullRequestBody: SkillServiceMergePullRequestBody, options?: RequestInit): Promise<V1PullRequest> => {
 
-  return hubFetch<V1SkillVersion>(getSkillServiceCommitSkillDraftUrl(name),
+  return hubFetch<V1PullRequest>(getSkillServiceMergePullRequestUrl(name,id),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(skillServiceCommitSkillDraftBody)
+    body: JSON.stringify(skillServiceMergePullRequestBody)
+  }
+);}
+
+
+export const getSkillServiceReviewPullRequestUrl = (name: string,
+    id: string,) => {
+
+
+
+
+  return `/v1/skills/${encodeURIComponent(String(name))}/pull-requests/${encodeURIComponent(String(id))}:review`
+}
+
+export const skillServiceReviewPullRequest = async (name: string,
+    id: string,
+    skillServiceReviewPullRequestBody: SkillServiceReviewPullRequestBody, options?: RequestInit): Promise<V1PullRequestReview> => {
+
+  return hubFetch<V1PullRequestReview>(getSkillServiceReviewPullRequestUrl(name,id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(skillServiceReviewPullRequestBody)
+  }
+);}
+
+
+export const getSkillServiceListSkillReleasesUrl = (name: string,) => {
+
+
+
+
+  return `/v1/skills/${encodeURIComponent(String(name))}/releases`
+}
+
+export const skillServiceListSkillReleases = async (name: string, options?: RequestInit): Promise<V1ListSkillReleasesResponse> => {
+
+  return hubFetch<V1ListSkillReleasesResponse>(getSkillServiceListSkillReleasesUrl(name),
+  {
+    ...options,
+    method: 'GET'
+
+
   }
 );}
 
@@ -371,10 +306,6 @@ export const getSkillServiceListSkillSharesUrl = (name: string,) => {
   return `/v1/skills/${encodeURIComponent(String(name))}/shares`
 }
 
-/**
- * @summary ListSkillShares lists subjects that have any relation on the named
-skill. Requires skill.read (with ownership + public fallback).
- */
 export const skillServiceListSkillShares = async (name: string, options?: RequestInit): Promise<V1ListSkillSharesResponse> => {
 
   return hubFetch<V1ListSkillSharesResponse>(getSkillServiceListSkillSharesUrl(name),
@@ -395,11 +326,6 @@ export const getSkillServiceCreateSkillShareUrl = (name: string,) => {
   return `/v1/skills/${encodeURIComponent(String(name))}/shares`
 }
 
-/**
- * @summary CreateSkillShare grants a viewer or editor relation on the named
-skill to a subject. Requires skill.edit. The relation field accepts
-"viewer" or "editor"; passing "owner" returns INVALID_ARGUMENT.
- */
 export const skillServiceCreateSkillShare = async (name: string,
     skillServiceCreateSkillShareBody: SkillServiceCreateSkillShareBody, options?: RequestInit): Promise<V1SkillShare> => {
 
@@ -414,277 +340,27 @@ export const skillServiceCreateSkillShare = async (name: string,
 
 
 export const getSkillServiceDeleteSkillShareUrl = (name: string,
+    relation: string,
     subjectType: string,
     subjectId: string,) => {
 
 
 
 
-  return `/v1/skills/${encodeURIComponent(String(name))}/shares/${encodeURIComponent(String(subjectType))}/${encodeURIComponent(String(subjectId))}`
+  return `/v1/skills/${encodeURIComponent(String(name))}/shares/${encodeURIComponent(String(relation))}/${encodeURIComponent(String(subjectType))}/${encodeURIComponent(String(subjectId))}`
 }
 
-/**
- * @summary DeleteSkillShare revokes ALL relations between the named skill and
-the named subject. Requires skill.edit.
- */
 export const skillServiceDeleteSkillShare = async (name: string,
+    relation: string,
     subjectType: string,
     subjectId: string, options?: RequestInit): Promise<V1DeleteSkillShareResponse> => {
 
-  return hubFetch<V1DeleteSkillShareResponse>(getSkillServiceDeleteSkillShareUrl(name,subjectType,subjectId),
+  return hubFetch<V1DeleteSkillShareResponse>(getSkillServiceDeleteSkillShareUrl(name,relation,subjectType,subjectId),
   {
     ...options,
     method: 'DELETE'
 
 
-  }
-);}
-
-
-export const getSkillServiceListSkillVersionsUrl = (name: string,) => {
-
-
-
-
-  return `/v1/skills/${encodeURIComponent(String(name))}/versions`
-}
-
-/**
- * @summary ListSkillVersions lists versions of one canonical skill, oldest first.
- */
-export const skillServiceListSkillVersions = async (name: string, options?: RequestInit): Promise<V1ListSkillVersionsResponse> => {
-
-  return hubFetch<V1ListSkillVersionsResponse>(getSkillServiceListSkillVersionsUrl(name),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-export const getSkillServiceGetSkillVersionUrl = (name: string,
-    version: string,) => {
-
-
-
-
-  return `/v1/skills/${encodeURIComponent(String(name))}/versions/${encodeURIComponent(String(version))}`
-}
-
-/**
- * @summary GetSkillVersion returns one version metadata record.
- */
-export const skillServiceGetSkillVersion = async (name: string,
-    version: string, options?: RequestInit): Promise<V1SkillVersion> => {
-
-  return hubFetch<V1SkillVersion>(getSkillServiceGetSkillVersionUrl(name,version),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-export const getSkillServiceDownloadSkillVersionUrl = (name: string,
-    version: string,
-    params?: SkillServiceDownloadSkillVersionParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : String(value))
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/v1/skills/${encodeURIComponent(String(name))}/versions/${encodeURIComponent(String(version))}/download?${stringifiedParams}` : `/v1/skills/${encodeURIComponent(String(name))}/versions/${encodeURIComponent(String(version))}/download`
-}
-
-/**
- * @summary DownloadSkillVersion returns the version package bytes. Use
-if_none_match to leverage ETag-based 304 Not Modified.
- */
-export const skillServiceDownloadSkillVersion = async (name: string,
-    version: string,
-    params?: SkillServiceDownloadSkillVersionParams, options?: RequestInit): Promise<V1SkillPackageDownload> => {
-
-  return hubFetch<V1SkillPackageDownload>(getSkillServiceDownloadSkillVersionUrl(name,version,params),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-export const getSkillServiceGetSkillVersionFileUrl = (name: string,
-    version: string,
-    params: SkillServiceGetSkillVersionFileParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : String(value))
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/v1/skills/${encodeURIComponent(String(name))}/versions/${encodeURIComponent(String(version))}/file?${stringifiedParams}` : `/v1/skills/${encodeURIComponent(String(name))}/versions/${encodeURIComponent(String(version))}/file`
-}
-
-/**
- * @summary GetSkillVersionFile returns one text or base64-encoded file content.
- */
-export const skillServiceGetSkillVersionFile = async (name: string,
-    version: string,
-    params: SkillServiceGetSkillVersionFileParams, options?: RequestInit): Promise<V1SkillFile> => {
-
-  return hubFetch<V1SkillFile>(getSkillServiceGetSkillVersionFileUrl(name,version,params),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-export const getSkillServiceListSkillVersionFilesUrl = (name: string,
-    version: string,) => {
-
-
-
-
-  return `/v1/skills/${encodeURIComponent(String(name))}/versions/${encodeURIComponent(String(version))}/files`
-}
-
-/**
- * @summary ListSkillVersionFiles lists files stored for one skill version.
- */
-export const skillServiceListSkillVersionFiles = async (name: string,
-    version: string, options?: RequestInit): Promise<V1ListSkillVersionFilesResponse> => {
-
-  return hubFetch<V1ListSkillVersionFilesResponse>(getSkillServiceListSkillVersionFilesUrl(name,version),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-export const getSkillServiceOfflineSkillVersionUrl = (name: string,
-    version: string,) => {
-
-
-
-
-  return `/v1/skills/${encodeURIComponent(String(name))}/versions/${encodeURIComponent(String(version))}:offline`
-}
-
-/**
- * @summary OfflineSkillVersion removes one online version from catalog/runtime use.
- */
-export const skillServiceOfflineSkillVersion = async (name: string,
-    version: string,
-    skillServiceOfflineSkillVersionBody: SkillServiceOfflineSkillVersionBody, options?: RequestInit): Promise<V1SkillVersion> => {
-
-  return hubFetch<V1SkillVersion>(getSkillServiceOfflineSkillVersionUrl(name,version),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(skillServiceOfflineSkillVersionBody)
-  }
-);}
-
-
-export const getSkillServiceOnlineSkillVersionUrl = (name: string,
-    version: string,) => {
-
-
-
-
-  return `/v1/skills/${encodeURIComponent(String(name))}/versions/${encodeURIComponent(String(version))}:online`
-}
-
-/**
- * @summary OnlineSkillVersion makes one published version consumable by
-catalog/runtime. Any previously-online version of the same skill is
-automatically demoted to published.
- */
-export const skillServiceOnlineSkillVersion = async (name: string,
-    version: string,
-    skillServiceOnlineSkillVersionBody: SkillServiceOnlineSkillVersionBody, options?: RequestInit): Promise<V1SkillVersion> => {
-
-  return hubFetch<V1SkillVersion>(getSkillServiceOnlineSkillVersionUrl(name,version),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(skillServiceOnlineSkillVersionBody)
-  }
-);}
-
-
-export const getSkillServicePublishSkillVersionUrl = (name: string,
-    version: string,) => {
-
-
-
-
-  return `/v1/skills/${encodeURIComponent(String(name))}/versions/${encodeURIComponent(String(version))}:publish`
-}
-
-/**
- * @summary PublishSkillVersion marks a submitted version as published.
- */
-export const skillServicePublishSkillVersion = async (name: string,
-    version: string,
-    skillServicePublishSkillVersionBody: SkillServicePublishSkillVersionBody, options?: RequestInit): Promise<V1SkillVersion> => {
-
-  return hubFetch<V1SkillVersion>(getSkillServicePublishSkillVersionUrl(name,version),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(skillServicePublishSkillVersionBody)
-  }
-);}
-
-
-export const getSkillServiceSubmitSkillVersionUrl = (name: string,
-    version: string,) => {
-
-
-
-
-  return `/v1/skills/${encodeURIComponent(String(name))}/versions/${encodeURIComponent(String(version))}:submit`
-}
-
-/**
- * @summary SubmitSkillVersion marks a draft version ready for publish.
- */
-export const skillServiceSubmitSkillVersion = async (name: string,
-    version: string,
-    skillServiceSubmitSkillVersionBody: SkillServiceSubmitSkillVersionBody, options?: RequestInit): Promise<V1SkillVersion> => {
-
-  return hubFetch<V1SkillVersion>(getSkillServiceSubmitSkillVersionUrl(name,version),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(skillServiceSubmitSkillVersionBody)
   }
 );}
 
@@ -697,11 +373,6 @@ export const getSkillServiceUpdateSkillVisibilityUrl = (name: string,) => {
   return `/v1/skills/${encodeURIComponent(String(name))}:visibility`
 }
 
-/**
- * @summary UpdateSkillVisibility changes the access visibility of one canonical
-skill. This endpoint is the contract-backed path for public/private
-toggles; subject-specific sharing remains under Skill share RPCs.
- */
 export const skillServiceUpdateSkillVisibility = async (name: string,
     skillServiceUpdateSkillVisibilityBody: SkillServiceUpdateSkillVisibilityBody, options?: RequestInit): Promise<V1Skill> => {
 
@@ -711,32 +382,6 @@ export const skillServiceUpdateSkillVisibility = async (name: string,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(skillServiceUpdateSkillVisibilityBody)
-  }
-);}
-
-
-export const getSkillServiceUploadSkillPackageUrl = () => {
-
-
-
-
-  return `/v1/skills:upload`
-}
-
-/**
- * @summary UploadSkillPackage imports a zipped Skill package into a new or
-existing version. The zip must contain SKILL.md with YAML front-matter
-declaring name, description, version. Other files become version
-files; binary files are base64-encoded in the DB content column.
- */
-export const skillServiceUploadSkillPackage = async (v1UploadSkillPackageRequest: V1UploadSkillPackageRequest, options?: RequestInit): Promise<V1SkillVersion> => {
-
-  return hubFetch<V1SkillVersion>(getSkillServiceUploadSkillPackageUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(v1UploadSkillPackageRequest)
   }
 );}
 

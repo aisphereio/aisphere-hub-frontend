@@ -4,7 +4,8 @@
  * aisphere/options/v1/authz.proto
  * OpenAPI spec version: version not set
  */
+import type { V1PullRequest } from './v1PullRequest';
 
-export type SkillServiceGetSkillVersionFileParams = {
-path: string;
-};
+export interface V1CreatePullRequestResponse {
+  pullRequest?: V1PullRequest;
+}

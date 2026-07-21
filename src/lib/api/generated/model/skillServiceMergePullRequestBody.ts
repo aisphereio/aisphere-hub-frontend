@@ -5,4 +5,6 @@
  * OpenAPI spec version: version not set
  */
 
-export interface V1DeleteSkillDraftPathResponse { [key: string]: unknown }
+export interface SkillServiceMergePullRequestBody {
+  expectedTargetSha: string;
+}

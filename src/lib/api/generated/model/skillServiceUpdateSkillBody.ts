@@ -8,9 +8,4 @@
 export interface SkillServiceUpdateSkillBody {
   displayName?: string;
   description?: string;
-  version?: string;
-  sourceType?: string;
-  sourceUri?: string;
-  manifestJson?: string;
-  tags?: string[];
 }

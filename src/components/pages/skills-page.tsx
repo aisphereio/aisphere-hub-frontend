@@ -6,11 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { StatCard, CardGridSkeleton, EmptyState, ConfirmDialog } from '@/components/shared';
 import {
-  SkillCard, SkillCardCompact, SkillUploadDialog, SkillCreateDialog, SkillShareDialog, SkillFilters,
+  SkillCard, SkillCardCompact, SkillCreateDialog, SkillShareDialog, SkillFilters,
   type SkillViewMode,
 } from '@/components/skills';
 import { useOpenSkillEditor } from '@/components/layout/app-shell';
-import { useSkills, useSkillOnline, useSkillOffline, useSkillSubmit, useSkillPublish, useSkillDelete } from '@/hooks/use-skills';
+import { useSkills, useSkillDelete } from '@/hooks/use-skills';
 import { useT } from '@/lib/i18n';
 import { toast } from 'sonner';
 import type { Skill } from '@/lib/api/types';
@@ -24,7 +24,6 @@ export function SkillsPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [scopeFilter, setScopeFilter] = useState('all');
   const [viewMode, setViewMode] = useState<SkillViewMode>('grid');
-  const [uploadOpen, setUploadOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [shareSkill, setShareSkill] = useState<Skill | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ action: string; skill: Skill } | null>(null);
@@ -37,10 +36,6 @@ export function SkillsPage() {
     pageSize: 80,
   });
 
-  const onlineMutation = useSkillOnline();
-  const offlineMutation = useSkillOffline();
-  const submitMutation = useSkillSubmit();
-  const publishMutation = useSkillPublish();
   const deleteMutation = useSkillDelete();
 
   // Filter items client-side for status and scope
@@ -87,45 +82,16 @@ export function SkillsPage() {
       setShareSkill(skill);
       return;
     }
-    if (action === 'delete' || action === 'offline') {
+    if (action === 'delete') {
       setConfirmAction({ action, skill });
-    } else {
-      executeAction(action, skill);
     }
   };
 
   const executeAction = async (action: string, skill: Skill) => {
-    const actionVersion = skill.version || skill.latestVersion || skill.stableVersion || skill.versions?.[0]?.version || '';
     try {
-      switch (action) {
-        case 'online':
-          if (!actionVersion) { toast.error(t('skills.noVersion')); return; }
-          await onlineMutation.mutateAsync({ skillName: skill.name, version: actionVersion });
-          toast.success(`${skill.name} ${t('skills.broughtOnline')}`);
-          break;
-        case 'offline':
-          if (!actionVersion) { toast.error(t('skills.noVersion')); return; }
-          await offlineMutation.mutateAsync({ skillName: skill.name, version: actionVersion });
-          toast.success(`${skill.name} ${t('skills.takenOffline')}`);
-          break;
-        case 'submit': {
-          const v = actionVersion;
-          if (!v) { toast.error(t('skills.noVersion')); return; }
-          await submitMutation.mutateAsync({ skillName: skill.name, version: v });
-          toast.success(`${skill.name} ${t('skills.submitted')}`);
-          break;
-        }
-        case 'publish': {
-          const pv = actionVersion;
-          if (!pv) { toast.error(t('skills.noVersion')); return; }
-          await publishMutation.mutateAsync({ skillName: skill.name, version: pv });
-          toast.success(`${skill.name} ${t('skills.published')}`);
-          break;
-        }
-        case 'delete':
-          await deleteMutation.mutateAsync(skill.name);
-          toast.success(`${skill.name} ${t('skills.deleted')}`);
-          break;
+      if (action === 'delete') {
+        await deleteMutation.mutateAsync(skill.name);
+        toast.success(`${skill.name} ${t('skills.deleted')}`);
       }
       refetch();
     } catch (e: unknown) {
@@ -181,7 +147,6 @@ export function SkillsPage() {
           scopeFilter={scopeFilter}
           onScopeFilterChange={setScopeFilter}
           onRefresh={() => refetch()}
-          onUploadClick={() => setUploadOpen(true)}
           onCreateClick={() => setCreateOpen(true)}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
@@ -211,12 +176,7 @@ export function SkillsPage() {
                     : t('skills.empty.desc')
                 }
                 action={
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>{t('skills.createDraft')}</Button>
-                    <Button size="sm" className="bg-gradient-to-r from-violet-600 to-fuchsia-500 hover:from-violet-700 hover:to-fuchsia-600" onClick={() => setUploadOpen(true)}>
-                      <Download className="h-3.5 w-3.5 mr-1" /> {t('skills.uploadZip')}
-                    </Button>
-                  </div>
+                  <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>{t('skills.createDraft')}</Button>
                 }
               />
             ) : (
@@ -249,12 +209,7 @@ export function SkillsPage() {
                     : t('skills.empty.desc')
                 }
                 action={
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>{t('skills.createDraft')}</Button>
-                    <Button size="sm" className="bg-gradient-to-r from-violet-600 to-fuchsia-500 hover:from-violet-700 hover:to-fuchsia-600" onClick={() => setUploadOpen(true)}>
-                      <Download className="h-3.5 w-3.5 mr-1" /> {t('skills.uploadZip')}
-                    </Button>
-                  </div>
+                  <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>{t('skills.createDraft')}</Button>
                 }
               />
             ) : (
@@ -322,9 +277,6 @@ export function SkillsPage() {
             )}
           </>
         )}
-
-        {/* Upload Dialog */}
-        <SkillUploadDialog open={uploadOpen} onOpenChange={setUploadOpen} />
 
         {/* Create Dialog */}
         <SkillCreateDialog

@@ -5,11 +5,11 @@
  * OpenAPI spec version: version not set
  */
 
-export interface V1SkillShare {
-  skillName?: string;
-  relation?: string;
-  subjectType?: string;
-  subjectId?: string;
-  subjectRelation?: string;
+export interface V1PullRequestReview {
+  id?: string;
+  pullRequestId?: string;
+  reviewerId?: string;
+  verdict?: string;
+  comment?: string;
   createTime?: string;
 }

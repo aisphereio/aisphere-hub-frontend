@@ -37,15 +37,16 @@ import {
 } from './internal';
 
 function shareToGrant(s: V1SkillShare, resourceId: string): ResourceGrant {
+  const relation = s.relation || 'viewer';
   return {
-    id: buildGrantId(s.subjectType || 'user', s.subjectId || ''),
+    id: buildGrantId(s.subjectType || 'user', s.subjectId || '', relation),
     app: 'aihub',
     resourceType: 'skill',
     resourceId,
     object: `skill:${resourceId}`,
     subjectType: (s.subjectType || 'user') as ResourceGrant['subjectType'],
     subjectId: s.subjectId || '',
-    role: normalizeShareRole(s.relation),
+    role: normalizeShareRole(relation),
     effect: 'allow',
     actions: [],
   };
@@ -117,16 +118,19 @@ export const sharesApi = {
       });
       return publicGrant('skill', resourceId);
     }
+    const relation = toBackendShareRole(resourceType, body.role);
     const raw = await skillServiceCreateSkillShare(resourceId, {
-      relation: toBackendShareRole(resourceType, body.role),
+      relation,
       subjectType: body.subjectType,
       subjectId: body.subjectId,
       subjectRelation: body.subjectRelation,
     });
+    const resolvedRelation = raw.relation || relation;
     return {
       id: buildGrantId(
         raw.subjectType || body.subjectType,
         raw.subjectId || body.subjectId,
+        resolvedRelation,
       ),
       app: 'aihub',
       resourceType: 'skill',
@@ -135,7 +139,7 @@ export const sharesApi = {
       subjectType: (raw.subjectType ||
         body.subjectType) as ResourceGrant['subjectType'],
       subjectId: raw.subjectId || body.subjectId,
-      role: normalizeShareRole(raw.relation),
+      role: normalizeShareRole(resolvedRelation),
       effect: 'allow',
       actions: [],
     } as ResourceGrant;
@@ -151,13 +155,23 @@ export const sharesApi = {
         `sharing for ${resourceType} not yet supported in new hub`,
       );
     }
-    const { subjectType, subjectId } = parseGrantId(grantId);
+    const { subjectType, subjectId, relation } = parseGrantId(grantId);
     if (subjectType === 'public') {
       return skillServiceUpdateSkillVisibility(resourceId, {
         visibility: 'private',
       });
     }
-    return skillServiceDeleteSkillShare(resourceId, subjectType, subjectId);
+    // New Hub DeleteSkillShare path is
+    // /v1/skills/{name}/shares/{relation}/{subjectType}/{subjectId}; the
+    // relation is required. Fall back to 'viewer' for legacy grant ids that
+    // predate the relation segment (the backend will reject if the tuple
+    // does not match, which is the correct behavior).
+    return skillServiceDeleteSkillShare(
+      resourceId,
+      relation || 'viewer',
+      subjectType,
+      subjectId,
+    );
   },
 
   listSkillShares: (skillName: string) => sharesApi.list('skill', skillName),
