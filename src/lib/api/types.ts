@@ -77,6 +77,36 @@ export type SkillVersion = {
   manifestJson?: string;
 };
 
+/**
+ * Skill file-content API types. These mirror the GitLab/Gitea
+ * repository-files REST shape exposed by the hub FileService. Content
+ * is base64-encoded end-to-end (proto field is declared base64 and the
+ * backend actually encodes it); the adapter handles encode/decode so
+ * UI components always see plaintext strings.
+ */
+export type SkillFileEntry = {
+  name: string;
+  path: string;
+  type: "file" | "dir" | "symlink" | "commit";
+  size: number;
+  mode: string;
+  sha: string;
+  lastModified?: string;
+};
+
+export type SkillFile = {
+  name: string;
+  path: string;
+  sha: string;
+  size: number;
+  content: string; // plaintext, already base64-decoded by the adapter
+  encoding: "base64";
+  ref: string;
+  commitSha?: string;
+  commitMessage?: string;
+  lastModified?: string;
+};
+
 export type SkillSet = {
   namespaceId?: string;
   name: string;
