@@ -302,8 +302,8 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
                   An in-UI content editor is planned for a follow-up.
                 </p>
                 <pre className="text-[11px] font-mono bg-background/60 p-2 rounded overflow-x-auto whitespace-pre-wrap">
-{`# Clone the skill repo (auth via your Hub session)
-git clone ${typeof window !== "undefined" ? window.location.origin : "https://hub.example"}/v1/skills/${detail.name}.git
+{`# Clone the skill repo (private; authenticate with an OIDC access token)
+git clone ${typeof window !== "undefined" ? window.location.origin : "https://hub.example"}/git/${detail.name}.git
 
 # Edit SKILL.md, then commit and push
 git add SKILL.md && git commit -m "update skill" && git push`}
