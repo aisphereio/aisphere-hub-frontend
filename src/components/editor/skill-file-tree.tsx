@@ -13,9 +13,21 @@
  * showing one directory at a time matches the GitLab/Gitea contents
  * UX the backend API mirrors. Recursive expansion can be added later.
  */
-import { ChevronRight, File, Folder, FilePlus2, CornerLeftUp } from "lucide-react";
+import { useState } from "react";
+import { ChevronRight, File, Folder, FilePlus2, CornerLeftUp, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import type { SkillFileEntry } from "@/lib/api/types";
@@ -26,9 +38,13 @@ export type SkillFileTreeProps = {
   entries: SkillFileEntry[] | undefined;
   isLoading?: boolean;
   selectedPath?: string;
+  /** Path currently being deleted (disables its row + shows spinner). */
+  deletingPath?: string | null;
   onNavigate: (path: string) => void;
   onSelectFile: (path: string) => void;
   onCreateFile: () => void;
+  /** Called after the user confirms deletion in the dialog. */
+  onDeleteFile?: (path: string, sha: string) => void;
 };
 
 function parentPath(p: string): string {
@@ -55,12 +71,18 @@ export function SkillFileTree({
   entries,
   isLoading,
   selectedPath,
+  deletingPath,
   onNavigate,
   onSelectFile,
   onCreateFile,
+  onDeleteFile,
 }: SkillFileTreeProps) {
   const t = useT();
   const segments = breadcrumbSegments(path);
+  // The entry the user is currently confirming deletion for. The dialog
+  // is local to the tree so the parent only hears about confirmed
+  // deletions, not every trash click.
+  const [pendingDelete, setPendingDelete] = useState<SkillFileEntry | null>(null);
 
   // Directories first, then files, both alphabetical — matches the
   // canonical git tree sort the backend already applies, but we re-sort
@@ -132,17 +154,31 @@ export function SkillFileTree({
           {sorted.map((entry) => {
             const isDir = entry.type === "dir";
             const selected = entry.path === selectedPath;
+            const isDeleting = entry.path === deletingPath;
+            const canDelete = !isDir && onDeleteFile && !isDeleting;
             return (
-              <button
+              <div
                 key={entry.path}
-                type="button"
+                role="button"
+                tabIndex={0}
                 className={cn(
-                  "flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted",
+                  "group flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted",
                   selected && "bg-muted font-medium",
+                  isDeleting && "opacity-50",
                 )}
-                onClick={() =>
-                  isDir ? onNavigate(entry.path) : onSelectFile(entry.path)
-                }
+                onClick={() => {
+                  if (isDeleting) return;
+                  if (isDir) onNavigate(entry.path);
+                  else onSelectFile(entry.path);
+                }}
+                onKeyDown={(e) => {
+                  if (isDeleting) return;
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    if (isDir) onNavigate(entry.path);
+                    else onSelectFile(entry.path);
+                  }
+                }}
               >
                 {isDir ? (
                   <Folder className="h-3.5 w-3.5 shrink-0 text-sky-500" />
@@ -151,11 +187,57 @@ export function SkillFileTree({
                 )}
                 <span className="truncate">{entry.name}</span>
                 {!isDir && entry.size > 0 && (
-                  <span className="ml-auto shrink-0 text-[10px] opacity-50">
+                  <span className="ml-auto shrink-0 text-[10px] opacity-50 group-hover:opacity-0">
                     {formatSize(entry.size)}
                   </span>
                 )}
-              </button>
+                {canDelete && (
+                  <AlertDialog
+                    open={pendingDelete?.path === entry.path}
+                    onOpenChange={(open) =>
+                      setPendingDelete(open ? entry : null)
+                    }
+                  >
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="ml-auto hidden h-6 w-6 shrink-0 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive group-hover:flex"
+                        title={t("editor.delete")}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>{t("editor.delete")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {t("editor.confirmDelete", { name: entry.path })}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                        <AlertDialogAction
+                          className={cn(
+                            "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+                          )}
+                          onClick={() => {
+                            onDeleteFile?.(entry.path, entry.sha);
+                          }}
+                        >
+                          {t("common.delete")}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+                {isDeleting && (
+                  <Loader2 className="ml-auto h-3 w-3 shrink-0 animate-spin text-muted-foreground" />
+                )}
+              </div>
             );
           })}
         </div>

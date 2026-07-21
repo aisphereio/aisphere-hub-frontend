@@ -272,6 +272,11 @@ export { skillApi } from './adapters/skill';
 // of the bare git repo). See adapters/file.ts.
 export { fileApi } from './adapters/file';
 
+// prApi wraps the skill-service pull-request endpoints (list/get/create/
+// merge/close). PRs are the publish path when the default branch is
+// locked. See adapters/pr.ts.
+export { prApi } from './adapters/pr';
+
 
 export const skillSetApi = {
   list: (params: Record<string, unknown> = {}) =>
