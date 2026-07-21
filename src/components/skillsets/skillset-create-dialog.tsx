@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ResourceIdInput } from '@/components/shared';
 import { useSkillSetSave } from '@/hooks/use-skillsets';
 import { useT } from '@/lib/i18n';
@@ -22,9 +23,13 @@ interface SkillSetCreateDialogProps {
 
 export function SkillSetCreateDialog({ open, onOpenChange, editGroup }: SkillSetCreateDialogProps) {
   const t = useT();
+  const isEdit = !!editGroup;
   const [name, setName] = useState(editGroup?.name || '');
   const [displayName, setDisplayName] = useState(editGroup?.displayName || '');
   const [description, setDescription] = useState(editGroup?.description || '');
+  // Create mode: let the user declare visibility up front, defaulting to public.
+  // Edit mode keeps the prior behavior of managing access via ResourceSharePanel.
+  const [scope, setScope] = useState<string>(editGroup?.scope || 'public');
 
   const saveMutation = useSkillSetSave();
 
@@ -42,14 +47,14 @@ export function SkillSetCreateDialog({ open, onOpenChange, editGroup }: SkillSet
         name,
         displayName: displayName || undefined,
         description: description || undefined,
-        // Note: scope is intentionally omitted 鈥?access mode is now
-        // managed by the ResourceSharePanel via IAM ResourceGrants.
+        scope: isEdit ? undefined : scope,
         members: editGroup?.members,
       });
       toast.success(editGroup ? t('skillset.updated') : t('skillset.created'));
       setName('');
       setDisplayName('');
       setDescription('');
+      setScope('public');
       onOpenChange(false);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : (editGroup ? t('skillset.updateFailed') : t('skillset.createFailed')));
@@ -93,6 +98,30 @@ export function SkillSetCreateDialog({ open, onOpenChange, editGroup }: SkillSet
               disabled={saveMutation.isPending}
             />
           </div>
+          {!isEdit && (
+            <div className="space-y-1.5">
+              <Label>{t('skillset.detail.accessMode')}</Label>
+              <Select value={scope} onValueChange={setScope} disabled={saveMutation.isPending}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">
+                    <div className="flex flex-col">
+                      <span>{t('accessMode.public')}</span>
+                      <span className="text-xs text-muted-foreground">{t('accessMode.publicDesc')}</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="private">
+                    <div className="flex flex-col">
+                      <span>{t('accessMode.private')}</span>
+                      <span className="text-xs text-muted-foreground">{t('accessMode.privateDesc')}</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saveMutation.isPending}>{t('skillset.cancel')}</Button>
