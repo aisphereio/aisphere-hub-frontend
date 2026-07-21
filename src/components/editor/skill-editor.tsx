@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { ArrowLeft, Loader2, Save, Trash2, Star, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 import { toast } from "sonner";
 import {
   useSkillDetail,
@@ -19,6 +25,11 @@ import {
   useSocialRating,
   useSocialSubscribe,
 } from "@/hooks/use-skills";
+import {
+  useFileTree,
+  useFileContent,
+  useSaveFile,
+} from "@/hooks/use-skill-files";
 import { useResourceShares } from "@/hooks/use-shares";
 import { getScopeColor, getStatusColor, fmtTime } from "@/lib/utils";
 import { skillApi } from "@/lib/api";
@@ -26,6 +37,22 @@ import { ConfirmDialog, InfoItem } from "@/components/shared";
 import { ResourceSharePanel } from "@/components/aihub";
 import { useT } from "@/lib/i18n";
 import type { Skill, AccessMode } from "@/lib/api/types";
+import { SkillFileTree } from "./skill-file-tree";
+
+// Monaco is the first next/dynamic({ ssr: false }) import in the repo.
+// It pulls in web workers and touches `self` at module load, so it must
+// never execute during server-side rendering.
+const MonacoSkillEditor = dynamic(
+  () => import("./monaco-skill-editor").then((m) => m.MonacoSkillEditor),
+  { ssr: false, loading: () => <Loader2 className="h-4 w-4 animate-spin" /> },
+);
+
+// defaultBranchOf extracts the skill's default branch for the file API.
+// The proto field is optional; fall back to "main" (SkillDefaultBranch).
+function defaultBranchOf(detail: Skill): string {
+  const v = (detail as Skill & { defaultBranch?: string }).defaultBranch;
+  return v && v.length > 0 ? v : "main";
+}
 import { deriveAccessMode } from "@/lib/api/types";
 
 interface SkillEditorProps {
@@ -205,9 +232,11 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
       </header>
 
       <div className="flex-1 min-h-0 flex">
-        {/* ─── Left: Overview / content placeholder ─────────────────────── */}
+        {/* ─── Left: Overview + in-browser content editor ───────────────── */}
         <div className="flex-1 min-w-0 flex flex-col border-r overflow-hidden">
-          <ScrollArea className="flex-1">
+          {/* Metadata header (social/title/info). Height-capped so the
+              Monaco editor below gets the bulk of the panel. */}
+          <ScrollArea className="shrink-0 max-h-[45vh] border-b">
             <div className="p-6 max-w-3xl mx-auto space-y-6">
               {/* Social strip (gated by env flag via the hook) */}
               {social && (
@@ -292,25 +321,26 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
 
               <Separator />
 
-              <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
-                <Label className="text-xs font-medium">
-                  Skill content is authored through git
-                </Label>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  The Hub stores skill content in an embedded git repository.
-                  Clone, edit, and push to author SKILL.md and supporting files.
-                  An in-UI content editor is planned for a follow-up.
-                </p>
-                <pre className="text-[11px] font-mono bg-background/60 p-2 rounded overflow-x-auto whitespace-pre-wrap">
+              <details className="rounded-lg border bg-muted/30 p-3 text-xs">
+                <summary className="cursor-pointer font-medium text-muted-foreground">
+                  {t("editor.gitHintTitle") ?? "Author via git (advanced)"}
+                </summary>
+                <pre className="mt-2 text-[11px] font-mono bg-background/60 p-2 rounded overflow-x-auto whitespace-pre-wrap">
 {`# Clone the skill repo (private; authenticate with an OIDC access token)
 git clone ${typeof window !== "undefined" ? window.location.origin : "https://hub.example"}/git/${detail.name}.git
 
 # Edit SKILL.md, then commit and push
 git add SKILL.md && git commit -m "update skill" && git push`}
                 </pre>
-              </div>
+              </details>
             </div>
           </ScrollArea>
+
+          {/* ─── In-browser content editor (Monaco + file tree) ─────────── */}
+          <SkillFileEditorPane
+            skillName={detail.name}
+            defaultBranch={defaultBranchOf(detail)}
+          />
         </div>
 
         {/* ─── Right: Settings / Runtime / Shares ──────────────────────── */}
@@ -538,5 +568,114 @@ function SettingsTab({
         </Button>
       </div>
     </div>
+  );
+}
+
+// SkillFileEditorPane is the in-browser content editor: a left file tree
+// and a right Monaco editor, split by a draggable handle. It owns the
+// current path + branch state and wires the file-content hooks. The
+// pane sits below the metadata header in the left panel and takes the
+// remaining vertical space.
+type SkillFileEditorPaneProps = {
+  skillName: string;
+  defaultBranch: string;
+};
+
+function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPaneProps) {
+  const t = useT();
+  const [currentPath, setCurrentPath] = useState("");
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [creatingFile, setCreatingFile] = useState<string | null>(null);
+
+  const tree = useFileTree(skillName, currentPath, defaultBranch);
+  // Fetch the file the user selected, OR the in-progress new-file path
+  // (with create=true so the editor knows to POST instead of PUT).
+  const fileQuery = useFileContent(
+    skillName,
+    selectedFile ?? creatingFile,
+    defaultBranch,
+    { enabled: Boolean(selectedFile) },
+  );
+  const saveMutation = useSaveFile();
+
+  // New-file flow: when the user asks to create a file we open the
+  // editor with an empty buffer and create=true. The actual POST fires
+  // on first save (see MonacoSkillEditor.doSave).
+  const startCreate = () => {
+    setSelectedFile(null);
+    setCreatingFile(currentPath ? `${currentPath}/new-file.md` : "new-file.md");
+  };
+
+  // When the user picks a real file, drop out of create mode.
+  const selectFile = (p: string) => {
+    setCreatingFile(null);
+    setSelectedFile(p);
+  };
+
+  // Editor content source: existing file content from the server, or
+  // empty for a brand-new file.
+  const editorInitial = creatingFile ? "" : (fileQuery.data?.content ?? "");
+  const editorSha = creatingFile ? undefined : fileQuery.data?.sha;
+  const editorPath = selectedFile ?? creatingFile;
+  const editorCreate = Boolean(creatingFile);
+
+  // Refetch on conflict so the editor adopts the server's current sha
+  // and content; the user then decides to overwrite (edit + save) or
+  // discard (revert). We do NOT auto-overwrite.
+  const handleConflict = () => {
+    if (selectedFile) fileQuery.refetch();
+  };
+
+  return (
+    <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
+      <ResizablePanel defaultSize={22} minSize={15} maxSize={45}>
+        <SkillFileTree
+          skillName={skillName}
+          path={currentPath}
+          entries={tree.data}
+          isLoading={tree.isLoading}
+          selectedPath={selectedFile ?? undefined}
+          onNavigate={(p) => {
+            setCurrentPath(p);
+            // Navigating into a directory clears the open file so the
+            // editor doesn't keep showing a file from another folder.
+            setSelectedFile(null);
+            setCreatingFile(null);
+          }}
+          onSelectFile={selectFile}
+          onCreateFile={startCreate}
+        />
+      </ResizablePanel>
+      <ResizableHandle withHandle />
+      <ResizablePanel defaultSize={78} minSize={40}>
+        {editorPath ? (
+          <MonacoSkillEditor
+            key={editorPath + (editorCreate ? ":create" : ":edit") + (editorSha || "")}
+            skillName={skillName}
+            filePath={editorPath}
+            branch={defaultBranch}
+            initialContent={editorInitial}
+            sha={editorSha}
+            create={editorCreate}
+            readOnly={saveMutation.isPending}
+            onSaved={(_sha, _content) => {
+              // After a successful create, switch into edit mode so the
+              // next save is a PUT (not another POST).
+              if (creatingFile) {
+                setSelectedFile(creatingFile);
+                setCreatingFile(null);
+              }
+            }}
+            onConflict={handleConflict}
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
+            <div className="space-y-1">
+              <p>{t("editor.empty") ?? "Select or create a file to start editing."}</p>
+            </div>
+          </div>
+        )}
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 }
