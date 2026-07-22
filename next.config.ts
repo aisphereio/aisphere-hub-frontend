@@ -49,13 +49,6 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_AUTH_MODE: authMode,
     NEXT_PUBLIC_GATEWAY_LOGOUT_PATH: gatewayLogoutPath,
   },
-  // Monaco Editor: self-hosted. @monaco-editor/react loads the editor
-  // core + language workers from /monaco/vs (same-origin) via
-  // loader.config (see monaco-skill-editor.tsx). The min/vs assets are
-  // copied from node_modules/monaco-editor by .zscripts/copy-monaco.mjs
-  // (dev: into public/monaco/vs) and copy-standalone-assets.mjs (prod:
-  // into .next/standalone/public/monaco/vs). No webpack worker bundling
-  // required; no CDN dependency.
 };
 
 export default nextConfig;
