@@ -8,9 +8,13 @@
  */
 import {
   useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useState,
+  useSyncExternalStore,
   type KeyboardEvent,
+  type RefObject,
 } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import type { Extension } from "@codemirror/state";
@@ -19,6 +23,7 @@ import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
 import { python } from "@codemirror/lang-python";
 import { yaml } from "@codemirror/lang-yaml";
+import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -90,6 +95,41 @@ const EDITOR_CLASS_NAME =
   "[&_.cm-gutters]:border-r [&_.cm-gutters]:bg-muted/20";
 
 /**
+ * Inactive tabs stay mounted so their unsaved React state survives, but the
+ * parent hides them with `display: none`. Observe the actual layout box and do
+ * not mount CodeMirror's EditorView, syntax tree or DOM for hidden tabs.
+ * useSyncExternalStore keeps this observer integration lint-safe and avoids
+ * synchronously setting state inside an Effect.
+ */
+function useHasLayoutBox(ref: RefObject<HTMLElement | null>): boolean {
+  const getSnapshot = useCallback(() => {
+    const node = ref.current;
+    return Boolean(node && node.clientWidth > 0 && node.clientHeight > 0);
+  }, [ref]);
+
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => {
+      const node = ref.current;
+      if (!node || typeof window === "undefined") return () => undefined;
+
+      queueMicrotask(onStoreChange);
+
+      if (typeof ResizeObserver === "undefined") {
+        window.addEventListener("resize", onStoreChange);
+        return () => window.removeEventListener("resize", onStoreChange);
+      }
+
+      const observer = new ResizeObserver(onStoreChange);
+      observer.observe(node);
+      return () => observer.disconnect();
+    },
+    [ref],
+  );
+
+  return useSyncExternalStore(subscribe, getSnapshot, () => false);
+}
+
+/**
  * The file query resolves after a tab is first opened. Key the inner editor by
  * the server revision so clean buffers adopt the fetched content through a
  * normal remount instead of synchronously setting React state in an effect.
@@ -116,7 +156,10 @@ function CodeMirrorSkillEditor({
   onConflict,
 }: MonacoSkillEditorProps) {
   const t = useT();
+  const { resolvedTheme } = useTheme();
   const saveMutation = useSaveFile();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const hasLayoutBox = useHasLayoutBox(rootRef);
   const [value, setValue] = useState(initialContent);
   const [savedValue, setSavedValue] = useState(initialContent);
   const [localSha, setLocalSha] = useState(sha);
@@ -128,10 +171,25 @@ function CodeMirrorSkillEditor({
   const [resolving, setResolving] = useState(false);
 
   const dirty = value !== savedValue;
+  const editorTheme = resolvedTheme === "dark" ? "dark" : "light";
   const languageExtensions = useMemo(
     () => languageExtensionsFor(filePath),
     [filePath],
   );
+
+  // Browser refresh, tab close and external navigation must not silently drop
+  // any dirty buffer, including buffers held by inactive file tabs.
+  useEffect(() => {
+    if (!dirty) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [dirty]);
 
   const doSave = useCallback(async () => {
     if (!dirty || saveMutation.isPending || readOnly) return;
@@ -199,7 +257,7 @@ function CodeMirrorSkillEditor({
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div ref={rootRef} className="flex h-full min-h-0 flex-col">
       <div className="flex h-9 shrink-0 items-center gap-2 border-b bg-muted/30 px-3 text-xs text-muted-foreground">
         <span className="truncate font-mono" title={filePath}>
           {filePath}
@@ -262,7 +320,7 @@ function CodeMirrorSkillEditor({
       )}
 
       <div className="min-h-0 flex-1" onKeyDownCapture={handleEditorKeyDown}>
-        {conflict ? (
+        {!hasLayoutBox ? null : conflict ? (
           <div className="flex h-full min-h-0 flex-col">
             <div className="flex h-9 shrink-0 items-center gap-2 border-b bg-amber-500/10 px-3 text-xs text-amber-700 dark:text-amber-300">
               <AlertTriangle className="h-3.5 w-3.5" />
@@ -308,7 +366,7 @@ function CodeMirrorSkillEditor({
                 <CodeMirror
                   value={conflict.serverContent}
                   height="100%"
-                  theme="dark"
+                  theme={editorTheme}
                   extensions={languageExtensions}
                   readOnly
                   editable={false}
@@ -322,7 +380,7 @@ function CodeMirrorSkillEditor({
                 <CodeMirror
                   value={value}
                   height="100%"
-                  theme="dark"
+                  theme={editorTheme}
                   extensions={languageExtensions}
                   readOnly
                   editable={false}
@@ -335,7 +393,7 @@ function CodeMirrorSkillEditor({
           <CodeMirror
             value={value}
             height="100%"
-            theme="dark"
+            theme={editorTheme}
             extensions={languageExtensions}
             readOnly={Boolean(readOnly || saveMutation.isPending)}
             editable={!readOnly && !saveMutation.isPending}
