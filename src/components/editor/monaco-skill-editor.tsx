@@ -2,20 +2,13 @@
 
 /**
  * MonacoSkillEditor is kept as the compatibility export consumed by
- * skill-editor.tsx. The default implementation is now CodeMirror 6: Monaco's
- * core, workers and language services are no longer downloaded on the normal
- * file-editing path.
- *
- * The component contract intentionally stays unchanged so the Git file API,
- * optimistic-concurrency handling and multi-tab buffers keep working while the
- * editor engine becomes substantially lighter.
+ * skill-editor.tsx. The default implementation is CodeMirror 6, so Monaco's
+ * core, workers and language services are not loaded on the normal editing
+ * path.
  */
 import {
   useCallback,
-  useEffect,
   useMemo,
-  useReducer,
-  useRef,
   useState,
   type KeyboardEvent,
 } from "react";
@@ -97,10 +90,21 @@ const EDITOR_CLASS_NAME =
   "[&_.cm-gutters]:border-r [&_.cm-gutters]:bg-muted/20";
 
 /**
- * Compatibility name retained to keep the surrounding pane stable. The
- * runtime editor is CodeMirror and is only loaded after a file tab opens.
+ * The file query resolves after a tab is first opened. Key the inner editor by
+ * the server revision so clean buffers adopt the fetched content through a
+ * normal remount instead of synchronously setting React state in an effect.
  */
-export function MonacoSkillEditor({
+export function MonacoSkillEditor(props: MonacoSkillEditorProps) {
+  const revision = props.create ? "create" : (props.sha ?? "loading");
+  return (
+    <CodeMirrorSkillEditor
+      key={`${props.filePath}:${revision}`}
+      {...props}
+    />
+  );
+}
+
+function CodeMirrorSkillEditor({
   skillName,
   filePath,
   branch,
@@ -113,10 +117,8 @@ export function MonacoSkillEditor({
 }: MonacoSkillEditorProps) {
   const t = useT();
   const saveMutation = useSaveFile();
-  const [value, setValueState] = useState(initialContent);
-  const valueRef = useRef(initialContent);
-  const savedValueRef = useRef(initialContent);
-  const [, refreshBaseline] = useReducer((version: number) => version + 1, 0);
+  const [value, setValue] = useState(initialContent);
+  const [savedValue, setSavedValue] = useState(initialContent);
   const [localSha, setLocalSha] = useState(sha);
   const [commitMessage, setCommitMessage] = useState("");
   const [conflict, setConflict] = useState<{
@@ -125,53 +127,29 @@ export function MonacoSkillEditor({
   } | null>(null);
   const [resolving, setResolving] = useState(false);
 
-  const setValue = useCallback((nextValue: string) => {
-    valueRef.current = nextValue;
-    setValueState(nextValue);
-  }, []);
-
-  // Existing files are opened before their content query necessarily resolves.
-  // Adopt a later server value when the buffer is still clean, but never erase
-  // local edits when a background refetch completes.
-  useEffect(() => {
-    const wasDirty = valueRef.current !== savedValueRef.current;
-    savedValueRef.current = initialContent;
-    if (!wasDirty) {
-      setValue(initialContent);
-    } else {
-      refreshBaseline();
-    }
-    setLocalSha(sha);
-    setConflict(null);
-  }, [filePath, initialContent, setValue, sha]);
-
-  const dirty = value !== savedValueRef.current;
+  const dirty = value !== savedValue;
   const languageExtensions = useMemo(
     () => languageExtensionsFor(filePath),
     [filePath],
   );
 
   const doSave = useCallback(async () => {
-    const content = valueRef.current;
-    if (content === savedValueRef.current || saveMutation.isPending || readOnly) {
-      return;
-    }
+    if (!dirty || saveMutation.isPending || readOnly) return;
 
     try {
       const result = await saveMutation.mutateAsync({
         skillName,
         path: filePath,
-        content,
+        content: value,
         sha: create ? undefined : localSha,
         message: commitMessage.trim() || undefined,
         branch,
         create,
       });
-      savedValueRef.current = content;
-      refreshBaseline();
+      setSavedValue(value);
       setLocalSha(result.sha);
       setCommitMessage("");
-      onSaved?.(result.sha, content);
+      onSaved?.(result.sha, value);
       toast.success(t("editor.fileSaved"));
     } catch (error) {
       const conflictError = error as { isConflict?: boolean };
@@ -198,6 +176,7 @@ export function MonacoSkillEditor({
     branch,
     commitMessage,
     create,
+    dirty,
     filePath,
     localSha,
     onConflict,
@@ -206,6 +185,7 @@ export function MonacoSkillEditor({
     saveMutation,
     skillName,
     t,
+    value,
   ]);
 
   const handleEditorKeyDown = useCallback(
@@ -238,7 +218,7 @@ export function MonacoSkillEditor({
             size="sm"
             variant="ghost"
             className="h-7 gap-1 px-2 text-xs"
-            onClick={() => setValue(savedValueRef.current)}
+            onClick={() => setValue(savedValue)}
             disabled={!dirty || saveMutation.isPending}
             title={t("editor.discard") ?? "Discard"}
           >
@@ -297,8 +277,7 @@ export function MonacoSkillEditor({
                   className="h-7 gap-1 px-2 text-xs"
                   onClick={() => {
                     setValue(conflict.serverContent);
-                    savedValueRef.current = conflict.serverContent;
-                    refreshBaseline();
+                    setSavedValue(conflict.serverContent);
                     setLocalSha(conflict.serverSha);
                     setConflict(null);
                   }}
