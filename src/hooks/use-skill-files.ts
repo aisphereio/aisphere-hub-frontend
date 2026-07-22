@@ -1,33 +1,36 @@
 "use client";
 
 /**
- * use-skill-files — TanStack Query hooks for the in-browser skill file
- * editor. Mirrors the query-key + invalidation conventions of
- * use-skills.ts:
- *   - list/detail keys are ["skills", "<op>", <args>]
- *   - mutations invalidate by prefix so a save refreshes both the tree
- *     and the open file
+ * TanStack Query hooks for the in-browser Skill file editor.
  *
- * Conflict handling: useSaveFile surfaces a 409 (ErrFileAlreadyExists)
- * as error.isConflict so the editor can refetch and let the user decide
- * whether to overwrite or discard — it does NOT auto-overwrite.
+ * Query keys are grouped by Skill first so prefix invalidation works:
+ *   ["skills", "files", <skill>, "list", ...]
+ *   ["skills", "files", <skill>, "file", ...]
+ *
+ * Conflict handling: useSaveFile surfaces a 409 as error.isConflict. The
+ * editor decides whether to keep the local buffer or adopt the server copy.
  */
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fileApi } from "@/lib/api";
 import { HubApiError } from "@/lib/api/hub-fetch";
 import type { SkillFile, SkillFileEntry } from "@/lib/api/types";
 
+const skillFileRoot = (skillName: string) =>
+  ["skills", "files", skillName] as const;
+
 export const SKILL_FILE_QUERY_KEYS = {
+  allForSkill: (skillName: string) => skillFileRoot(skillName),
+  listsForSkill: (skillName: string) =>
+    [...skillFileRoot(skillName), "list"] as const,
+  filesForSkill: (skillName: string) =>
+    [...skillFileRoot(skillName), "file"] as const,
   list: (skillName: string, path: string, ref?: string) =>
-    ["skills", "files", "list", skillName, path, ref ?? "HEAD"] as const,
+    [...skillFileRoot(skillName), "list", path, ref ?? "HEAD"] as const,
   file: (skillName: string, path: string, ref?: string) =>
-    ["skills", "files", "file", skillName, path, ref ?? "HEAD"] as const,
-  /** Prefix used to invalidate every file query for a skill. */
-  allForSkill: (skillName: string) =>
-    ["skills", "files", skillName] as const,
+    [...skillFileRoot(skillName), "file", path, ref ?? "HEAD"] as const,
 };
 
-/** List entries at a path (root when path is ""). */
+/** List entries at a path (root when path is empty). */
 export function useFileTree(
   skillName: string | null,
   path: string = "",
@@ -42,7 +45,7 @@ export function useFileTree(
   });
 }
 
-/** Fetch a single file's content + commit metadata. */
+/** Fetch a single file's content and commit metadata. */
 export function useFileContent(
   skillName: string | null,
   path: string | null,
@@ -50,7 +53,11 @@ export function useFileContent(
   options: { enabled?: boolean } = {},
 ) {
   return useQuery<SkillFile>({
-    queryKey: SKILL_FILE_QUERY_KEYS.file(skillName ?? "", path ?? "", ref),
+    queryKey: SKILL_FILE_QUERY_KEYS.file(
+      skillName ?? "",
+      path ?? "",
+      ref,
+    ),
     queryFn: () => fileApi.get(skillName!, path!, ref),
     enabled:
       Boolean(skillName) && Boolean(path) && (options.enabled ?? true),
@@ -62,11 +69,11 @@ export type SaveFileInput = {
   skillName: string;
   path: string;
   content: string;
-  /** When sha is provided, server enforces optimistic concurrency. */
+  /** When sha is provided, the server enforces optimistic concurrency. */
   sha?: string;
   message?: string;
   branch?: string;
-  /** true = create new file (POST), false = update existing (PUT). */
+  /** true creates a new file; false updates an existing file. */
   create?: boolean;
 };
 
@@ -75,28 +82,35 @@ export type SaveFileError = {
   cause: unknown;
 };
 
-/**
- * useSaveFile creates or updates a file. On a 409 (someone else wrote
- * first / create-clobber) it rejects with { isConflict: true } so the
- * caller can refetch and prompt. On success it invalidates the file
- * tree + the open file so the UI re-renders with fresh SHAs.
- */
+/** Create or update a file and update the exact content cache immediately. */
 export function useSaveFile() {
   const queryClient = useQueryClient();
+
   return useMutation<SkillFile, SaveFileError, SaveFileInput>({
     mutationFn: async (input) => {
       try {
         if (input.create) {
-          return await fileApi.create(input.skillName, input.path, input.content, {
-            message: input.message,
-            branch: input.branch,
-          });
+          return await fileApi.create(
+            input.skillName,
+            input.path,
+            input.content,
+            {
+              message: input.message,
+              branch: input.branch,
+            },
+          );
         }
-        return await fileApi.update(input.skillName, input.path, input.content, {
-          message: input.message,
-          sha: input.sha,
-          branch: input.branch,
-        });
+
+        return await fileApi.update(
+          input.skillName,
+          input.path,
+          input.content,
+          {
+            message: input.message,
+            sha: input.sha,
+            branch: input.branch,
+          },
+        );
       } catch (err) {
         const status = err instanceof HubApiError ? err.status : 0;
         const code = err instanceof HubApiError ? err.code : "";
@@ -106,9 +120,19 @@ export function useSaveFile() {
         throw { isConflict: false, cause: err };
       }
     },
-    onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({
-        queryKey: SKILL_FILE_QUERY_KEYS.allForSkill(vars.skillName),
+    onSuccess: (file, vars) => {
+      // Make a newly created or updated file available immediately. This also
+      // prevents the editor from briefly remounting with an empty buffer while
+      // the newly enabled file query is waiting for the network.
+      queryClient.setQueryData(
+        SKILL_FILE_QUERY_KEYS.file(vars.skillName, vars.path, vars.branch),
+        file,
+      );
+
+      // A save can create a new tree entry, so every open directory listing for
+      // the Skill must be considered stale.
+      void queryClient.invalidateQueries({
+        queryKey: SKILL_FILE_QUERY_KEYS.listsForSkill(vars.skillName),
       });
     },
   });
@@ -124,6 +148,7 @@ export type DeleteFileInput = {
 
 export function useDeleteFile() {
   const queryClient = useQueryClient();
+
   return useMutation<
     { commitSha: string; commitMessage: string },
     SaveFileError,
@@ -146,8 +171,17 @@ export function useDeleteFile() {
       }
     },
     onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({
-        queryKey: SKILL_FILE_QUERY_KEYS.allForSkill(vars.skillName),
+      queryClient.removeQueries({
+        queryKey: SKILL_FILE_QUERY_KEYS.file(
+          vars.skillName,
+          vars.path,
+          vars.branch,
+        ),
+        exact: true,
+      });
+
+      void queryClient.invalidateQueries({
+        queryKey: SKILL_FILE_QUERY_KEYS.listsForSkill(vars.skillName),
       });
     },
   });
