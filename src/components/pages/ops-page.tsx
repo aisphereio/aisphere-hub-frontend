@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { StatCard } from '@/components/shared';
+import { KubernetesEnvironmentPanel } from '@/components/kubernetes/kubernetes-environment-panel';
 import { useAuditLogs, useMetrics, useTokens, useTokenCreate, useTokenDelete, useNotifications, useNotificationMarkRead } from '@/hooks/use-ops';
 import { getAccessSpace } from '@/lib/api/client';
 import { getStatusColor, fmtRelativeTime } from '@/lib/utils';
@@ -68,7 +69,9 @@ export function OpsPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="p-4 md:p-6 space-y-4 overflow-y-auto h-full">
+      <KubernetesEnvironmentPanel />
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard icon={<Activity className="h-4 w-4" />} label={t('ops.metrics')} value={metrics?.requestsTotal || 0} />
         <StatCard icon={<AlertTriangle className="h-4 w-4" />} label={t('ops.metrics')} value={metrics?.errorsTotal || 0} />
