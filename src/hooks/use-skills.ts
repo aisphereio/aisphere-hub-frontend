@@ -68,11 +68,8 @@ export function useSkillArchiveImport() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: SkillArchiveImportDraft) => skillApi.importArchive(data),
-    onSuccess: (skill) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["skills", "list"] });
-      queryClient.invalidateQueries({
-        queryKey: ["skills", "detail", skill.name],
-      });
     },
   });
 }

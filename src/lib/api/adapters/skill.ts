@@ -25,7 +25,6 @@ import {
   skillServiceCreateSkill,
   skillServiceDeleteSkill,
   skillServiceGetSkill,
-  skillServiceImportSkillArchive,
   skillServiceListSkills,
   skillServiceUpdateSkill,
   skillServiceUpdateSkillVisibility,
@@ -133,20 +132,11 @@ export const skillApi = {
     return toSkill(created);
   },
 
-  importArchive: async (data: SkillArchiveImportDraft) => {
-    if (!data.orgId) {
-      throw new Error('Skill archive import requires an orgId');
-    }
-    if (!data.archiveZip) {
-      throw new Error('Skill archive import requires a ZIP file');
-    }
-    const created = await skillServiceImportSkillArchive({
-      archiveZip: data.archiveZip,
-      visibility: data.visibility || 'private',
-      orgId: data.orgId,
-      projectId: data.projectId,
-    });
-    return toSkill(created);
+  importArchive: async (_data: SkillArchiveImportDraft) => {
+    // TODO: skillServiceImportSkillArchive is not yet in the generated SDK;
+    // the backend proto/OpenAPI spec does not include this endpoint yet.
+    // Re-enable once the import-skill-archive RPC is added to skill.proto.
+    throw new Error('Skill archive import is not yet available in the API');
   },
 
   updateDraft: (data: SkillDraft) =>

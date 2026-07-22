@@ -98,13 +98,13 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
       return;
     }
     try {
-      const created = await archiveMutation.mutateAsync({
+      await archiveMutation.mutateAsync({
         archiveZip: await fileToBase64(zipFile),
         orgId,
         visibility: form.visibility || 'private',
       });
-      toast.success(t('create.created', { name: created.name }));
-      onCreated?.(created.name);
+      toast.success(t('create.created', { name: form.name || 'skill' }));
+      onCreated?.(form.name);
       setForm({ name: '', description: '', visibility: 'private' });
       setZipFile(null);
       onOpenChange(false);
