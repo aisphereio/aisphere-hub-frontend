@@ -12,6 +12,14 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   ResizablePanelGroup,
   ResizablePanel,
   ResizableHandle,
@@ -656,12 +664,32 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
     );
   };
 
-  // New-file flow: open a fresh tab with create=true. The path is
-  // derived from the current directory so the new file lands where the
-  // user is looking. The actual POST fires on first save.
+  // New-file flow: a dialog collects the file name (which may contain a
+  // sub-path like docs/guide.md). The backend creates intermediate
+  // directories automatically, so folders appear as soon as a file is
+  // saved into them. The actual POST fires on the editor's first save.
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
+
   const startCreate = () => {
-    const p = currentPath ? `${currentPath}/new-file.md` : "new-file.md";
-    openTab(p, true);
+    setCreateName("");
+    setCreateError(null);
+    setCreateOpen(true);
+  };
+
+  const confirmCreate = () => {
+    const trimmed = createName.trim();
+    // Reject empty, path traversal, and leading/trailing slashes. A name
+    // like "docs/guide.md" is allowed and creates the docs folder.
+    if (!trimmed || /(^|\/)\.\.(\/|$)/.test(trimmed) || /^\/|\/$/.test(trimmed)) {
+      setCreateError(t("editor.invalidFileName") ?? "Invalid file name");
+      return;
+    }
+    const path = currentPath ? `${currentPath}/${trimmed}` : trimmed;
+    setCreateOpen(false);
+    openTab(path, true);
+    toast.success(t("editor.fileCreated"));
   };
 
   // Open a real file tab (or focus it if already open).
@@ -796,7 +824,83 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
           </div>
         )}
       </ResizablePanel>
+      <CreateFileDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        value={createName}
+        onValueChange={setCreateName}
+        error={createError}
+        currentPath={currentPath}
+        onConfirm={confirmCreate}
+      />
     </ResizablePanelGroup>
+  );
+}
+
+// CreateFileDialog collects the name for a new file. The name may carry
+// a sub-path (docs/guide.md); the backend creates intermediate folders
+// automatically on the first save, so there is no separate "new folder"
+// action. Enter confirms, Escape cancels.
+type CreateFileDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  value: string;
+  onValueChange: (v: string) => void;
+  error: string | null;
+  currentPath: string;
+  onConfirm: () => void;
+};
+
+function CreateFileDialog({
+  open,
+  onOpenChange,
+  value,
+  onValueChange,
+  error,
+  currentPath,
+  onConfirm,
+}: CreateFileDialogProps) {
+  const t = useT();
+  const hint = currentPath ? `${currentPath}/` : "";
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t("editor.createFileTitle") ?? "Create new file"}</DialogTitle>
+          <DialogDescription>
+            {t("editor.createFileDescription") ??
+              "Enter a file name. Use a path like docs/guide.md to create it inside a folder."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Label htmlFor="new-file-name">{t("editor.fileName") ?? "File name"}</Label>
+          <div className="flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm">
+            {hint && <span className="shrink-0 text-muted-foreground">{hint}</span>}
+            <Input
+              id="new-file-name"
+              autoFocus
+              value={value}
+              onChange={(e) => onValueChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  onConfirm();
+                }
+              }}
+              placeholder={t("editor.fileNamePlaceholder") ?? "filename.md or path/to/file.md"}
+              className="h-0 flex-1 border-0 p-0 focus-visible:ring-0"
+            />
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            {t("common.cancel") ?? "Cancel"}
+          </Button>
+          <Button onClick={onConfirm}>{t("editor.create") ?? "Create"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
