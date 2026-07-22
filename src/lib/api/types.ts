@@ -992,6 +992,7 @@ export type SkillDraft = {
   displayName?: string;
   description?: string;
   scope?: string;
+  visibility?: SkillVisibility;
   keywords?: string[];
   bizTags?: string[];
   metadata?: Record<string, unknown>;

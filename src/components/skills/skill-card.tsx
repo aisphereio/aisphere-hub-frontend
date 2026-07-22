@@ -24,17 +24,10 @@ interface SkillCardProps {
 
 export function SkillCard({ skill, onClick, onAction }: SkillCardProps) {
   const t = useT();
-  const status = skill.status || (skill.enable === false ? 'disable' : 'enable');
-  // Map raw status to a translation key suffix
-  const statusKeySuffix =
-    status === 'disable' ? 'disabled' :
-    status === 'enable' || status === 'active' ? 'active' :
-    status === 'online' ? 'online' :
-    status === 'offline' ? 'offline' :
-    status === 'draft' ? 'draft' :
-    status === 'published' ? 'published' :
-    status;
-  const statusLabel = t(`skills.status${statusKeySuffix.charAt(0).toUpperCase()}${statusKeySuffix.slice(1)}`);
+  // Git-native backend only populates enable/disable; online/offline/draft/
+  // published are legacy fields that are no longer filled.
+  const isDisabled = skill.enable === false;
+  const statusLabel = t(isDisabled ? 'skills.statusDisabled' : 'skills.statusActive');
   const stableVersion = skill.labels?.stable || skill.stableVersion;
   const latestVersion = skill.labels?.latest || skill.latestVersion;
   const visibility = (skill.visibility || skill.scope || 'private').toLowerCase();
@@ -90,7 +83,7 @@ export function SkillCard({ skill, onClick, onAction }: SkillCardProps) {
           </p>
 
           <div className="flex items-center gap-1.5 flex-wrap">
-            <Badge variant="secondary" className={`text-[10px] px-1.5 h-4 ${getStatusColor(status)}`}>
+            <Badge variant="secondary" className={`text-[10px] px-1.5 h-4 ${getStatusColor(isDisabled ? 'disable' : 'enable')}`}>
               {statusLabel}
             </Badge>
             <Badge variant="outline" className={`text-[10px] px-1.5 h-4 ${getScopeColor(visibility)}`}>
@@ -148,16 +141,8 @@ interface SkillCardCompactProps {
 
 export function SkillCardCompact({ skill, onClick }: SkillCardCompactProps) {
   const t = useT();
-  const status = skill.status || (skill.enable === false ? 'disable' : 'enable');
-  const statusKeySuffix =
-    status === 'disable' ? 'disabled' :
-    status === 'enable' || status === 'active' ? 'active' :
-    status === 'online' ? 'online' :
-    status === 'offline' ? 'offline' :
-    status === 'draft' ? 'draft' :
-    status === 'published' ? 'published' :
-    status;
-  const statusLabel = t(`skills.status${statusKeySuffix.charAt(0).toUpperCase()}${statusKeySuffix.slice(1)}`);
+  const isDisabled = skill.enable === false;
+  const statusLabel = t(isDisabled ? 'skills.statusDisabled' : 'skills.statusActive');
 
   return (
     <motion.div
@@ -176,7 +161,7 @@ export function SkillCardCompact({ skill, onClick }: SkillCardCompactProps) {
               <span className="text-xs font-medium truncate group-hover:text-violet-600 transition-colors">
                 {skill.displayName || skill.name}
               </span>
-              <Badge variant="secondary" className={`text-[9px] px-1 h-3.5 shrink-0 ${getStatusColor(status)}`}>
+              <Badge variant="secondary" className={`text-[9px] px-1 h-3.5 shrink-0 ${getStatusColor(isDisabled ? 'disable' : 'enable')}`}>
                 {statusLabel}
               </Badge>
             </div>

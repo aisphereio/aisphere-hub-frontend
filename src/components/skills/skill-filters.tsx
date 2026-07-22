@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, RefreshCw, Plus, Filter, LayoutGrid, Layers3 } from 'lucide-react';
+import { Search, RefreshCw, Plus, LayoutGrid, Layers3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -16,8 +16,6 @@ interface SkillFiltersProps {
   onSearchChange: (v: string) => void;
   skillSetName: string;
   onGroupNameChange: (v: string) => void;
-  statusFilter: string;
-  onStatusFilterChange: (v: string) => void;
   scopeFilter: string;
   onScopeFilterChange: (v: string) => void;
   onRefresh: () => void;
@@ -31,8 +29,6 @@ export function SkillFilters({
   onSearchChange,
   skillSetName,
   onGroupNameChange,
-  statusFilter,
-  onStatusFilterChange,
   scopeFilter,
   onScopeFilterChange,
   onRefresh,
@@ -41,7 +37,7 @@ export function SkillFilters({
   onViewModeChange,
 }: SkillFiltersProps) {
   const t = useT();
-  const hasActiveFilters = statusFilter !== 'all' || scopeFilter !== 'all' || skillSetName || search;
+  const hasActiveFilters = scopeFilter !== 'all' || skillSetName || search;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -63,21 +59,6 @@ export function SkillFilters({
           </button>
         )}
       </div>
-
-      {/* Status filter */}
-      <Select value={statusFilter} onValueChange={onStatusFilterChange}>
-        <SelectTrigger className={cn('w-32 h-9 bg-card text-xs', statusFilter !== 'all' && 'border-violet-500/40')}>
-          <Filter className="h-3 w-3 mr-1" />
-          <SelectValue placeholder={t('skills.statusAll')} />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">{t('skills.statusAll')}</SelectItem>
-          <SelectItem value="online">{t('skills.statusOnline')}</SelectItem>
-          <SelectItem value="offline">{t('skills.statusOffline')}</SelectItem>
-          <SelectItem value="draft">{t('skills.statusDraft')}</SelectItem>
-          <SelectItem value="published">{t('skills.statusPublished')}</SelectItem>
-        </SelectContent>
-      </Select>
 
       {/* Access mode filter (was "Scope") */}
       <Select value={scopeFilter} onValueChange={onScopeFilterChange}>
@@ -109,7 +90,6 @@ export function SkillFilters({
           onClick={() => {
             onSearchChange('');
             onGroupNameChange('');
-            onStatusFilterChange('all');
             onScopeFilterChange('all');
           }}
         >

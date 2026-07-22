@@ -145,6 +145,17 @@ export const sharesApi = {
     } as ResourceGrant;
   },
 
+  setVisibility: async (
+    resourceType: AihubResourceType,
+    resourceId: string,
+    visibility: 'private' | 'internal' | 'public',
+  ) => {
+    if (resourceType !== 'skill') {
+      throw new Error(`visibility for ${resourceType} not yet supported in new hub`);
+    }
+    return skillServiceUpdateSkillVisibility(resourceId, { visibility });
+  },
+
   remove: (
     resourceType: AihubResourceType,
     resourceId: string,

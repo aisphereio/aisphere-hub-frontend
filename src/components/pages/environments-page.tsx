@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, CloudCog, KeyRound, Plus, RefreshCw, RotateCcw, Server, ShieldCheck, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { getAccessSpace } from '@/lib/api/client';
+import { useMe } from '@/hooks/use-auth';
 import {
   clusterServiceCreateCluster,
   clusterServiceDeleteCluster,
@@ -70,6 +71,7 @@ function statusVariant(status?: string): 'default' | 'secondary' | 'destructive'
 
 export function EnvironmentsPage() {
   const queryClient = useQueryClient();
+  const { data: principal } = useMe();
   const [selectedClusterId, setSelectedClusterId] = useState('');
   const [clusterForm, setClusterForm] = useState({
     name: '',
@@ -83,6 +85,15 @@ export function EnvironmentsPage() {
     token: '',
     caCert: '',
   });
+  // Keep the cluster form's orgId in sync with the authenticated principal.
+  // getAccessSpace() may return "default" on first render before app-shell
+  // syncs the org from /me; update the form once the principal arrives.
+  useEffect(() => {
+    const orgId = (principal?.orgId as string | undefined) || (principal?.org_id as string | undefined);
+    if (orgId && orgId !== clusterForm.orgId) {
+      setClusterForm((prev) => ({ ...prev, orgId }));
+    }
+  }, [principal]); // eslint-disable-line react-hooks/exhaustive-deps
   const [rotateForm, setRotateForm] = useState({
     credentialKind: 'kubeconfig' as CredentialKind,
     kubeconfig: '',

@@ -27,7 +27,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -52,7 +51,7 @@ import {
   useResourceShares,
   useCreateShare,
   useDeleteShare,
-  useSetPrivate,
+  useSetVisibility,
 } from "@/hooks/use-shares";
 import { toast } from "sonner";
 import type {
@@ -61,6 +60,7 @@ import type {
   ShareRole,
   ResourceGrant,
   AccessMode,
+  SkillVisibility,
 } from "@/lib/api/types";
 
 // ─── Props ──────────────────────────────────────────────────────────
@@ -139,6 +139,8 @@ function accessModeIcon(mode: AccessMode) {
       return <Lock className="h-4 w-4" />;
     case "shared":
       return <Users className="h-4 w-4" />;
+    case "internal":
+      return <Building2 className="h-4 w-4" />;
     case "public":
       return <Globe className="h-4 w-4" />;
   }
@@ -191,10 +193,13 @@ export function ResourceSharePanel({
   );
   const createMutation = useCreateShare();
   const deleteMutation = useDeleteShare();
-  const setPrivateMutation = useSetPrivate();
+  const visibilityMutation = useSetVisibility();
 
   const items = data?.items || [];
   const accessMode = data?.accessMode ?? "private";
+  const currentVisibility: SkillVisibility =
+    data?.visibility ??
+    (accessMode === "public" || accessMode === "internal" ? accessMode : "private");
   const canManage = canManageOverride ?? data?.canManage ?? true;
   const resourceObject = object ?? `aihub:${resourceType}:${resourceId}`;
   const shareRoles: ShareRole[] =
@@ -204,15 +209,14 @@ export function ResourceSharePanel({
         ? ["viewer", "runner", "editor", "reviewer", "admin"]
         : BASE_SHARE_ROLES;
 
-  // Public grant (if any) — toggling the public switch operates on this.
-  const publicGrant = useMemo(
-    () => items.find((g) => g.subjectType === "public"),
-    [items],
-  );
-
-  // Collaborator grants (exclude public — that's handled by the toggle)
+  // Structural edges and wildcard viewers are filtered from explicit shares.
   const collaboratorGrants = useMemo(
-    () => items.filter((g) => g.subjectType !== "public"),
+    () => items.filter(
+      (g) =>
+        g.subjectType !== "public" &&
+        g.subjectId !== "*" &&
+        !["owner", "zone", "parent"].includes(g.role),
+    ),
     [items],
   );
 
@@ -222,41 +226,22 @@ export function ResourceSharePanel({
   const [formSubjectId, setFormSubjectId] = useState("");
   const [formRole, setFormRole] = useState<ShareRole>("viewer");
 
-  const [setPrivateConfirmOpen, setSetPrivateConfirmOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<ResourceGrant | null>(
     null,
   );
 
   // ─── Handlers ────────────────────────────────────────────────────
-  const handleTogglePublic = async (enable: boolean) => {
+  const handleVisibilityChange = async (visibility: SkillVisibility) => {
     if (!canManage) {
       toast.error(t("share.noPermission"));
       return;
     }
-    if (enable && !publicGrant) {
-      // Create a public viewer grant
-      try {
-        await createMutation.mutateAsync({
-          resourceType,
-          resourceId,
-          body: { subjectType: "public", subjectId: "*", role: "viewer" },
-        });
-        toast.success(t("share.publicOn"));
-      } catch (e: unknown) {
-        toast.error(e instanceof Error ? e.message : t("share.createFailed"));
-      }
-    } else if (!enable && publicGrant) {
-      // Delete the existing public grant
-      try {
-        await deleteMutation.mutateAsync({
-          resourceType,
-          resourceId,
-          grantId: publicGrant.id,
-        });
-        toast.success(t("share.publicOff"));
-      } catch (e: unknown) {
-        toast.error(e instanceof Error ? e.message : t("share.deleteFailed"));
-      }
+    if (resourceType !== "skill" || visibility === currentVisibility) return;
+    try {
+      await visibilityMutation.mutateAsync({ resourceType, resourceId, visibility });
+      toast.success(t("share.visibilityUpdated"));
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : t("share.updateVisibilityFailed"));
     }
   };
 
@@ -311,36 +296,6 @@ export function ResourceSharePanel({
       toast.error(e instanceof Error ? e.message : t("share.deleteFailed"));
     }
     setPendingDelete(null);
-  };
-
-  const handleSetPrivate = async () => {
-    if (!canManage) {
-      toast.error(t("share.noPermission"));
-      return;
-    }
-    const grantIds = items.map((g) => g.id);
-    if (grantIds.length === 0) {
-      toast.success(t("share.setPrivateDone"));
-      setSetPrivateConfirmOpen(false);
-      return;
-    }
-    try {
-      const result = await setPrivateMutation.mutateAsync({
-        resourceType,
-        resourceId,
-        grantIds,
-      });
-      if (result.failures.length === 0) {
-        toast.success(t("share.setPrivateDone"));
-      } else {
-        toast.warning(
-          `${result.deleted} removed, ${result.failures.length} failed`,
-        );
-      }
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : t("share.deleteFailed"));
-    }
-    setSetPrivateConfirmOpen(false);
   };
 
   // ─── Render ──────────────────────────────────────────────────────
@@ -469,31 +424,37 @@ export function ResourceSharePanel({
         </CardContent>
       </Card>
 
-      {/* ─── Public Access Toggle ─────────────────────────────────── */}
+      {/* ─── Visibility selector ──────────────────────────────────── */}
       <Card className="border-border/50">
-        <CardContent className="p-4">
+        <CardContent className="p-4 space-y-3">
           <div className="flex items-start gap-3">
             <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 shrink-0">
-              <Globe className="h-4 w-4" />
+              {accessModeIcon(currentVisibility)}
             </div>
             <div className="flex-1 min-w-0">
-              <Label className="text-sm font-medium">
-                {t("share.publicToggle")}
-              </Label>
+              <Label className="text-sm font-medium">{t("accessMode.label")}</Label>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {t("share.publicToggleDesc")}
+                {t("accessMode.managedByShares")}
               </p>
             </div>
-            <Switch
-              checked={Boolean(publicGrant)}
-              onCheckedChange={handleTogglePublic}
-              disabled={
-                !canManage ||
-                createMutation.isPending ||
-                deleteMutation.isPending
-              }
-            />
+            <Select
+              value={currentVisibility}
+              onValueChange={(value) => handleVisibilityChange(value as SkillVisibility)}
+              disabled={!canManage || resourceType !== "skill" || visibilityMutation.isPending}
+            >
+              <SelectTrigger className="w-32 h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="public">{t("accessMode.public")}</SelectItem>
+                <SelectItem value="internal">{t("accessMode.internal")}</SelectItem>
+                <SelectItem value="private">{t("accessMode.private")}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+          <p className="text-xs text-muted-foreground pl-12">
+            {t(`accessMode.${currentVisibility}Desc`)}
+          </p>
         </CardContent>
       </Card>
 
@@ -503,24 +464,12 @@ export function ResourceSharePanel({
           <div className="flex items-center gap-1.5">
             <Users className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-xs font-medium">
-              {t("share.collaborators")}
+              {t("share.explicitShares")}
             </span>
             <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
               {collaboratorGrants.length}
             </Badge>
           </div>
-          {canManage && collaboratorGrants.length > 0 && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={() => setSetPrivateConfirmOpen(true)}
-              disabled={setPrivateMutation.isPending}
-            >
-              <Lock className="h-3 w-3 mr-1" />
-              {t("share.setPrivate")}
-            </Button>
-          )}
         </div>
 
         {collaboratorGrants.length === 0 ? (
@@ -839,15 +788,6 @@ export function ResourceSharePanel({
         onConfirm={() => pendingDelete && handleDeleteShare(pendingDelete)}
       />
 
-      <ConfirmDialog
-        open={setPrivateConfirmOpen}
-        onOpenChange={setSetPrivateConfirmOpen}
-        title={t("share.setPrivateTitle")}
-        description={t("share.setPrivateConfirm")}
-        confirmLabel={t("share.setPrivate")}
-        variant="destructive"
-        onConfirm={handleSetPrivate}
-      />
     </div>
   );
 }
