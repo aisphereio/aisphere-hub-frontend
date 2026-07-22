@@ -1,0 +1,102 @@
+name: Apply K8s console lint fix
+
+on:
+  push:
+    branches: [feat/kubernetes-environment-console]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/kubernetes-environment-console
+          fetch-depth: 0
+      - name: Apply and commit final cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/components/kubernetes/kubernetes-environment-panel.tsx')
+          text = path.read_text()
+          text = text.replace(
+              "import { useEffect, useMemo, useState } from 'react';",
+              "import { useMemo, useState } from 'react';",
+              1,
+          )
+          old_selection = '''  const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
+          const selectedCluster = useMemo(
+            () => clusters.find((cluster) => cluster.id === selectedClusterId) ?? null,
+            [clusters, selectedClusterId],
+          );
+          const namespacesQuery = useClusterNamespaces(selectedClusterId);'''
+          new_selection = '''  const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
+          const selectedCluster = useMemo(
+            () => clusters.find((cluster) => cluster.id === selectedClusterId) ?? clusters[0] ?? null,
+            [clusters, selectedClusterId],
+          );
+          const activeClusterId = selectedCluster?.id ?? null;
+          const namespacesQuery = useClusterNamespaces(activeClusterId);'''
+          if old_selection not in text:
+              raise SystemExit('cluster selection block not found')
+          text = text.replace(old_selection, new_selection, 1)
+
+          effects = '''  useEffect(() => {
+            if (!selectedClusterId && clusters[0]?.id) setSelectedClusterId(clusters[0].id);
+            if (selectedClusterId && !clusters.some((cluster) => cluster.id === selectedClusterId)) {
+              setSelectedClusterId(clusters[0]?.id ?? null);
+            }
+          }, [clusters, selectedClusterId]);
+
+          useEffect(() => {
+            if (principalOrgId && !clusterForm.orgId) {
+              setClusterForm((current) => ({ ...current, orgId: principalOrgId }));
+            }
+          }, [principalOrgId, clusterForm.orgId]);
+
+          '''
+          if effects not in text:
+              raise SystemExit('derived-state effects block not found')
+          text = text.replace(effects, '', 1)
+
+          marker = '''  const submitCluster = async () => {
+            const credential = buildCredential('''
+          replacement = '''  const submitCluster = async () => {
+            const orgId = clusterForm.orgId.trim() || principalOrgId;
+            const credential = buildCredential('''
+          if marker not in text:
+              raise SystemExit('submit cluster marker not found')
+          text = text.replace(marker, replacement, 1)
+          text = text.replace(
+              "if (!clusterForm.name.trim() || !clusterForm.orgId.trim() || !clusterForm.serverUrl.trim()) {",
+              "if (!clusterForm.name.trim() || !orgId || !clusterForm.serverUrl.trim()) {",
+              1,
+          )
+          text = text.replace("orgId: clusterForm.orgId.trim(),", "orgId,", 1)
+          text = text.replace(
+              "className={selectedClusterId === cluster.id ? 'bg-muted/40' : undefined}",
+              "className={activeClusterId === cluster.id ? 'bg-muted/40' : undefined}",
+              1,
+          )
+          text = text.replace(
+              'value={clusterForm.orgId} onChange={(event) => setClusterForm({ ...clusterForm, orgId: event.target.value })}',
+              'value={clusterForm.orgId || principalOrgId} onChange={(event) => setClusterForm({ ...clusterForm, orgId: event.target.value })}',
+              1,
+          )
+          path.write_text(text)
+          PY
+
+          git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
+          rm -f .github/workflows/debug-k8s-console.yml
+          rm -f .github/workflows/apply-k8s-console-lint-fix.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/components/kubernetes/kubernetes-environment-panel.tsx .github/workflows/ci.yml .github/workflows/debug-k8s-console.yml .github/workflows/apply-k8s-console-lint-fix.yml
+          git commit -m 'fix(kubernetes): derive selected cluster without effects'
+          git push origin HEAD:feat/kubernetes-environment-console
