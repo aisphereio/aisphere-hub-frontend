@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { ArrowLeft, Loader2, Save, Trash2, Star, Bell, X } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Trash2, Star, Bell, X, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -79,6 +79,7 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
   const t = useT();
   const [rightTab, setRightTab] = useState<RightPanelTab>("overview");
   const [showRightPanel, setShowRightPanel] = useState(true);
+  const [metaExpanded, setMetaExpanded] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const {
@@ -236,107 +237,130 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
       <div className="flex-1 min-h-0 flex">
         {/* ─── Left: Overview + in-browser content editor ───────────────── */}
         <div className="flex-1 min-w-0 flex flex-col border-r overflow-hidden">
-          {/* Metadata header (social/title/info). Height-capped so the
-              Monaco editor below gets the bulk of the panel. */}
-          <ScrollArea className="shrink-0 max-h-[45vh] border-b">
-            <div className="p-6 max-w-3xl mx-auto space-y-6">
-              {/* Social strip (gated by env flag via the hook) */}
-              {social && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={toggleStar}
-                    className={
-                      social.myStarred ? "text-amber-500 border-amber-200" : ""
-                    }
-                  >
-                    <Star
-                      className={`h-3.5 w-3.5 mr-1 ${social.myStarred ? "fill-amber-500" : ""}`}
-                    />
-                    {social.stars}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={toggleSubscribe}
-                    className={
-                      social.mySubscribed
-                        ? "text-violet-500 border-violet-200"
-                        : ""
-                    }
-                  >
-                    <Bell className="h-3.5 w-3.5 mr-1" />
-                    {social.subscribers}
-                  </Button>
-                  <span className="text-xs text-muted-foreground">
-                    Rating: {Number(social.ratingAverage || 0).toFixed(1)} (
-                    {social.ratingCount} votes)
-                  </span>
-                  <div className="flex gap-0.5">
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <button
-                        key={n}
-                        onClick={() => rate(n)}
-                        className="hover:scale-110 transition-transform"
+          {/* Skill meta bar: a single collapsed row (h-9) with a
+              Details toggle. The skill name + status already live in
+              the header above, so this row stays minimal. Expanding
+              reveals description / social / info grid / git hint in a
+              height-capped ScrollArea — the editor below keeps the
+              bulk of the panel either way. */}
+          <div className="shrink-0 border-b bg-muted/20">
+            <div className="flex h-9 items-center gap-2 px-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 px-2 text-xs text-muted-foreground"
+                onClick={() => setMetaExpanded((v) => !v)}
+              >
+                <ChevronRight
+                  className={`h-3.5 w-3.5 transition-transform ${metaExpanded ? "rotate-90" : ""}`}
+                />
+                {t("editor.details") ?? "Details"}
+              </Button>
+              {detail.description && (
+                <span className="truncate text-xs text-muted-foreground">
+                  {detail.description}
+                </span>
+              )}
+            </div>
+            {metaExpanded && (
+              <ScrollArea className="max-h-[40vh]">
+                <div className="p-4 space-y-4">
+                  {/* Social strip (gated by env flag via the hook) */}
+                  {social && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={toggleStar}
+                        className={
+                          social.myStarred ? "text-amber-500 border-amber-200" : ""
+                        }
                       >
                         <Star
-                          className={`h-3.5 w-3.5 ${(social.myRating || 0) >= n ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`}
+                          className={`h-3.5 w-3.5 mr-1 ${social.myStarred ? "fill-amber-500" : ""}`}
                         />
-                      </button>
-                    ))}
+                        {social.stars}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={toggleSubscribe}
+                        className={
+                          social.mySubscribed
+                            ? "text-violet-500 border-violet-200"
+                            : ""
+                        }
+                      >
+                        <Bell className="h-3.5 w-3.5 mr-1" />
+                        {social.subscribers}
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        Rating: {Number(social.ratingAverage || 0).toFixed(1)} (
+                        {social.ratingCount} votes)
+                      </span>
+                      <div className="flex gap-0.5">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <button
+                            key={n}
+                            onClick={() => rate(n)}
+                            className="hover:scale-110 transition-transform"
+                          >
+                            <Star
+                              className={`h-3.5 w-3.5 ${(social.myRating || 0) >= n ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="text-xs font-mono text-muted-foreground">
+                      {detail.name}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {detail.description || t("skillCard.noDesc")}
+                    </p>
                   </div>
-                </div>
-              )}
 
-              <div>
-                <h2 className="text-lg font-semibold">
-                  {detail.displayName || detail.name}
-                </h2>
-                <p className="text-xs font-mono text-muted-foreground mt-0.5">
-                  {detail.name}
-                </p>
-                <p className="text-sm text-muted-foreground mt-3">
-                  {detail.description || t("skillCard.noDesc")}
-                </p>
-              </div>
+                  <Separator />
 
-              <Separator />
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <InfoItem label="Owner" value={detail.owner || "-"} />
+                    <InfoItem label="Scope" value={detail.scope || "-"} />
+                    <InfoItem
+                      label="Default Branch"
+                      value={(detail as any).defaultBranch || "main"}
+                    />
+                    <InfoItem
+                      label="Created"
+                      value={detail.createTime ? fmtTime(detail.createTime) : "-"}
+                    />
+                    <InfoItem
+                      label="Updated"
+                      value={detail.updateTime ? fmtTime(detail.updateTime) : "-"}
+                    />
+                    <InfoItem label="Org" value={detail.orgId || "-"} />
+                  </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <InfoItem label="Owner" value={detail.owner || "-"} />
-                <InfoItem label="Scope" value={detail.scope || "-"} />
-                <InfoItem
-                  label="Default Branch"
-                  value={(detail as any).defaultBranch || "main"}
-                />
-                <InfoItem
-                  label="Created"
-                  value={detail.createTime ? fmtTime(detail.createTime) : "-"}
-                />
-                <InfoItem
-                  label="Updated"
-                  value={detail.updateTime ? fmtTime(detail.updateTime) : "-"}
-                />
-                <InfoItem label="Org" value={detail.orgId || "-"} />
-              </div>
+                  <Separator />
 
-              <Separator />
-
-              <details className="rounded-lg border bg-muted/30 p-3 text-xs">
-                <summary className="cursor-pointer font-medium text-muted-foreground">
-                  {t("editor.gitHintTitle") ?? "Author via git (advanced)"}
-                </summary>
-                <pre className="mt-2 text-[11px] font-mono bg-background/60 p-2 rounded overflow-x-auto whitespace-pre-wrap">
+                  <details className="rounded-lg border bg-muted/30 p-3 text-xs">
+                    <summary className="cursor-pointer font-medium text-muted-foreground">
+                      {t("editor.gitHintTitle") ?? "Author via git (advanced)"}
+                    </summary>
+                    <pre className="mt-2 text-[11px] font-mono bg-background/60 p-2 rounded overflow-x-auto whitespace-pre-wrap">
 {`# Clone the skill repo (private; authenticate with an OIDC access token)
 git clone ${typeof window !== "undefined" ? window.location.origin : "https://hub.example"}/git/${detail.name}.git
 
 # Edit SKILL.md, then commit and push
 git add SKILL.md && git commit -m "update skill" && git push`}
-                </pre>
-              </details>
-            </div>
-          </ScrollArea>
+                    </pre>
+                  </details>
+                </div>
+              </ScrollArea>
+            )}
+          </div>
 
           {/* ─── In-browser content editor (Monaco + file tree) ─────────── */}
           <SkillFileEditorPane

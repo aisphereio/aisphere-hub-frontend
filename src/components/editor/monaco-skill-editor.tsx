@@ -1,23 +1,41 @@
 "use client";
 
 /**
- * MonacoSkillEditor — the in-browser code editor for skill files.
+ * MonacoSkillEditor is kept as the compatibility export consumed by
+ * skill-editor.tsx. The default implementation is now CodeMirror 6: Monaco's
+ * core, workers and language services are no longer downloaded on the normal
+ * file-editing path.
  *
- * This is the first next/dynamic({ ssr: false }) import in the repo.
- * Monaco pulls in web workers and touches `self` at module load, so it
- * cannot run during Next.js standalone SSR. The dynamic wrapper lives
- * in skill-editor.tsx; this file holds the actual Editor component.
- *
- * Language is inferred from the file extension. Content is fully
- * client-side (no server round-trip on each keystroke); saving goes
- * through useSaveFile, which POSTs/PUTs the base64-encoded content and
- * surfaces 409 conflicts as error.isConflict for the parent to handle.
+ * The component contract intentionally stays unchanged so the Git file API,
+ * optimistic-concurrency handling and multi-tab buffers keep working while the
+ * editor engine becomes substantially lighter.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Editor, { DiffEditor, type OnMount } from "@monaco-editor/react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
+import CodeMirror from "@uiw/react-codemirror";
+import type { Extension } from "@codemirror/state";
+import { javascript } from "@codemirror/lang-javascript";
+import { json } from "@codemirror/lang-json";
+import { markdown } from "@codemirror/lang-markdown";
+import { python } from "@codemirror/lang-python";
+import { yaml } from "@codemirror/lang-yaml";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Save, AlertTriangle, RotateCcw, Download, Pencil } from "lucide-react";
+import {
+  AlertTriangle,
+  Download,
+  Loader2,
+  Pencil,
+  RotateCcw,
+  Save,
+} from "lucide-react";
 import { useSaveFile } from "@/hooks/use-skill-files";
 import { fileApi } from "@/lib/api";
 import { useT } from "@/lib/i18n";
@@ -40,43 +58,48 @@ export type MonacoSkillEditorProps = {
   onConflict?: () => void;
 };
 
-const EXT_LANG: Record<string, string> = {
-  md: "markdown",
-  markdown: "markdown",
-  yaml: "yaml",
-  yml: "yaml",
-  json: "json",
-  jsonc: "json",
-  js: "javascript",
-  mjs: "javascript",
-  cjs: "javascript",
-  ts: "typescript",
-  tsx: "typescript",
-  jsx: "javascript",
-  py: "python",
-  sh: "shell",
-  bash: "shell",
-  zsh: "shell",
-  go: "go",
-  rs: "rust",
-  txt: "plaintext",
-  toml: "ini",
-  ini: "ini",
-  env: "ini",
-  html: "html",
-  css: "css",
-  scss: "scss",
-  sql: "sql",
-  xml: "xml",
-};
-
-function languageFor(path: string): string {
+function languageExtensionsFor(path: string): Extension[] {
   const dot = path.lastIndexOf(".");
-  if (dot < 0) return "plaintext";
-  const ext = path.slice(dot + 1).toLowerCase();
-  return EXT_LANG[ext] ?? "plaintext";
+  const extension = dot >= 0 ? path.slice(dot + 1).toLowerCase() : "";
+
+  switch (extension) {
+    case "md":
+    case "markdown":
+      return [markdown()];
+    case "yaml":
+    case "yml":
+      return [yaml()];
+    case "json":
+    case "jsonc":
+      return [json()];
+    case "js":
+    case "mjs":
+    case "cjs":
+      return [javascript()];
+    case "ts":
+      return [javascript({ typescript: true })];
+    case "jsx":
+      return [javascript({ jsx: true })];
+    case "tsx":
+      return [javascript({ typescript: true, jsx: true })];
+    case "py":
+      return [python()];
+    default:
+      return [];
+  }
 }
 
+const EDITOR_CLASS_NAME =
+  "h-full overflow-hidden text-sm " +
+  "[&_.cm-editor]:h-full [&_.cm-editor]:bg-background " +
+  "[&_.cm-scroller]:h-full [&_.cm-scroller]:overflow-auto " +
+  "[&_.cm-content]:font-mono [&_.cm-content]:text-[13px] " +
+  "[&_.cm-gutters]:border-r [&_.cm-gutters]:bg-muted/20";
+
+/**
+ * Compatibility name retained to keep the surrounding pane stable. The
+ * runtime editor is CodeMirror and is only loaded after a file tab opens.
+ */
 export function MonacoSkillEditor({
   skillName,
   filePath,
@@ -89,99 +112,120 @@ export function MonacoSkillEditor({
   onConflict,
 }: MonacoSkillEditorProps) {
   const t = useT();
-  const [value, setValue] = useState(initialContent);
-  const [localSha, setLocalSha] = useState(sha);
-  // Optional commit message the user can type before saving. Empty string
-  // is sent as undefined so the server uses its default message.
-  const [commitMessage, setCommitMessage] = useState("");
   const saveMutation = useSaveFile();
-  // Conflict-resolution state. When a save hits a 409 we fetch the
-  // server's current view of the file and switch the editor into a diff
-  // view (server on the left, local edits on the right). The user then
-  // picks a side: "take server" discards their edits; "keep mine" lets
-  // them save again (which will overwrite, since we adopt the new sha).
+  const [value, setValueState] = useState(initialContent);
+  const valueRef = useRef(initialContent);
+  const savedValueRef = useRef(initialContent);
+  const [, refreshBaseline] = useReducer((version: number) => version + 1, 0);
+  const [localSha, setLocalSha] = useState(sha);
+  const [commitMessage, setCommitMessage] = useState("");
   const [conflict, setConflict] = useState<{
     serverContent: string;
     serverSha: string;
   } | null>(null);
   const [resolving, setResolving] = useState(false);
-  // Internal state reset on file/content change is handled by the parent
-  // via the `key` prop (editorPath + sha + mode) — remounting this component
-  // reinitializes useState below, so no in-effect setState is needed here.
 
-  const dirty = value !== initialContent;
-  const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
-
-  const handleMount: OnMount = useCallback((editor) => {
-    editorRef.current = editor;
+  const setValue = useCallback((nextValue: string) => {
+    valueRef.current = nextValue;
+    setValueState(nextValue);
   }, []);
 
-  // Ctrl/Cmd+S triggers a save without leaving the editor.
+  // Existing files are opened before their content query necessarily resolves.
+  // Adopt a later server value when the buffer is still clean, but never erase
+  // local edits when a background refetch completes.
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        void doSave();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [value, dirty, localSha, create, filePath, skillName, branch]);
+    const wasDirty = valueRef.current !== savedValueRef.current;
+    savedValueRef.current = initialContent;
+    if (!wasDirty) {
+      setValue(initialContent);
+    } else {
+      refreshBaseline();
+    }
+    setLocalSha(sha);
+    setConflict(null);
+  }, [filePath, initialContent, setValue, sha]);
 
-  const language = useMemo(() => languageFor(filePath), [filePath]);
+  const dirty = value !== savedValueRef.current;
+  const languageExtensions = useMemo(
+    () => languageExtensionsFor(filePath),
+    [filePath],
+  );
 
-  async function doSave() {
-    if (!dirty || saveMutation.isPending) return;
+  const doSave = useCallback(async () => {
+    const content = valueRef.current;
+    if (content === savedValueRef.current || saveMutation.isPending || readOnly) {
+      return;
+    }
+
     try {
       const result = await saveMutation.mutateAsync({
         skillName,
         path: filePath,
-        content: value,
+        content,
         sha: create ? undefined : localSha,
         message: commitMessage.trim() || undefined,
         branch,
         create,
       });
+      savedValueRef.current = content;
+      refreshBaseline();
       setLocalSha(result.sha);
-      // The server may normalise line endings; adopt its view so the
-      // dirty flag clears cleanly.
-      setValue(value);
-      // Clear the commit message once the change has landed; the next
-      // save starts a fresh commit.
       setCommitMessage("");
-      onSaved?.(result.sha, value);
+      onSaved?.(result.sha, content);
       toast.success(t("editor.fileSaved"));
-    } catch (err) {
-      const conflictErr = err as { isConflict?: boolean };
-      if (conflictErr?.isConflict) {
-        // Fetch the server's current view so the user can see what
-        // changed and decide whether to overwrite or discard. We bypass
-        // the query cache here because this is a one-off read on the
-        // conflict path and we don't want to invalidate the parent's
-        // tree/list queries just to show a diff.
-        try {
-          setResolving(true);
-          const server = await fileApi.get(skillName, filePath, branch);
-          setConflict({ serverContent: server.content, serverSha: server.sha });
-        } catch {
-          // If we can't even fetch the server view, fall back to the
-          // old behaviour: notify and let the parent refetch.
-          toast.warning(t("editor.conflict"));
-          onConflict?.();
-        } finally {
-          setResolving(false);
-        }
-      } else {
+    } catch (error) {
+      const conflictError = error as { isConflict?: boolean };
+      if (!conflictError?.isConflict) {
         toast.error(t("editor.fileSaveFailed"));
+        return;
+      }
+
+      try {
+        setResolving(true);
+        const server = await fileApi.get(skillName, filePath, branch);
+        setConflict({
+          serverContent: server.content,
+          serverSha: server.sha,
+        });
+      } catch {
+        toast.warning(t("editor.conflict"));
+        onConflict?.();
+      } finally {
+        setResolving(false);
       }
     }
-  }
+  }, [
+    branch,
+    commitMessage,
+    create,
+    filePath,
+    localSha,
+    onConflict,
+    onSaved,
+    readOnly,
+    saveMutation,
+    skillName,
+    t,
+  ]);
+
+  const handleEditorKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        void doSave();
+      }
+    },
+    [doSave],
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-9 shrink-0 items-center gap-2 border-b bg-muted/30 px-3 text-xs text-muted-foreground">
         <span className="truncate font-mono" title={filePath}>
           {filePath}
+        </span>
+        <span className="rounded border bg-background/60 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide">
+          CodeMirror
         </span>
         {dirty && (
           <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
@@ -194,9 +238,7 @@ export function MonacoSkillEditor({
             size="sm"
             variant="ghost"
             className="h-7 gap-1 px-2 text-xs"
-            onClick={() => {
-              setValue(initialContent);
-            }}
+            onClick={() => setValue(savedValueRef.current)}
             disabled={!dirty || saveMutation.isPending}
             title={t("editor.discard") ?? "Discard"}
           >
@@ -217,8 +259,7 @@ export function MonacoSkillEditor({
           </Button>
         </div>
       </div>
-      {/* Commit message row: collapsed to a single line. Visible only
-          when the buffer is dirty so the user has a reason to type one. */}
+
       {dirty && (
         <div className="flex h-8 shrink-0 items-center gap-2 border-b bg-muted/20 px-3">
           <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -226,27 +267,23 @@ export function MonacoSkillEditor({
           </span>
           <Input
             value={commitMessage}
-            onChange={(e) => setCommitMessage(e.target.value)}
+            onChange={(event) => setCommitMessage(event.target.value)}
             placeholder={t("editor.commitMessagePlaceholder")}
             className="h-6 flex-1 border-none bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
             disabled={saveMutation.isPending}
-            onKeyDown={(e) => {
-              // Enter saves; Shift+Enter inserts a newline.
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
                 void doSave();
               }
             }}
           />
         </div>
       )}
-      <div className="min-h-0 flex-1">
+
+      <div className="min-h-0 flex-1" onKeyDownCapture={handleEditorKeyDown}>
         {conflict ? (
-          <div className="flex h-full flex-col">
-            {/* Conflict toolbar: explains the view + offers the two
-                resolution actions. "Take server" discards local edits;
-                "Keep mine" adopts the server sha (so the next save is a
-                clean overwrite) but preserves the user's text. */}
+          <div className="flex h-full min-h-0 flex-col">
             <div className="flex h-9 shrink-0 items-center gap-2 border-b bg-amber-500/10 px-3 text-xs text-amber-700 dark:text-amber-300">
               <AlertTriangle className="h-3.5 w-3.5" />
               <span className="font-medium">{t("editor.conflictTitle")}</span>
@@ -259,8 +296,9 @@ export function MonacoSkillEditor({
                   variant="outline"
                   className="h-7 gap-1 px-2 text-xs"
                   onClick={() => {
-                    // Discard local edits, adopt server view + sha.
                     setValue(conflict.serverContent);
+                    savedValueRef.current = conflict.serverContent;
+                    refreshBaseline();
                     setLocalSha(conflict.serverSha);
                     setConflict(null);
                   }}
@@ -273,8 +311,6 @@ export function MonacoSkillEditor({
                   size="sm"
                   className="h-7 gap-1 px-2 text-xs"
                   onClick={() => {
-                    // Keep the user's text but adopt the server sha so
-                    // the next save is accepted (PUT with current sha).
                     setLocalSha(conflict.serverSha);
                     setConflict(null);
                   }}
@@ -285,44 +321,47 @@ export function MonacoSkillEditor({
                 </Button>
               </div>
             </div>
-            <div className="min-h-0 flex-1">
-              <DiffEditor
-                height="100%"
-                language={language}
-                original={conflict.serverContent}
-                modified={value}
-                theme="vs-dark"
-                options={{
-                  readOnly: true,
-                  renderSideBySide: true,
-                  minimap: { enabled: false },
-                  fontSize: 13,
-                  scrollBeyondLastLine: false,
-                  automaticLayout: true,
-                  wordWrap: "on",
-                }}
-              />
+            <div className="grid min-h-0 flex-1 grid-cols-2 divide-x">
+              <div className="min-h-0 overflow-hidden">
+                <div className="border-b bg-muted/20 px-3 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  {t("editor.serverVersion")}
+                </div>
+                <CodeMirror
+                  value={conflict.serverContent}
+                  height="100%"
+                  theme="dark"
+                  extensions={languageExtensions}
+                  readOnly
+                  editable={false}
+                  className={EDITOR_CLASS_NAME}
+                />
+              </div>
+              <div className="min-h-0 overflow-hidden">
+                <div className="border-b bg-muted/20 px-3 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  {t("editor.yourVersion")}
+                </div>
+                <CodeMirror
+                  value={value}
+                  height="100%"
+                  theme="dark"
+                  extensions={languageExtensions}
+                  readOnly
+                  editable={false}
+                  className={EDITOR_CLASS_NAME}
+                />
+              </div>
             </div>
           </div>
         ) : (
-          <Editor
-            height="100%"
-            path={filePath}
-            language={language}
+          <CodeMirror
             value={value}
-            onChange={(v) => setValue(v ?? "")}
-            onMount={handleMount}
-            theme="vs-dark"
-            options={{
-              readOnly: readOnly || saveMutation.isPending,
-              minimap: { enabled: false },
-              fontSize: 13,
-              lineNumbersMinChars: 3,
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              tabSize: 2,
-              wordWrap: "on",
-            }}
+            height="100%"
+            theme="dark"
+            extensions={languageExtensions}
+            readOnly={Boolean(readOnly || saveMutation.isPending)}
+            editable={!readOnly && !saveMutation.isPending}
+            onChange={setValue}
+            className={EDITOR_CLASS_NAME}
           />
         )}
       </div>
