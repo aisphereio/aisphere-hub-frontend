@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { ArrowLeft, Loader2, Save, Trash2, Star, Bell, X, ChevronRight } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2, Star, Bell, X, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -41,7 +41,6 @@ import {
 } from "@/hooks/use-skill-files";
 import { useResourceShares } from "@/hooks/use-shares";
 import { getScopeColor, getStatusColor, fmtTime } from "@/lib/utils";
-import { skillApi } from "@/lib/api";
 import { ConfirmDialog, InfoItem } from "@/components/shared";
 import { ResourceSharePanel } from "@/components/aihub";
 import { useT } from "@/lib/i18n";
@@ -79,9 +78,8 @@ type RightPanelTab = "overview" | "settings" | "shares" | "prs";
  * surface. Skill content is authored through git (clone/push/LFS), not in the
  * UI, so this editor no longer hosts a file tree, code editor, version
  * timeline, or commit/publish/submit/online/offline actions. It focuses on
- * metadata the Hub still persists via UpdateSkill (displayName/description),
- * sharing, and delete. A git-aware content
- * editor is a follow-up.
+ * metadata projected from SKILL.md, sharing, and delete. Content metadata is
+ * changed through Git so the repository remains the single source of truth.
  */
 export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
   const t = useT();
@@ -93,7 +91,6 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
   const {
     data: detail,
     isLoading: detailLoading,
-    refetch: refetchDetail,
   } = useSkillDetail(skillName);
   const { data: social } = useSkillSocial(skillName);
 
@@ -114,20 +111,6 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
   const skillAccessMode: AccessMode = sharesData
     ? (sharesData.accessMode ?? deriveAccessMode(sharesData.items || []))
     : ((detail?.scope as AccessMode | undefined) ?? "private");
-
-  const saveDisplayNameDescription = async (
-    displayName: string,
-    description: string,
-  ) => {
-    if (!detail) return;
-    try {
-      await skillApi.update(detail.name, { displayName, description });
-      toast.success(t("editor.saved"));
-      refetchDetail();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : t("skills.actionFailed"));
-    }
-  };
 
   const handleDelete = async () => {
     if (!detail) return;
@@ -444,9 +427,6 @@ git add SKILL.md && git commit -m "update skill" && git push`}
                     key={detail.name + (detail.updateTime || "")}
                     detail={detail}
                     accessMode={skillAccessMode}
-                    onSaveDisplayNameDescription={
-                      saveDisplayNameDescription
-                    }
                     onDelete={() => setDeleteConfirmOpen(true)}
                   />
                 </TabsContent>
@@ -484,33 +464,18 @@ git add SKILL.md && git commit -m "update skill" && git push`}
 }
 
 // ─── Child: SettingsTab ────────────────────────────────────────────
-// Holds its own form state initialized from `detail` on mount. Only the
-// displayName/description fields are persisted by the new Hub UpdateSkill
-// API; bizTags/labels/metadata were removed (no backend support).
 interface SettingsTabProps {
   detail: Skill;
   accessMode: AccessMode;
-  onSaveDisplayNameDescription: (
-    displayName: string,
-    description: string,
-  ) => Promise<void>;
   onDelete: () => void;
 }
 
 function SettingsTab({
   detail,
   accessMode,
-  onSaveDisplayNameDescription,
   onDelete,
 }: SettingsTabProps) {
   const t = useT();
-  const [editDisplayName, setEditDisplayName] = useState(
-    () => detail.displayName || "",
-  );
-  const [editDescription, setEditDescription] = useState(
-    () => detail.description || "",
-  );
-  const [savingNameDesc, setSavingNameDesc] = useState(false);
 
   return (
     <div className="space-y-3">
@@ -534,47 +499,18 @@ function SettingsTab({
 
       <Separator />
 
-      {/* Display name + Description (editable together) */}
-      <div className="space-y-1.5">
-        <Label className="text-xs font-medium">{t("editor.displayName")}</Label>
-        <Input
-          value={editDisplayName}
-          onChange={(e) => setEditDisplayName(e.target.value)}
-          className="text-xs h-8"
-          placeholder={t("editor.displayNamePlaceholder")}
-        />
+      {/* Content metadata is Git-owned; this is a projection preview only. */}
+      <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+        <div className="text-xs font-medium">{t("editor.displayName")}</div>
+        <div className="text-sm">{detail.displayName || detail.name}</div>
+        <div className="text-xs font-medium pt-1">{t("editor.descriptionLabel")}</div>
+        <div className="text-xs text-muted-foreground whitespace-pre-wrap">
+          {detail.description || t("skillCard.noDesc")}
+        </div>
+        <p className="text-[11px] text-muted-foreground pt-1">
+          {t("editor.metadataManagedByGit")}
+        </p>
       </div>
-      <div className="space-y-1.5">
-        <Label className="text-xs font-medium">
-          {t("editor.descriptionLabel")}
-        </Label>
-        <Textarea
-          value={editDescription}
-          onChange={(e) => setEditDescription(e.target.value)}
-          rows={3}
-          className="text-xs resize-none"
-          placeholder={t("editor.descriptionPlaceholder")}
-        />
-      </div>
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-7 text-xs"
-        disabled={savingNameDesc}
-        onClick={async () => {
-          setSavingNameDesc(true);
-          try {
-            await onSaveDisplayNameDescription(
-              editDisplayName,
-              editDescription,
-            );
-          } finally {
-            setSavingNameDesc(false);
-          }
-        }}
-      >
-        <Save className="h-3 w-3 mr-1" /> {t("editor.saveNameDesc")}
-      </Button>
 
       <Separator />
 
