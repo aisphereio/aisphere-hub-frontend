@@ -56,7 +56,7 @@ export function Topbar({
                 >
                   {tabLabel}
                 </button>
-                <ChevronRight className="h-3 w-3 text-muted-foreground/50 shrink--0" />
+                <ChevronRight className="h-3 w-3 text-muted-foreground/50 shrink-0" />
                 <div className="flex items-center gap-1.5 min-w-0">
                   <FileCode2 className="h-3.5 w-3.5 text-violet-500 shrink-0" />
                   <span className="text-xs font-medium truncate">{t('topbar.editor')}</span>
