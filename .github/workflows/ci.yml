@@ -21,10 +21,13 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Focused lint diagnostic
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          git init -q .
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth=1 origin "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
           npm ci --silent --ignore-scripts >/dev/null 2>&1
           npx eslint src/components/kubernetes/kubernetes-environment-panel.tsx src/hooks/use-kubernetes-environments.ts src/components/pages/ops-page.tsx
