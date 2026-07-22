@@ -79,8 +79,8 @@ export function useRotateClusterCredential() {
 export function useDeleteCluster() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (clusterId: string) =>
-      clusterServiceDeleteCluster(clusterId, { deletePolicy: 'DELETE_POLICY_DETACH_ONLY' }),
+    mutationFn: ({ clusterId, expectedRevision }: { clusterId: string; expectedRevision: string }) =>
+      clusterServiceDeleteCluster(clusterId, { expectedRevision, deletePolicy: 'DELETE_POLICY_DETACH_ONLY' }),
     onSuccess: () => client.invalidateQueries({ queryKey: clusterKeys.all }),
   });
 }
@@ -117,8 +117,8 @@ export function useUpdateKubernetesNamespaceVisibility() {
 export function useDeleteKubernetesNamespace() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, clusterId }: { id: string; clusterId: string }) =>
-      namespaceServiceDeleteNamespace(id, { deletePolicy: 'DELETE_POLICY_DETACH_ONLY' }),
+    mutationFn: ({ id, clusterId, expectedRevision }: { id: string; clusterId: string; expectedRevision: string }) =>
+      namespaceServiceDeleteNamespace(id, { expectedRevision, deletePolicy: 'DELETE_POLICY_DETACH_ONLY' }),
     onSuccess: (_, vars) =>
       client.invalidateQueries({ queryKey: clusterKeys.namespaces(vars.clusterId) }),
   });
