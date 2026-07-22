@@ -1,18 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Activity,
-  CloudCog,
-  KeyRound,
-  Plus,
-  RefreshCw,
-  RotateCcw,
-  Server,
-  ShieldCheck,
-  Trash2,
-} from 'lucide-react';
+import { Activity, CloudCog, KeyRound, Plus, RefreshCw, RotateCcw, Server, ShieldCheck, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -47,6 +37,7 @@ import {
 import type { V1Cluster, V1ClusterCredentialInput, V1Namespace } from '@/lib/api/generated/model';
 
 type CredentialKind = 'kubeconfig' | 'service-account';
+type NamespaceVisibility = typeof V1NamespaceVisibility[keyof typeof V1NamespaceVisibility];
 
 const clusterQueryKey = ['kubernetes', 'clusters'] as const;
 
@@ -79,13 +70,12 @@ function statusVariant(status?: string): 'default' | 'secondary' | 'destructive'
 
 export function EnvironmentsPage() {
   const queryClient = useQueryClient();
-  const defaultOrg = getAccessSpace();
   const [selectedClusterId, setSelectedClusterId] = useState('');
   const [clusterForm, setClusterForm] = useState({
     name: '',
     displayName: '',
     description: '',
-    orgId: defaultOrg,
+    orgId: getAccessSpace(),
     serverUrl: '',
     distribution: '',
     credentialKind: 'kubeconfig' as CredentialKind,
@@ -103,7 +93,7 @@ export function EnvironmentsPage() {
     name: '',
     displayName: '',
     description: '',
-    visibility: V1NamespaceVisibility.NAMESPACE_VISIBILITY_PRIVATE,
+    visibility: V1NamespaceVisibility.NAMESPACE_VISIBILITY_PRIVATE as NamespaceVisibility,
   });
 
   const clustersQuery = useQuery({
@@ -111,34 +101,22 @@ export function EnvironmentsPage() {
     queryFn: () => clusterServiceListClusters({ pageSize: 100 }),
   });
   const clusters = clustersQuery.data?.clusters ?? [];
-
-  useEffect(() => {
-    if (!selectedClusterId && clusters[0]?.id) setSelectedClusterId(clusters[0].id);
-    if (selectedClusterId && !clusters.some((cluster) => cluster.id === selectedClusterId)) {
-      setSelectedClusterId(clusters[0]?.id ?? '');
-    }
-  }, [clusters, selectedClusterId]);
-
-  const selectedCluster = useMemo(
-    () => clusters.find((cluster) => cluster.id === selectedClusterId),
-    [clusters, selectedClusterId],
-  );
+  const activeClusterId = clusters.some((cluster) => cluster.id === selectedClusterId)
+    ? selectedClusterId
+    : clusters[0]?.id ?? '';
+  const selectedCluster = clusters.find((cluster) => cluster.id === activeClusterId);
 
   const namespacesQuery = useQuery({
-    queryKey: ['kubernetes', 'namespaces', selectedClusterId],
-    queryFn: () => namespaceServiceListClusterNamespaces(selectedClusterId, { pageSize: 200 }),
-    enabled: Boolean(selectedClusterId),
+    queryKey: ['kubernetes', 'namespaces', activeClusterId],
+    queryFn: () => namespaceServiceListClusterNamespaces(activeClusterId, { pageSize: 200 }),
+    enabled: Boolean(activeClusterId),
   });
   const namespaces = namespacesQuery.data?.namespaces ?? [];
 
-  const refreshClusters = async () => {
-    await queryClient.invalidateQueries({ queryKey: clusterQueryKey });
-  };
-  const refreshNamespaces = async () => {
-    if (selectedClusterId) {
-      await queryClient.invalidateQueries({ queryKey: ['kubernetes', 'namespaces', selectedClusterId] });
-    }
-  };
+  const refreshClusters = () => queryClient.invalidateQueries({ queryKey: clusterQueryKey });
+  const refreshNamespaces = () => activeClusterId
+    ? queryClient.invalidateQueries({ queryKey: ['kubernetes', 'namespaces', activeClusterId] })
+    : Promise.resolve();
 
   const createCluster = useMutation({
     mutationFn: () => clusterServiceCreateCluster({
@@ -148,12 +126,7 @@ export function EnvironmentsPage() {
       orgId: clusterForm.orgId.trim(),
       serverUrl: clusterForm.serverUrl.trim(),
       distribution: clusterForm.distribution.trim() || undefined,
-      credential: credentialInput(
-        clusterForm.credentialKind,
-        clusterForm.kubeconfig,
-        clusterForm.token,
-        clusterForm.caCert,
-      ),
+      credential: credentialInput(clusterForm.credentialKind, clusterForm.kubeconfig, clusterForm.token, clusterForm.caCert),
     }),
     onSuccess: async (cluster) => {
       toast.success(`集群 ${cluster.displayName || cluster.name || ''} 已接入`);
@@ -168,8 +141,8 @@ export function EnvironmentsPage() {
         token: '',
         caCert: '',
       }));
-      await refreshClusters();
       if (cluster.id) setSelectedClusterId(cluster.id);
+      await refreshClusters();
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : '集群接入失败'),
   });
@@ -186,12 +159,7 @@ export function EnvironmentsPage() {
   const rotateCredential = useMutation({
     mutationFn: (cluster: V1Cluster) => clusterServiceRotateCredential(cluster.id ?? '', {
       expectedRevision: cluster.revision ?? '0',
-      credential: credentialInput(
-        rotateForm.credentialKind,
-        rotateForm.kubeconfig,
-        rotateForm.token,
-        rotateForm.caCert,
-      ),
+      credential: credentialInput(rotateForm.credentialKind, rotateForm.kubeconfig, rotateForm.token, rotateForm.caCert),
     }),
     onSuccess: async () => {
       toast.success('凭据轮换成功，旧凭据将由后台任务清理');
@@ -208,13 +176,14 @@ export function EnvironmentsPage() {
     }),
     onSuccess: async () => {
       toast.success('集群已从 AISphere 分离，远端资源未删除');
+      setSelectedClusterId('');
       await refreshClusters();
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : '删除集群失败'),
   });
 
   const createNamespace = useMutation({
-    mutationFn: () => namespaceServiceCreateNamespace(selectedClusterId, {
+    mutationFn: () => namespaceServiceCreateNamespace(activeClusterId, {
       name: namespaceForm.name.trim(),
       displayName: namespaceForm.displayName.trim() || undefined,
       description: namespaceForm.description.trim() || undefined,
@@ -235,16 +204,16 @@ export function EnvironmentsPage() {
   });
 
   const syncNamespaces = useMutation({
-    mutationFn: () => namespaceServiceSyncNamespaces(selectedClusterId),
+    mutationFn: () => namespaceServiceSyncNamespaces(activeClusterId),
     onSuccess: async (result) => {
-      toast.success(`同步完成：发现 ${result.discovered ?? 0}，更新 ${result.updated ?? 0}`);
+      toast.success(`同步完成：导入 ${result.imported ?? 0}，更新 ${result.updated ?? 0}，移除 ${result.removed ?? 0}`);
       await refreshNamespaces();
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : 'Namespace 同步失败'),
   });
 
   const updateVisibility = useMutation({
-    mutationFn: ({ namespace, visibility }: { namespace: V1Namespace; visibility: typeof V1NamespaceVisibility[keyof typeof V1NamespaceVisibility] }) =>
+    mutationFn: ({ namespace, visibility }: { namespace: V1Namespace; visibility: NamespaceVisibility }) =>
       namespaceServiceUpdateNamespaceVisibility(namespace.id ?? '', { visibility }),
     onSuccess: async () => {
       toast.success('可见性已更新');
@@ -268,7 +237,12 @@ export function EnvironmentsPage() {
   const clusterCredentialReady = clusterForm.credentialKind === 'kubeconfig'
     ? Boolean(clusterForm.kubeconfig.trim())
     : Boolean(clusterForm.token.trim());
-  const canCreateCluster = Boolean(clusterForm.name.trim() && clusterForm.orgId.trim() && clusterForm.serverUrl.trim() && clusterCredentialReady);
+  const canCreateCluster = Boolean(
+    clusterForm.name.trim()
+    && clusterForm.orgId.trim()
+    && clusterForm.serverUrl.trim()
+    && clusterCredentialReady,
+  );
 
   return (
     <div className="h-full overflow-auto p-4 md:p-6 space-y-4">
@@ -294,18 +268,13 @@ export function EnvironmentsPage() {
             {clustersQuery.isLoading ? <Skeleton className="h-44" /> : (
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>集群</TableHead>
-                    <TableHead>状态</TableHead>
-                    <TableHead>版本</TableHead>
-                    <TableHead className="text-right">操作</TableHead>
-                  </TableRow>
+                  <TableRow><TableHead>集群</TableHead><TableHead>状态</TableHead><TableHead>版本</TableHead><TableHead className="text-right">操作</TableHead></TableRow>
                 </TableHeader>
                 <TableBody>
                   {clusters.map((cluster) => (
                     <TableRow
                       key={cluster.id}
-                      className={selectedClusterId === cluster.id ? 'bg-accent/60' : 'cursor-pointer'}
+                      className={activeClusterId === cluster.id ? 'bg-accent/60' : 'cursor-pointer'}
                       onClick={() => setSelectedClusterId(cluster.id ?? '')}
                     >
                       <TableCell>
@@ -317,24 +286,21 @@ export function EnvironmentsPage() {
                       <TableCell className="text-xs">{cluster.kubernetesVersion || '-'}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button size="icon" variant="ghost" className="h-7 w-7" title="探测" onClick={(event) => { event.stopPropagation(); if (cluster.id) probeCluster.mutate(cluster.id); }}>
-                            <Activity className="h-3.5 w-3.5" />
-                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" title="探测" onClick={(event) => {
+                            event.stopPropagation();
+                            if (cluster.id) probeCluster.mutate(cluster.id);
+                          }}><Activity className="h-3.5 w-3.5" /></Button>
                           {cluster.permissions?.canDelete ? (
                             <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="从平台分离" onClick={(event) => {
                               event.stopPropagation();
                               if (window.confirm(`确认从平台分离集群 ${cluster.displayName || cluster.name}？远端资源不会删除。`)) deleteCluster.mutate(cluster);
-                            }}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            }}><Trash2 className="h-3.5 w-3.5" /></Button>
                           ) : null}
                         </div>
                       </TableCell>
                     </TableRow>
                   ))}
-                  {!clusters.length ? (
-                    <TableRow><TableCell colSpan={4} className="text-center text-xs text-muted-foreground py-8">还没有接入 Kubernetes 集群</TableCell></TableRow>
-                  ) : null}
+                  {!clusters.length ? <TableRow><TableCell colSpan={4} className="text-center text-xs text-muted-foreground py-8">还没有接入 Kubernetes 集群</TableCell></TableRow> : null}
                 </TableBody>
               </Table>
             )}
@@ -356,10 +322,7 @@ export function EnvironmentsPage() {
             <Textarea rows={2} placeholder="说明" value={clusterForm.description} onChange={(event) => setClusterForm({ ...clusterForm, description: event.target.value })} />
             <Select value={clusterForm.credentialKind} onValueChange={(value: CredentialKind) => setClusterForm({ ...clusterForm, credentialKind: value })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="kubeconfig">Kubeconfig</SelectItem>
-                <SelectItem value="service-account">ServiceAccount Token</SelectItem>
-              </SelectContent>
+              <SelectContent><SelectItem value="kubeconfig">Kubeconfig</SelectItem><SelectItem value="service-account">ServiceAccount Token</SelectItem></SelectContent>
             </Select>
             {clusterForm.credentialKind === 'kubeconfig' ? (
               <Textarea className="font-mono text-xs" rows={8} placeholder="粘贴 kubeconfig YAML；浏览器提交时自动 Base64 编码" value={clusterForm.kubeconfig} onChange={(event) => setClusterForm({ ...clusterForm, kubeconfig: event.target.value })} />
@@ -382,11 +345,9 @@ export function EnvironmentsPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex flex-wrap items-center justify-between gap-2">
                 <span>{selectedCluster.displayName || selectedCluster.name} / Namespace</span>
-                <div className="flex gap-1">
-                  <Button size="sm" variant="outline" onClick={() => syncNamespaces.mutate()} disabled={syncNamespaces.isPending}>
-                    <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncNamespaces.isPending ? 'animate-spin' : ''}`} /> 同步
-                  </Button>
-                </div>
+                <Button size="sm" variant="outline" onClick={() => syncNamespaces.mutate()} disabled={syncNamespaces.isPending}>
+                  <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncNamespaces.isPending ? 'animate-spin' : ''}`} /> 同步
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -415,9 +376,7 @@ export function EnvironmentsPage() {
                                   visibility: isPublic
                                     ? V1NamespaceVisibility.NAMESPACE_VISIBILITY_PRIVATE
                                     : V1NamespaceVisibility.NAMESPACE_VISIBILITY_PUBLIC,
-                                })}>
-                                  {isPublic ? '设为私有' : '设为公开'}
-                                </Button>
+                                })}>{isPublic ? '设为私有' : '设为公开'}</Button>
                               ) : null}
                               {namespace.permissions?.canDelete ? (
                                 <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => {
@@ -443,7 +402,7 @@ export function EnvironmentsPage() {
                 <Input placeholder="DNS-1123 名称，如 agent-runtime" value={namespaceForm.name} onChange={(event) => setNamespaceForm({ ...namespaceForm, name: event.target.value })} />
                 <Input placeholder="展示名称" value={namespaceForm.displayName} onChange={(event) => setNamespaceForm({ ...namespaceForm, displayName: event.target.value })} />
                 <Textarea rows={2} placeholder="说明" value={namespaceForm.description} onChange={(event) => setNamespaceForm({ ...namespaceForm, description: event.target.value })} />
-                <Select value={namespaceForm.visibility} onValueChange={(visibility) => setNamespaceForm({ ...namespaceForm, visibility: visibility as typeof namespaceForm.visibility })}>
+                <Select value={namespaceForm.visibility} onValueChange={(visibility) => setNamespaceForm({ ...namespaceForm, visibility: visibility as NamespaceVisibility })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value={V1NamespaceVisibility.NAMESPACE_VISIBILITY_PRIVATE}>私有</SelectItem>
@@ -461,10 +420,7 @@ export function EnvironmentsPage() {
               <CardContent className="space-y-3">
                 <Select value={rotateForm.credentialKind} onValueChange={(value: CredentialKind) => setRotateForm({ ...rotateForm, credentialKind: value })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="kubeconfig">Kubeconfig</SelectItem>
-                    <SelectItem value="service-account">ServiceAccount Token</SelectItem>
-                  </SelectContent>
+                  <SelectContent><SelectItem value="kubeconfig">Kubeconfig</SelectItem><SelectItem value="service-account">ServiceAccount Token</SelectItem></SelectContent>
                 </Select>
                 {rotateForm.credentialKind === 'kubeconfig' ? (
                   <Textarea className="font-mono text-xs" rows={6} placeholder="新 kubeconfig" value={rotateForm.kubeconfig} onChange={(event) => setRotateForm({ ...rotateForm, kubeconfig: event.target.value })} />
@@ -474,7 +430,12 @@ export function EnvironmentsPage() {
                     <Textarea className="font-mono text-xs" rows={3} placeholder="新 CA PEM（可选）" value={rotateForm.caCert} onChange={(event) => setRotateForm({ ...rotateForm, caCert: event.target.value })} />
                   </>
                 )}
-                <Button variant="outline" className="w-full" disabled={rotateCredential.isPending || (rotateForm.credentialKind === 'kubeconfig' ? !rotateForm.kubeconfig.trim() : !rotateForm.token.trim())} onClick={() => rotateCredential.mutate(selectedCluster)}>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={rotateCredential.isPending || (rotateForm.credentialKind === 'kubeconfig' ? !rotateForm.kubeconfig.trim() : !rotateForm.token.trim())}
+                  onClick={() => rotateCredential.mutate(selectedCluster)}
+                >
                   <RotateCcw className="h-4 w-4 mr-1" /> 探测并原子轮换
                 </Button>
               </CardContent>
