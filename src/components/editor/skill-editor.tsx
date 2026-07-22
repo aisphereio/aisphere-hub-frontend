@@ -603,9 +603,10 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
     );
     if (skillMd) {
       autoOpenedRef.current = true;
-      openTab(skillMd.path, false);
+      const handle = window.setTimeout(() => openTab(skillMd.path, false), 0);
+      return () => window.clearTimeout(handle);
     }
-  }, [tree.data, tabs.length]);
+  }, [tree.data, tabs.length, openTab]);
 
   // Delete a file from the skill repo. We pass the optimistic-concurrency
   // sha so the server rejects the delete if someone else moved the file
