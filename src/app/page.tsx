@@ -10,7 +10,7 @@ import {
   ModelProfilesPage,
   SandboxProfilesPage,
   SandboxesPage,
-  NamespacesPage,
+  EnvironmentsPage,
   GovernancePage,
   ProposalsPage,
   IamPage,
@@ -39,7 +39,7 @@ function PageRouter({ tab }: { tab: Tab }) {
     case 'model-profiles': return <ModelProfilesPage />;
     case 'sandbox-profiles': return <SandboxProfilesPage />;
     case 'sandboxes': return <SandboxesPage />;
-    case 'namespaces': return <NamespacesPage />;
+    case 'namespaces': return <EnvironmentsPage />;
     case 'governance': return <GovernancePage />;
     case 'ops': return <OpsPage />;
     case 'proposals': return <ProposalsPage />;

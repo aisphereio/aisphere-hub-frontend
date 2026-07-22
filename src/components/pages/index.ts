@@ -3,6 +3,7 @@
 export { SkillsPage } from './skills-page';
 export { SkillSetsPage } from './skillsets-page';
 export { NamespacesPage } from './namespaces-page';
+export { EnvironmentsPage } from './environments-page';
 export { GovernancePage } from './governance-page';
 export { ProposalsPage } from './proposals-page';
 export { IamPage } from './iam-page';
