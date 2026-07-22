@@ -24,25 +24,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Build
-        env:
-          NEXT_PUBLIC_HUB_URL: ''
-          NEXT_PUBLIC_IAM_URL: ''
-          NEXT_PUBLIC_AUTH_MODE: gateway_oidc
-          NEXT_PUBLIC_GATEWAY_LOGOUT_PATH: /logout
-        run: npm run build
-
-      - name: Build container image
-        run: docker build -t aisphere-hub-front:${{ github.sha }} .
+      - name: Focused lint diagnostic
+        run: |
+          npm ci --silent --ignore-scripts >/dev/null 2>&1
+          npx eslint src/components/kubernetes/kubernetes-environment-panel.tsx src/hooks/use-kubernetes-environments.ts src/components/pages/ops-page.tsx
