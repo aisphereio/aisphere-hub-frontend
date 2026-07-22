@@ -414,7 +414,7 @@ git add SKILL.md && git commit -m "update skill" && git push`}
                 </TabsList>
               </div>
 
-              <ScrollArea className="min-h-0 min-w-0 flex-1 overflow-hidden">
+              <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
                 {/* OVERVIEW */}
                 <TabsContent value="overview" className="p-3 space-y-3 mt-0">
                   <div className="grid grid-cols-2 gap-2">
@@ -457,7 +457,7 @@ git add SKILL.md && git commit -m "update skill" && git push`}
                 <TabsContent value="prs" className="p-3 mt-0">
                   <PullRequestsPanel skillName={detail.name} />
                 </TabsContent>
-              </ScrollArea>
+              </div>
             </Tabs>
           </div>
         )}
