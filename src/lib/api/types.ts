@@ -27,6 +27,7 @@ export type Skill = {
   scope?: SkillVisibility;
   owner?: string;
   ownerId?: string;
+  ownerName?: string;
   orgId?: string;
   projectId?: string;
   sourceType?: string;
