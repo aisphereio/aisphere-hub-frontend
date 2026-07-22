@@ -130,6 +130,13 @@ export async function hubFetch<T>(
     // Responses are still regular JSON and parse fine with JSON.parse below.
     headers.set('Content-Type', 'application/protojson');
   }
+  // Request protojson responses so the Hub backend uses the protojson codec
+  // (camelCase field names + EmitUnpopulated, which prevents empty repeated
+  // fields from being dropped — e.g. ListClusters returning {} instead of
+  // {"clusters":[],"nextPageToken":""}). The backend's custom ResponseEncoder
+  // now forces protojson for proto.Message regardless of Accept, but setting
+  // Accept keeps the contract explicit.
+  headers.set('Accept', 'application/protojson');
 
   const res = await fetch(apiUrl(url), {
     ...requestInit,
@@ -163,7 +170,10 @@ export async function hubFetch<T>(
     return (await res.blob()) as T;
   }
 
-  if (contentType.includes('application/json') || contentType === '') {
+  // protojson responses have Content-Type "application/protojson", which is
+  // still valid JSON — match on the "json" substring to cover both
+  // "application/json" and "application/protojson".
+  if (contentType.includes('json') || contentType === '') {
     const text = await res.text();
     if (!text) return {} as T;
     try {
