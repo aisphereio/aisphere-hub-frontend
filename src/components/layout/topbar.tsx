@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Bell, Menu, ChevronRight, FileCode2, Search, Command } from 'lucide-react';
+import { Bell, Menu, ChevronRight, CloudCog, FileCode2, Search, Command } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useT } from '@/lib/i18n';
@@ -33,11 +33,10 @@ export function Topbar({
   const { open: cmdOpen, setOpen: setCmdOpen } = useCommandPalette();
   const [notifOpen, setNotifOpen] = useState(false);
 
-  // Title/hint per tab, looked up via i18n
   const titleKey = `${activeTab}.title`;
   const hintKey = `${activeTab}.hint`;
-  const tabLabel = t(titleKey);
-  const tabHint = t(hintKey);
+  const tabLabel = activeTab === 'namespaces' ? 'Kubernetes 运行环境' : t(titleKey);
+  const tabHint = activeTab === 'namespaces' ? '集群接入、凭据轮换与 Namespace 管理' : t(hintKey);
 
   return (
     <>
@@ -47,7 +46,6 @@ export function Topbar({
             <Menu className="h-4 w-4" />
           </Button>
 
-          {/* Breadcrumbs */}
           <nav className="flex items-center gap-1.5 min-w-0">
             {editorMode ? (
               <>
@@ -73,7 +71,6 @@ export function Topbar({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* Search — opens the command palette */}
           <button
             className="hidden md:flex items-center gap-2 h-7 px-2.5 rounded-md border bg-muted/30 hover:bg-muted/50 transition-colors text-xs text-muted-foreground"
             onClick={() => setCmdOpen(true)}
@@ -86,7 +83,17 @@ export function Topbar({
             </kbd>
           </button>
 
-          {/* Language toggle */}
+          <Button
+            variant={activeTab === 'namespaces' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={() => onNavigate?.('namespaces')}
+            title="Kubernetes 运行环境"
+          >
+            <CloudCog className="h-3.5 w-3.5 lg:mr-1" />
+            <span className="hidden lg:inline">运行环境</span>
+          </Button>
+
           <LanguageToggle />
 
           <Badge variant="outline" className="text-[10px] gap-1 hidden sm:inline-flex">
@@ -94,7 +101,6 @@ export function Topbar({
             {accessSpaceId}
           </Badge>
 
-          {/* Notifications — always visible (grey when 0, violet when >0) */}
           <Button
             variant="ghost"
             size="icon"
