@@ -79,8 +79,14 @@ export function useRotateClusterCredential() {
 export function useDeleteCluster() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ clusterId, expectedRevision }: { clusterId: string; expectedRevision: string }) =>
-      clusterServiceDeleteCluster(clusterId, { expectedRevision, deletePolicy: 'DELETE_POLICY_DETACH_ONLY' }),
+    mutationFn: (clusterId: string) => {
+      const cluster = client.getQueryData<V1Cluster[]>(clusterKeys.all)?.find((item) => item.id === clusterId);
+      if (!cluster?.revision) throw new Error('集群 revision 不存在，请刷新列表后重试');
+      return clusterServiceDeleteCluster(clusterId, {
+        expectedRevision: cluster.revision,
+        deletePolicy: 'DELETE_POLICY_DETACH_ONLY',
+      });
+    },
     onSuccess: () => client.invalidateQueries({ queryKey: clusterKeys.all }),
   });
 }
@@ -117,8 +123,14 @@ export function useUpdateKubernetesNamespaceVisibility() {
 export function useDeleteKubernetesNamespace() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, clusterId, expectedRevision }: { id: string; clusterId: string; expectedRevision: string }) =>
-      namespaceServiceDeleteNamespace(id, { expectedRevision, deletePolicy: 'DELETE_POLICY_DETACH_ONLY' }),
+    mutationFn: ({ id, clusterId }: { id: string; clusterId: string }) => {
+      const namespace = client.getQueryData<V1Namespace[]>(clusterKeys.namespaces(clusterId))?.find((item) => item.id === id);
+      if (!namespace?.revision) throw new Error('Namespace revision 不存在，请刷新列表后重试');
+      return namespaceServiceDeleteNamespace(id, {
+        expectedRevision: namespace.revision,
+        deletePolicy: 'DELETE_POLICY_DETACH_ONLY',
+      });
+    },
     onSuccess: (_, vars) =>
       client.invalidateQueries({ queryKey: clusterKeys.namespaces(vars.clusterId) }),
   });
