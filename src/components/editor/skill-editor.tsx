@@ -102,11 +102,18 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
   const subscribeMutation = useSocialSubscribe();
   const ratingMutation = useSocialRating();
 
+  // The shares query backs both the Shares tab and the Settings tab's
+  // access-mode display, so enable it whenever either tab is visible.
   const { data: sharesData } = useResourceShares("skill", skillName, {
-    enabled: showRightPanel && rightTab === "shares",
+    enabled: showRightPanel && (rightTab === "shares" || rightTab === "settings"),
   });
-  const skillAccessMode: AccessMode =
-    sharesData?.accessMode ?? deriveAccessMode(sharesData?.items || []);
+  // deriveAccessMode([]) returns "private", which is wrong for a skill whose
+  // visibility is public/internal before the shares query resolves. Only
+  // derive from shares once the query has actually resolved; otherwise fall
+  // back to the skill's own scope (visibility) so the first render is correct.
+  const skillAccessMode: AccessMode = sharesData
+    ? (sharesData.accessMode ?? deriveAccessMode(sharesData.items || []))
+    : ((detail?.scope as AccessMode | undefined) ?? "private");
 
   const saveDisplayNameDescription = async (
     displayName: string,
