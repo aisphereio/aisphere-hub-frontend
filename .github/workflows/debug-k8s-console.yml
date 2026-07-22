@@ -1,0 +1,19 @@
+name: Debug K8s console
+
+on:
+  push:
+    branches: [feat/kubernetes-environment-console]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Focused lint
+        shell: bash
+        run: |
+          npm ci --silent --ignore-scripts >/dev/null 2>&1
+          npx eslint src/components/kubernetes/kubernetes-environment-panel.tsx src/hooks/use-kubernetes-environments.ts src/components/pages/ops-page.tsx
