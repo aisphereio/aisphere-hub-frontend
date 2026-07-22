@@ -3,15 +3,15 @@
 import { useState } from 'react';
 import { Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ResourceIdInput } from '@/components/shared';
 import { useSkillDraft } from '@/hooks/use-skills';
 import { useMe } from '@/hooks/use-auth';
 import { useT } from '@/lib/i18n';
-import { isValidResourceId, isValidVersion } from '@/lib/utils';
+import { isValidResourceId } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { SkillDraft } from '@/lib/api/types';
 
@@ -32,13 +32,9 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
     '';
   const [form, setForm] = useState<SkillDraft>({
     name: '',
-    displayName: '',
     description: '',
-    keywords: [],
-    bizTags: [],
+    visibility: 'private',
   });
-  const [keywordsText, setKeywordsText] = useState('');
-  const [bizTagsText, setBizTagsText] = useState('');
   const draftMutation = useSkillDraft();
 
   const canSubmit = Boolean(orgId && form.name && isValidResourceId(form.name) && !draftMutation.isPending);
@@ -52,10 +48,6 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
       toast.error(t('id.invalid'));
       return;
     }
-    if (form.version && !isValidVersion(form.version)) {
-      toast.error(t('id.versionInvalid'));
-      return;
-    }
     if (!orgId) {
       toast.error(t('create.organizationRequired') || 'Your account is not assigned to an organization');
       return;
@@ -64,17 +56,12 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
       const data: SkillDraft = {
         ...form,
         orgId,
-        // Note: scope is intentionally omitted — access mode is now
-        // managed by the ResourceSharePanel via IAM ResourceGrants.
-        keywords: keywordsText.split(',').map((x) => x.trim()).filter(Boolean),
-        bizTags: bizTagsText.split(',').map((x) => x.trim()).filter(Boolean),
+        visibility: form.visibility || 'private',
       };
       await draftMutation.mutateAsync(data);
       toast.success(t('create.created', { name: form.name }));
       onCreated?.(form.name);
-      setForm({ name: '', displayName: '', description: '', keywords: [], bizTags: [] });
-      setKeywordsText('');
-      setBizTagsText('');
+      setForm({ name: '', description: '', visibility: 'private' });
       onOpenChange(false);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : t('create.createFailed'));
@@ -89,25 +76,14 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
           <DialogDescription>{t('create.desc')}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <ResourceIdInput
-              value={form.name}
-              onChange={(v) => setForm({ ...form, name: v })}
-              label={t('id.label')}
-              placeholder={t('create.namePlaceholder')}
-              disabled={draftMutation.isPending}
-              required
-            />
-            <div className="space-y-1.5">
-              <Label>{t('id.displayName')}</Label>
-              <Input
-                value={form.displayName || ''}
-                onChange={(e) => setForm({ ...form, displayName: e.target.value })}
-                placeholder={t('id.displayNamePlaceholder')}
-                disabled={draftMutation.isPending}
-              />
-            </div>
-          </div>
+          <ResourceIdInput
+            value={form.name}
+            onChange={(v) => setForm({ ...form, name: v })}
+            label={t('id.label')}
+            placeholder={t('create.namePlaceholder')}
+            disabled={draftMutation.isPending}
+            required
+          />
           <div className="space-y-1.5">
             <Label>{t('create.description')}</Label>
             <Textarea
@@ -118,34 +94,28 @@ export function SkillCreateDialog({ open, onOpenChange, onCreated }: SkillCreate
               disabled={draftMutation.isPending}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <ResourceIdInput
-              value={form.version || ''}
-              onChange={(v) => setForm({ ...form, version: v })}
-              label={t('id.versionLabel')}
-              placeholder="1.0.0"
-              disabled={draftMutation.isPending}
-              validateVersion
-              showHint
-            />
-            <div className="space-y-1.5">
-              <Label>{t('create.keywords')}</Label>
-              <Input
-                value={keywordsText}
-                onChange={(e) => setKeywordsText(e.target.value)}
-                placeholder={t('create.keywordsPlaceholder')}
-                disabled={draftMutation.isPending}
-              />
-            </div>
-          </div>
           <div className="space-y-1.5">
-            <Label>{t('create.bizTags')}</Label>
-            <Input
-              value={bizTagsText}
-              onChange={(e) => setBizTagsText(e.target.value)}
-              placeholder={t('create.bizTagsPlaceholder')}
+            <Label>{t('create.scope')}</Label>
+            <Select
+              value={form.visibility || 'private'}
+              onValueChange={(value) => setForm({ ...form, visibility: value as SkillDraft['visibility'] })}
               disabled={draftMutation.isPending}
-            />
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="public">
+                  <div><div>{t('accessMode.public')}</div><div className="text-xs text-muted-foreground">{t('accessMode.publicDesc')}</div></div>
+                </SelectItem>
+                <SelectItem value="internal">
+                  <div><div>{t('accessMode.internal')}</div><div className="text-xs text-muted-foreground">{t('accessMode.internalDesc')}</div></div>
+                </SelectItem>
+                <SelectItem value="private">
+                  <div><div>{t('accessMode.private')}</div><div className="text-xs text-muted-foreground">{t('accessMode.privateDesc')}</div></div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <DialogFooter>

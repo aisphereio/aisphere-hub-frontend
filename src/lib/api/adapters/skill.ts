@@ -14,13 +14,12 @@
  *    visibility/ownerId/orgId/projectId/defaultBranch/status/create/update).
  *    normalizeSkill() (from ./internal) rehydrates the UI's richer Skill
  *    domain type (scope/owner/labels/metadata) from manifestJson where present.
- *  - The new UpdateSkill body accepts only displayName/description; tags,
- *    metadata, labels, version, sourceType/sourceUri are NOT persisted by the
- *    backend and are intentionally not sent. Labels/bizTags/metadata adapter
- *    methods were removed for the same reason.
- *  - The new CreateSkillRequest drops version/status/manifestJson/tags; the
- *    create flow only carries name/displayName/description/visibility/orgId/
- *    projectId.
+ *  - Skill display metadata is projected from SKILL.md. The legacy UpdateSkill
+ *    endpoint remains in the generated contract for compatibility but the
+ *    backend rejects direct name/description writes; callers should edit the
+ *    file through Git and merge a pull request.
+ *  - The create flow carries the repository name, an initial description used
+ *    to seed SKILL.md, visibility, orgId and optional projectId.
  */
 import {
   skillServiceCreateSkill,
@@ -126,7 +125,7 @@ export const skillApi = {
       name: data.name,
       displayName: data.displayName,
       description: data.description,
-      visibility: data.scope || 'private',
+      visibility: data.visibility || data.scope || 'private',
       orgId: data.orgId,
       projectId: data.projectId,
     });
