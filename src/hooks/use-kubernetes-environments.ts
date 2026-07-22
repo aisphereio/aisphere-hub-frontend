@@ -70,8 +70,8 @@ export function useProbeCluster() {
 export function useRotateClusterCredential() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ clusterId, credential }: { clusterId: string; credential: V1ClusterCredentialInput }) =>
-      clusterServiceRotateCredential(clusterId, { credential }),
+    mutationFn: ({ clusterId, expectedRevision, credential }: { clusterId: string; expectedRevision: string; credential: V1ClusterCredentialInput }) =>
+      clusterServiceRotateCredential(clusterId, { expectedRevision, credential }),
     onSuccess: () => client.invalidateQueries({ queryKey: clusterKeys.all }),
   });
 }
