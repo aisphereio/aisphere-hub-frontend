@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { ArrowLeft, Loader2, Trash2, Star, Bell, X, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -561,6 +561,22 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
 
   const tree = useFileTree(skillName, currentPath, defaultBranch);
   const deleteMutation = useDeleteFile();
+
+  // Auto-open SKILL.md on first load so the editor shows content instead of
+  // the empty state. Runs once when the root tree resolves and no tab is open yet.
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpenedRef.current || tabs.length > 0) return;
+    const entries = tree.data;
+    if (!entries) return;
+    const skillMd = entries.find(
+      (e) => e.type === "file" && e.name === "SKILL.md",
+    );
+    if (skillMd) {
+      autoOpenedRef.current = true;
+      openTab(skillMd.path, false);
+    }
+  }, [tree.data, tabs.length]);
 
   // Delete a file from the skill repo. We pass the optimistic-concurrency
   // sha so the server rejects the delete if someone else moved the file

@@ -9,6 +9,7 @@ import type {
   ResourceGrant,
   ShareListResponse,
   AccessMode,
+  SkillVisibility,
 } from '@/lib/api/types';
 
 // Query key helper — keeps the cache consistent across consumers.
@@ -36,6 +37,8 @@ export function useResourceShares(
         items,
         accessMode,
         canManage,
+        visibility: raw?.visibility,
+        governingOrgId: raw?.governingOrgId,
         total: raw?.total,
         limit: raw?.limit,
         offset: raw?.offset,
@@ -119,6 +122,26 @@ export function useSetPrivate() {
       }
       return { deleted: grantIds.length - failures.length, failures };
     },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: sharesKey(vars.resourceType, vars.resourceId) });
+      if (vars.resourceType === 'skill') {
+        queryClient.invalidateQueries({ queryKey: ['skills', 'detail', vars.resourceId] });
+        queryClient.invalidateQueries({ queryKey: ['skills', 'list'] });
+      }
+    },
+  });
+}
+
+/** Change a Skill's public/internal/private visibility. Explicit shares stay
+ * independent and are never removed by this mutation. */
+export function useSetVisibility() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ resourceType, resourceId, visibility }: {
+      resourceType: AihubResourceType;
+      resourceId: string;
+      visibility: SkillVisibility;
+    }) => sharesApi.setVisibility(resourceType, resourceId, visibility),
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: sharesKey(vars.resourceType, vars.resourceId) });
       if (vars.resourceType === 'skill') {

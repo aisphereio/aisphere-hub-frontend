@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
-import { Cpu, Globe, Download, Zap, AlertTriangle, Package, Layers, FolderOpen } from 'lucide-react';
+import { useState, useCallback, useMemo, useDeferredValue } from 'react';
+import { Cpu, Globe, Download, AlertTriangle, Package, Layers, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { StatCard, CardGridSkeleton, EmptyState, ConfirmDialog } from '@/components/shared';
@@ -21,16 +21,18 @@ export function SkillsPage() {
 
   const [search, setSearch] = useState('');
   const [skillSetName, setSkillSetName] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [scopeFilter, setScopeFilter] = useState('all');
   const [viewMode, setViewMode] = useState<SkillViewMode>('grid');
   const [createOpen, setCreateOpen] = useState(false);
   const [shareSkill, setShareSkill] = useState<Skill | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ action: string; skill: Skill } | null>(null);
 
+  // Debounce search so we don't hit the backend on every keystroke.
+  const deferredSearch = useDeferredValue(search);
+
   const { data: items = [], isLoading, error, refetch } = useSkills({
-    search: search || undefined,
-    skillName: search || undefined,
+    search: deferredSearch || undefined,
+    skillName: deferredSearch || undefined,
     skillsetName: skillSetName || undefined,
     pageNo: 1,
     pageSize: 80,
@@ -38,20 +40,15 @@ export function SkillsPage() {
 
   const deleteMutation = useSkillDelete();
 
-  // Filter items client-side for status and scope
+  // Filter items client-side for scope (visibility).
+  // Status filtering (online/offline/draft/published) was removed — the
+  // Git-native backend no longer populates these fields.
   const filteredItems = useMemo(() => items.filter((s) => {
-    if (statusFilter !== 'all') {
-      const status = s.status || (s.enable === false ? 'disable' : 'enable');
-      if (statusFilter === 'online' && status !== 'online') return false;
-      if (statusFilter === 'offline' && status !== 'offline') return false;
-      if (statusFilter === 'draft' && status !== 'draft') return false;
-      if (statusFilter === 'published' && status !== 'published') return false;
-    }
     if (scopeFilter !== 'all') {
       if ((s.visibility || s.scope || 'private').toLowerCase() !== scopeFilter) return false;
     }
     return true;
-  }), [items, statusFilter, scopeFilter]);
+  }), [items, scopeFilter]);
 
   const skillSetSkills = useMemo(() => {
     const skillsets = new Map<string, Skill[]>();
@@ -113,7 +110,7 @@ export function SkillsPage() {
             icon={<Cpu className="h-4 w-4" />}
             label={t('skills.total')}
             value={items.length}
-            trend={`${items.filter(s => s.status === 'online').length} ${t('skills.statusOnline').toLowerCase()}`}
+            trend={undefined}
             accent="violet"
           />
           <StatCard
@@ -129,9 +126,9 @@ export function SkillsPage() {
             accent="sky"
           />
           <StatCard
-            icon={<Zap className="h-4 w-4" />}
-            label={t('skills.online')}
-            value={items.filter(s => s.status === 'online' || (s.onlineCnt || 0) > 0).length}
+            icon={<Layers className="h-4 w-4" />}
+            label={t('skills.skillsets')}
+            value={new Set(items.flatMap(s => Array.isArray(s.groups) ? s.groups : [])).size}
             accent="amber"
           />
         </div>
@@ -142,8 +139,6 @@ export function SkillsPage() {
           onSearchChange={setSearch}
           skillSetName={skillSetName}
           onGroupNameChange={setSkillSetName}
-          statusFilter={statusFilter}
-          onStatusFilterChange={setStatusFilter}
           scopeFilter={scopeFilter}
           onScopeFilterChange={setScopeFilter}
           onRefresh={() => refetch()}
@@ -169,9 +164,9 @@ export function SkillsPage() {
             ) : filteredItems.length === 0 ? (
               <EmptyState
                 icon={<Package className="h-10 w-10" />}
-                title={search || statusFilter !== 'all' || scopeFilter !== 'all' ? t('skills.empty.filtered') : t('skills.empty.title')}
+                title={search || scopeFilter !== 'all' ? t('skills.empty.filtered') : t('skills.empty.title')}
                 description={
-                  search || statusFilter !== 'all' || scopeFilter !== 'all'
+                  search || scopeFilter !== 'all'
                     ? t('skills.empty.filteredDesc')
                     : t('skills.empty.desc')
                 }
@@ -202,9 +197,9 @@ export function SkillsPage() {
             ) : filteredItems.length === 0 ? (
               <EmptyState
                 icon={<Package className="h-10 w-10" />}
-                title={search || statusFilter !== 'all' || scopeFilter !== 'all' ? t('skills.empty.filtered') : t('skills.empty.title')}
+                title={search || scopeFilter !== 'all' ? t('skills.empty.filtered') : t('skills.empty.title')}
                 description={
-                  search || statusFilter !== 'all' || scopeFilter !== 'all'
+                  search || scopeFilter !== 'all'
                     ? t('skills.empty.filteredDesc')
                     : t('skills.empty.desc')
                 }
@@ -296,17 +291,13 @@ export function SkillsPage() {
           onChanged={() => refetch()}
         />
 
-        {/* Confirm Dialog */}
+        {/* Confirm Dialog — delete only (online/offline was removed in the Git-native refactor) */}
         <ConfirmDialog
           open={Boolean(confirmAction)}
           onOpenChange={(open) => { if (!open) setConfirmAction(null); }}
-          title={confirmAction?.action === 'delete' ? t('editor.deleteTitle') : t('skillCard.takeOffline')}
-          description={
-            confirmAction?.action === 'delete'
-              ? t('editor.deleteDesc', { name: confirmAction.skill.name })
-              : `${t('skillCard.takeOffline')} "${confirmAction?.skill.name}"?`
-          }
-          confirmLabel={confirmAction?.action === 'delete' ? t('common.delete') : t('skillCard.takeOffline')}
+          title={t('editor.deleteTitle')}
+          description={confirmAction ? t('editor.deleteDesc', { name: confirmAction.skill.name }) : ''}
+          confirmLabel={t('common.delete')}
           variant="destructive"
           onConfirm={() => confirmAction && executeAction(confirmAction.action, confirmAction.skill)}
         />
