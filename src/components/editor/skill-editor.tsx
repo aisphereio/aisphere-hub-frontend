@@ -70,7 +70,7 @@ interface SkillEditorProps {
   onBack: () => void;
 }
 
-type RightPanelTab = "overview" | "runtime" | "settings" | "shares" | "prs";
+type RightPanelTab = "overview" | "settings" | "shares" | "prs";
 
 /**
  * SkillEditor — settings-focused editor for the Git-native Hub.
@@ -80,7 +80,7 @@ type RightPanelTab = "overview" | "runtime" | "settings" | "shares" | "prs";
  * UI, so this editor no longer hosts a file tree, code editor, version
  * timeline, or commit/publish/submit/online/offline actions. It focuses on
  * metadata the Hub still persists via UpdateSkill (displayName/description),
- * sharing, the runtime catalog reference, and delete. A git-aware content
+ * sharing, and delete. A git-aware content
  * editor is a follow-up.
  */
 export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
@@ -377,7 +377,7 @@ git add SKILL.md && git commit -m "update skill" && git push`}
           />
         </div>
 
-        {/* ─── Right: Settings / Runtime / Shares ──────────────────────── */}
+        {/* ─── Right: Settings / Shares ───────────────────────────────── */}
         {showRightPanel && (
           <div className="w-80 shrink-0 flex flex-col bg-card/40">
             <Tabs
@@ -392,12 +392,6 @@ git add SKILL.md && git commit -m "update skill" && git push`}
                     className="text-xs h-8 px-3 data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
                   >
                     Overview
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="runtime"
-                    className="text-xs h-8 px-3 data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
-                  >
-                    Runtime
                   </TabsTrigger>
                   <TabsTrigger
                     value="settings"
@@ -434,26 +428,6 @@ git add SKILL.md && git commit -m "update skill" && git push`}
                       label="Org"
                       value={detail.orgId || "-"}
                     />
-                  </div>
-                </TabsContent>
-
-                {/* RUNTIME */}
-                <TabsContent value="runtime" className="p-3 space-y-3 mt-0">
-                  <div>
-                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Client API
-                    </Label>
-                    <p className="text-[11px] text-muted-foreground mt-1 mb-2">
-                      Used by the Agent runtime to resolve this skill at request
-                      time.
-                    </p>
-                    <pre className="text-[10px] font-mono bg-muted/40 p-2.5 rounded-md overflow-x-auto scrollbar-thin whitespace-pre-wrap leading-relaxed">
-{`# Catalog record
-GET /v3/aihub/catalog/skills/${detail.name}
-
-# Online manifest consumed by runtime
-GET /v3/aihub/catalog/skills/${detail.name}/manifest`}
-                    </pre>
                   </div>
                 </TabsContent>
 

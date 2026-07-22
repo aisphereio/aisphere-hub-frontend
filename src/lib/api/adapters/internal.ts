@@ -77,8 +77,19 @@ export function normalizeSkill(skill: Skill): Skill {
     String(b.version).localeCompare(String(a.version)),
   );
   const onlineVersion = versions.find((v) => v.status === 'online')?.version;
+  // The Hub backend's default JSON codec emits snake_case struct tags
+  // (owner_id, create_time, update_time) rather than the camelCase the
+  // generated types expect. Reconcile both shapes so the detail panel
+  // renders owner and timestamps regardless of codec.
+  const raw = skill as any;
+  const ownerId = skill.ownerId || raw.owner_id;
+  const createTime = skill.createTime ?? raw.create_time;
+  const updateTime = skill.updateTime ?? raw.update_time;
   return {
     ...skill,
+    ownerId,
+    createTime,
+    updateTime,
     versions,
     labels: skill.labels || manifestLabels,
     metadata:
@@ -89,7 +100,7 @@ export function normalizeSkill(skill: Skill): Skill {
     bizTags: skill.bizTags || tags,
     keywords: skill.keywords || tags,
     scope: skill.scope || skill.visibility || 'private',
-    owner: skill.owner || skill.ownerId,
+    owner: skill.owner || ownerId,
     latestVersion:
       skill.latestVersion || skill.version || versions[0]?.version,
     stableVersion: skill.stableVersion || onlineVersion || skill.version,

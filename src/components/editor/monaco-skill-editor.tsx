@@ -394,6 +394,7 @@ function CodeMirrorSkillEditor({
             value={value}
             height="100%"
             theme={editorTheme}
+            autoFocus
             extensions={languageExtensions}
             readOnly={Boolean(readOnly || saveMutation.isPending)}
             editable={!readOnly && !saveMutation.isPending}
