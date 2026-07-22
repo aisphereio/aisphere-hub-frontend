@@ -15,7 +15,7 @@
  *   ⚠️ accessApi   → /v1/authz/*    (legacy endpoints, will 404 until UI is rebuilt)
  *   ⏳ skillSetApi → /v3/aihub/skillsets/*  (awaiting backend migration)
  *   ⏳ agentApi    → /v3/aihub/agents/*     (awaiting backend migration)
- *   ⏳ sandboxApi  → /v3/aihub/runtime/sandboxes/*  (awaiting backend migration)
+ *   ✅ sandboxApi  → /v1/clusters|namespaces|sandboxes/*  (migrated, generated+adapter, SandboxService)
  *   ⏳ toolApi     → /v3/aihub/tools/*      (awaiting backend migration)
  *   ⏳ proposalApi → /v3/admin/ai/skill-proposals/*  (awaiting backend migration)
  *   ⏳ iamApi      → /v3/admin/iam/*        (awaiting backend migration)
@@ -24,7 +24,7 @@
  *   ⏳ tokenApi    → /v3/admin/iam/tokens/* (awaiting backend migration)
  *   ⏳ metricsApi  → /v3/admin/metrics      (awaiting backend migration)
  *   ⏳ notificationApi → /v3/admin/notifications/*  (awaiting backend migration)
- *   ⏳ sandboxProfileApi → /v3/aihub/sandbox-profiles/*  (awaiting backend migration)
+ *   ✅ sandboxProfileApi → /v1/clusters/{id}/sandbox-templates  (migrated into sandboxApi, generated+adapter)
  *   ⏳ modelProfileApi → /v3/aihub/model-profiles/*  (awaiting backend migration)
  *
  * The ⏳ modules will 404 against the new hub until their backends are
@@ -380,45 +380,14 @@ export const runtimeServiceApi = {
     }),
 };
 
-export const sandboxApi = {
-  list: (params: Record<string, unknown> = {}) =>
-    request<Page<SandboxStatus>>(
-      `/v3/aihub/runtime/sandboxes?${toQuery(params)}`,
-    ),
-  ensure: (body: SandboxEnsureRequest) =>
-    request<SandboxStatus>("/v3/aihub/runtime/sandboxes", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-  get: (sandboxId: string) =>
-    request<SandboxStatus>(
-      `/v3/aihub/runtime/sandboxes/${encodeURIComponent(sandboxId)}`,
-    ),
-  restart: (sandboxId: string) =>
-    request<SandboxStatus>(
-      `/v3/aihub/runtime/sandboxes/${encodeURIComponent(sandboxId)}/restart`,
-      { method: "POST" },
-    ),
-  remove: (sandboxId: string, deleteWorkspace = false) =>
-    request<unknown>(
-      `/v3/aihub/runtime/sandboxes/${encodeURIComponent(sandboxId)}?${toQuery({ deleteWorkspace })}`,
-      { method: "DELETE" },
-    ),
-  logsUrl: (sandboxId: string, tailLines = 200, container = "sandbox") =>
-    `/v3/aihub/runtime/sandboxes/${encodeURIComponent(sandboxId)}/logs?${toQuery({ tailLines, container })}`,
-  tools: (sandboxId: string) =>
-    request<SandboxToolListResponse>(
-      `/v3/aihub/runtime/sandboxes/${encodeURIComponent(sandboxId)}/tools`,
-    ),
-  callTool: (sandboxId: string, body: SandboxToolCallRequest) =>
-    request<SandboxToolCallResult>(
-      `/v3/aihub/runtime/sandboxes/${encodeURIComponent(sandboxId)}/tools/call`,
-      {
-        method: "POST",
-        body: JSON.stringify(body),
-      },
-    ),
-};
+// sandboxApi is backed by the orval-generated SandboxService client.
+// See adapters/sandbox.ts for the generated → domain-type mapping.
+// (The old v3 hand-written sandboxApi object — list/ensure/get/restart/
+//  remove/logsUrl/tools/callTool against /v3/aihub/runtime/sandboxes/* —
+//  has been removed. The new SDK is protojson and namespace/cluster-scoped;
+//  there is no ensure/restart RPC. UI code now imports sandboxApi from
+//  ./adapters/sandbox directly, or via the re-export below.)
+export { sandboxApi } from './adapters/sandbox';
 
 export const toolApi = {
   list: (params: Record<string, unknown> = {}) =>
@@ -1200,27 +1169,17 @@ function publicGrant(resourceType: AihubResourceType, resourceId: string): Resou
 // See adapters/shares.ts for the generated → domain-type mapping.
 export { sharesApi } from './adapters/shares';
 
-export const sandboxProfileApi = {
-  list: () => request<SandboxProfile[]>("/v3/aihub/sandbox-profiles"),
-  get: (id: string) =>
-    request<SandboxProfile>(
-      `/v3/aihub/sandbox-profiles/${encodeURIComponent(id)}`,
-    ),
-  save: (profile: SandboxProfile) =>
-    request<SandboxProfile>("/v3/aihub/sandbox-profiles", {
-      method: "POST",
-      body: JSON.stringify(profile),
-    }),
-  update: (id: string, profile: SandboxProfile) =>
-    request<SandboxProfile>(
-      `/v3/aihub/sandbox-profiles/${encodeURIComponent(id)}`,
-      { method: "PUT", body: JSON.stringify(profile) },
-    ),
-  remove: (id: string) =>
-    request<string>(`/v3/aihub/sandbox-profiles/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    }),
-};
+// sandboxProfileApi has been migrated into sandboxApi (SandboxTemplate RPCs).
+// The old v3 hand-written object against /v3/aihub/sandbox-profiles/* is gone;
+// template management now uses sandboxApi.listSandboxTemplates /
+// createSandboxTemplate / deleteSandboxTemplate (cluster-scoped, generated SDK).
+// export const sandboxProfileApi = {
+//   list: () => request<SandboxProfile[]>("/v3/aihub/sandbox-profiles"),
+//   get: (id: string) => request<SandboxProfile>(`/v3/aihub/sandbox-profiles/${encodeURIComponent(id)}`),
+//   save: (profile: SandboxProfile) => request<SandboxProfile>("/v3/aihub/sandbox-profiles", { method: "POST", body: JSON.stringify(profile) }),
+//   update: (id: string, profile: SandboxProfile) => request<SandboxProfile>(`/v3/aihub/sandbox-profiles/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(profile) }),
+//   remove: (id: string) => request<string>(`/v3/aihub/sandbox-profiles/${encodeURIComponent(id)}`, { method: "DELETE" }),
+// };
 
 export const modelProfileApi = {
   list: () => request<ModelProfile[]>("/v3/aihub/model-profiles"),
