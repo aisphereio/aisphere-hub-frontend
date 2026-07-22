@@ -8,7 +8,6 @@
  */
 import {
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -54,6 +53,12 @@ export type MonacoSkillEditorProps = {
   onSaved?: (sha: string, content: string) => void;
   /** Called when a 409 conflict is detected so the parent can refetch. */
   onConflict?: () => void;
+  /**
+   * Called when the buffer's dirty flag (value !== savedValue) changes, so
+   * the tab container can show a dirty marker and intercept close. Only the
+   * dirty *metadata* is lifted; the text/sha/undo state stays in the editor.
+   */
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 function languageExtensionsFor(path: string): Extension[] {
@@ -154,6 +159,7 @@ function CodeMirrorSkillEditor({
   readOnly,
   onSaved,
   onConflict,
+  onDirtyChange,
 }: MonacoSkillEditorProps) {
   const t = useT();
   const { resolvedTheme } = useTheme();
@@ -177,19 +183,33 @@ function CodeMirrorSkillEditor({
     [filePath],
   );
 
-  // Browser refresh, tab close and external navigation must not silently drop
-  // any dirty buffer, including buffers held by inactive file tabs.
-  useEffect(() => {
-    if (!dirty) return;
+  // Report dirty transitions up to the tab container. We do NOT lift the
+  // text/sha/undo state itself (that would create two sources of truth) —
+  // only the dirty *flag* is mirrored so the parent can mark the tab and
+  // intercept close. Reporting happens at the points where dirty can flip,
+  // not via a separate Effect, to keep the data flow explicit.
+  const reportDirty = useCallback(
+    (nextDirty: boolean) => {
+      onDirtyChange?.(nextDirty);
+    },
+    [onDirtyChange],
+  );
 
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
+  // Typing is the only path that can flip dirty false → true. Compute the
+  // new flag against the (current) savedValue rather than the stale `dirty`
+  // closure value so a keystroke that restores the saved buffer reports
+  // false immediately.
+  const handleChange = useCallback(
+    (nextValue: string) => {
+      setValue(nextValue);
+      reportDirty(nextValue !== savedValue);
+    },
+    [reportDirty, savedValue],
+  );
 
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [dirty]);
+  // Browser refresh / close protection now lives once on the tab container
+  // (gated on whether *any* tab is dirty), so each editor no longer
+  // registers its own beforeunload listener.
 
   const doSave = useCallback(async () => {
     if (!dirty || saveMutation.isPending || readOnly) return;
@@ -208,6 +228,7 @@ function CodeMirrorSkillEditor({
       setLocalSha(result.sha);
       setCommitMessage("");
       onSaved?.(result.sha, value);
+      reportDirty(false);
       toast.success(t("editor.fileSaved"));
     } catch (error) {
       const conflictError = error as { isConflict?: boolean };
@@ -240,6 +261,7 @@ function CodeMirrorSkillEditor({
     onConflict,
     onSaved,
     readOnly,
+    reportDirty,
     saveMutation,
     skillName,
     t,
@@ -276,7 +298,10 @@ function CodeMirrorSkillEditor({
             size="sm"
             variant="ghost"
             className="h-7 gap-1 px-2 text-xs"
-            onClick={() => setValue(savedValue)}
+            onClick={() => {
+              setValue(savedValue);
+              reportDirty(false);
+            }}
             disabled={!dirty || saveMutation.isPending}
             title={t("editor.discard") ?? "Discard"}
           >
@@ -338,6 +363,7 @@ function CodeMirrorSkillEditor({
                     setSavedValue(conflict.serverContent);
                     setLocalSha(conflict.serverSha);
                     setConflict(null);
+                    reportDirty(false);
                   }}
                   disabled={resolving}
                 >
@@ -350,6 +376,7 @@ function CodeMirrorSkillEditor({
                   onClick={() => {
                     setLocalSha(conflict.serverSha);
                     setConflict(null);
+                    reportDirty(true);
                   }}
                   disabled={resolving}
                 >
@@ -398,7 +425,7 @@ function CodeMirrorSkillEditor({
             extensions={languageExtensions}
             readOnly={Boolean(readOnly || saveMutation.isPending)}
             editable={!readOnly && !saveMutation.isPending}
-            onChange={setValue}
+            onChange={handleChange}
             className={EDITOR_CLASS_NAME}
           />
         )}
