@@ -991,12 +991,19 @@ export type SkillDraft = {
   name: string;
   displayName?: string;
   description?: string;
-  scope?: string;
   visibility?: SkillVisibility;
+  scope?: string;
   keywords?: string[];
   bizTags?: string[];
   metadata?: Record<string, unknown>;
   version?: string;
+  orgId?: string;
+  projectId?: string;
+};
+
+export type SkillArchiveImportDraft = {
+  archiveZip: string;
+  visibility?: SkillVisibility;
   orgId?: string;
   projectId?: string;
 };

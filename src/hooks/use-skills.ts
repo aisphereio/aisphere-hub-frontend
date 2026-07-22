@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { skillApi, socialApi } from "@/lib/api";
 import { asItems } from "@/lib/api/client";
-import type { Skill, SkillDraft } from "@/lib/api/types";
+import type { Skill, SkillArchiveImportDraft, SkillDraft } from "@/lib/api/types";
 
 const ENABLE_SKILL_SOCIAL =
   process.env.NEXT_PUBLIC_ENABLE_SKILL_SOCIAL === "1" ||
@@ -60,6 +60,19 @@ export function useSkillDraft() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["skills", "list"] });
+    },
+  });
+}
+
+export function useSkillArchiveImport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: SkillArchiveImportDraft) => skillApi.importArchive(data),
+    onSuccess: (skill) => {
+      queryClient.invalidateQueries({ queryKey: ["skills", "list"] });
+      queryClient.invalidateQueries({
+        queryKey: ["skills", "detail", skill.name],
+      });
     },
   });
 }

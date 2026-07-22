@@ -26,9 +26,11 @@ import type {
   FileServiceGetFileParams,
   FileServiceListFilesParams,
   FileServiceUpdateFileBody,
-  V1FileContent,
+  V1CreateFileResponse,
   V1FileContents,
   V1FileInfo,
+  V1GetFileResponse,
+  V1UpdateFileResponse,
 } from "../generated/model";
 import type { SkillFile, SkillFileEntry } from "../types";
 
@@ -99,7 +101,7 @@ function encodeContent(plaintext: string): string {
   }
 }
 
-function toFile(c: V1FileContent): SkillFile {
+function toFile(c: V1GetFileResponse | V1CreateFileResponse | V1UpdateFileResponse): SkillFile {
   return {
     name: c.name ?? "",
     path: c.path ?? "",
@@ -136,7 +138,7 @@ export const fileApi = {
     path: string,
     ref?: string,
   ): Promise<SkillFile> => {
-    const reply: V1FileContent = await fileServiceGetFile(skillName, path, {
+    const reply: V1GetFileResponse = await fileServiceGetFile(skillName, path, {
       ref,
     } as FileServiceGetFileParams);
     return toFile(reply);
@@ -154,7 +156,7 @@ export const fileApi = {
       message: opts.message,
       branch: opts.branch,
     };
-    const reply: V1FileContent = await fileServiceCreateFile(
+    const reply: V1CreateFileResponse = await fileServiceCreateFile(
       skillName,
       path,
       body,
@@ -180,7 +182,7 @@ export const fileApi = {
       sha: opts.sha,
       branch: opts.branch,
     };
-    const reply: V1FileContent = await fileServiceUpdateFile(
+    const reply: V1UpdateFileResponse = await fileServiceUpdateFile(
       skillName,
       path,
       body,

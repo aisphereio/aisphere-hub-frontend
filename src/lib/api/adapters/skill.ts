@@ -25,12 +25,13 @@ import {
   skillServiceCreateSkill,
   skillServiceDeleteSkill,
   skillServiceGetSkill,
+  skillServiceImportSkillArchive,
   skillServiceListSkills,
   skillServiceUpdateSkill,
   skillServiceUpdateSkillVisibility,
 } from '../generated/skill-service/skill-service';
 import type { V1Skill } from '../generated/model';
-import type { Page, Skill, SkillDraft } from '../types';
+import type { Page, Skill, SkillArchiveImportDraft, SkillDraft } from '../types';
 import {
   manifestJsonForUpdate,
   mergeUniqueTags,
@@ -126,6 +127,22 @@ export const skillApi = {
       displayName: data.displayName,
       description: data.description,
       visibility: data.visibility || data.scope || 'private',
+      orgId: data.orgId,
+      projectId: data.projectId,
+    });
+    return toSkill(created);
+  },
+
+  importArchive: async (data: SkillArchiveImportDraft) => {
+    if (!data.orgId) {
+      throw new Error('Skill archive import requires an orgId');
+    }
+    if (!data.archiveZip) {
+      throw new Error('Skill archive import requires a ZIP file');
+    }
+    const created = await skillServiceImportSkillArchive({
+      archiveZip: data.archiveZip,
+      visibility: data.visibility || 'private',
       orgId: data.orgId,
       projectId: data.projectId,
     });

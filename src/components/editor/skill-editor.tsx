@@ -559,6 +559,35 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
   // the actual removal. null means no close is pending.
   const [pendingClosePath, setPendingClosePath] = useState<string | null>(null);
 
+  // Actually remove a tab and fix up focus. Used by the confirm dialog
+  // (after the user accepts discarding) and by unconditional close paths
+  // (file delete). Never prompts.
+  const forceCloseTab = useCallback((path: string) => {
+    setTabs((prev) => {
+      const idx = prev.findIndex((tab) => tab.path === path);
+      if (idx < 0) return prev;
+      const next = prev.filter((tab) => tab.path !== path);
+      // If we closed the active tab, move focus to the neighbour.
+      setActivePath((cur) => {
+        if (cur !== path) return cur;
+        if (next.length === 0) return null;
+        const clamp = Math.min(idx, next.length - 1);
+        return next[clamp].path;
+      });
+      return next;
+    });
+  }, []);
+
+  // Open a real file tab (or focus it if already open). New tabs start
+  // clean; dirty flips to true only when the user actually types.
+  const openTab = useCallback((path: string, create: boolean) => {
+    setTabs((prev) => {
+      if (prev.some((tab) => tab.path === path)) return prev;
+      return [...prev, { path, create, dirty: false }];
+    });
+    setActivePath(path);
+  }, []);
+
   const tree = useFileTree(skillName, currentPath, defaultBranch);
   const deleteMutation = useDeleteFile();
 
@@ -574,9 +603,10 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
     );
     if (skillMd) {
       autoOpenedRef.current = true;
-      openTab(skillMd.path, false);
+      const handle = window.setTimeout(() => openTab(skillMd.path, false), 0);
+      return () => window.clearTimeout(handle);
     }
-  }, [tree.data, tabs.length]);
+  }, [tree.data, tabs.length, openTab]);
 
   // Delete a file from the skill repo. We pass the optimistic-concurrency
   // sha so the server rejects the delete if someone else moved the file
@@ -633,16 +663,6 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
     toast.success(t("editor.fileCreated"));
   };
 
-  // Open a real file tab (or focus it if already open). New tabs start
-  // clean; dirty flips to true only when the user actually types.
-  const openTab = (path: string, create: boolean) => {
-    setTabs((prev) => {
-      if (prev.some((tab) => tab.path === path)) return prev;
-      return [...prev, { path, create, dirty: false }];
-    });
-    setActivePath(path);
-  };
-
   // Mirror a single tab's dirty flag, reported upward by the editor.
   const markTabDirty = useCallback((path: string, dirty: boolean) => {
     setTabs((prev) =>
@@ -650,25 +670,6 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
         tab.path === path && tab.dirty !== dirty ? { ...tab, dirty } : tab,
       ),
     );
-  }, []);
-
-  // Actually remove a tab and fix up focus. Used by the confirm dialog
-  // (after the user accepts discarding) and by unconditional close paths
-  // (file delete). Never prompts.
-  const forceCloseTab = useCallback((path: string) => {
-    setTabs((prev) => {
-      const idx = prev.findIndex((tab) => tab.path === path);
-      if (idx < 0) return prev;
-      const next = prev.filter((tab) => tab.path !== path);
-      // If we closed the active tab, move focus to the neighbour.
-      setActivePath((cur) => {
-        if (cur !== path) return cur;
-        if (next.length === 0) return null;
-        const clamp = Math.min(idx, next.length - 1);
-        return next[clamp].path;
-      });
-      return next;
-    });
   }, []);
 
   // User-initiated close (the tab X). Clean tabs close immediately;

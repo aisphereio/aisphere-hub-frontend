@@ -91,9 +91,10 @@ export function EnvironmentsPage() {
   useEffect(() => {
     const orgId = (principal?.orgId as string | undefined) || (principal?.org_id as string | undefined);
     if (orgId && orgId !== clusterForm.orgId) {
-      setClusterForm((prev) => ({ ...prev, orgId }));
+      const handle = window.setTimeout(() => setClusterForm((prev) => ({ ...prev, orgId })), 0);
+      return () => window.clearTimeout(handle);
     }
-  }, [principal]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [principal, clusterForm.orgId]);
   const [rotateForm, setRotateForm] = useState({
     credentialKind: 'kubeconfig' as CredentialKind,
     kubeconfig: '',

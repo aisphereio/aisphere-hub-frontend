@@ -1,8 +1,8 @@
 {
   "repository": "https://github.com/aisphereio/aisphere-hub.git",
-  "git_sha": "e40e02fb8c711c073ccae82a2b6e1584fc13deb2",
-  "ref": "main",
-  "sha256": "6b98feb32e4378eca52d9f39f8e7d6483d8bc6755e597254bf43814e671c5383",
-  "kernel_version": "v0.4.17",
+  "git_sha": "b91d253f9fa228eb64e46af336583e244e7694a8",
+  "ref": "feat/skill-zip-import",
+  "sha256": "2418d9c1c8f5025a996ea21e6e9b35fe2ff204b49003e6c3f7d57b6dff8ce62e",
+  "kernel_version": "v0.4.2",
   "generator": "protoc-gen-openapiv2@v2.29.0"
 }
