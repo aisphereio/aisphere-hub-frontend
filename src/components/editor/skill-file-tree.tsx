@@ -3,15 +3,12 @@
 /**
  * SkillFileTree — left-pane file explorer for the skill editor.
  *
- * Renders a flat list of entries at the current path. Directories are
- * clickable (navigate into them); files are clickable (open in the
- * Monaco editor). A breadcrumb at the top shows the current path and
- * lets the user walk back up. A "new file" button at the top triggers
- * the create flow in the parent.
- *
- * The tree is deliberately non-recursive: a skill repo is small and
- * showing one directory at a time matches the GitLab/Gitea contents
- * UX the backend API mirrors. Recursive expansion can be added later.
+ * Renders one directory level at a time. The backend ListFiles returns
+ * the immediate children of the requested path only (files + folders,
+ * not a recursive flatten), so folders show up here as navigable rows.
+ * Clicking a folder calls onNavigate to descend; the breadcrumb and the
+ * ".." row walk back up. Files open in the editor via onSelectFile. The
+ * "new file" button opens the create-file dialog in the parent.
  */
 import { useState } from "react";
 import { ChevronRight, File, Folder, FilePlus2, CornerLeftUp, Trash2, Loader2 } from "lucide-react";
