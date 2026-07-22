@@ -134,6 +134,13 @@ export function useSaveFile() {
       void queryClient.invalidateQueries({
         queryKey: SKILL_FILE_QUERY_KEYS.listsForSkill(vars.skillName),
       });
+
+      if (vars.path === "SKILL.md") {
+        void queryClient.invalidateQueries({
+          queryKey: ["skills", "detail", vars.skillName],
+        });
+        void queryClient.invalidateQueries({ queryKey: ["skills", "list"] });
+      }
     },
   });
 }
