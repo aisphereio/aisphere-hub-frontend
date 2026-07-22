@@ -5,10 +5,32 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function fmtTime(v?: number | string): string {
-  if (!v) return '-';
-  const d = typeof v === 'number' ? new Date(v) : new Date(v);
-  return Number.isNaN(d.getTime()) ? String(v) : d.toLocaleString();
+// Coerce a timestamp value (which may arrive as an RFC3339 string, a
+// millisecond/second number, or a protobuf Timestamp object
+// {seconds, nanos} when the backend uses its plain JSON codec) into a
+// Date, or undefined when it cannot be parsed.
+function toDate(v: unknown): Date | undefined {
+  if (v == null || v === '') return undefined;
+  if (typeof v === 'number') {
+    // Treat numbers ≤ 1e12 as seconds (protobuf seconds), larger as ms.
+    return new Date(v > 1e12 ? v : v * 1000);
+  }
+  if (typeof v === 'string') {
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  }
+  if (typeof v === 'object') {
+    const t = v as { seconds?: number; nanos?: number };
+    if (typeof t.seconds === 'number') {
+      return new Date(t.seconds * 1000 + (t.nanos ?? 0) / 1e6);
+    }
+  }
+  return undefined;
+}
+
+export function fmtTime(v?: unknown): string {
+  const d = toDate(v);
+  return d ? d.toLocaleString() : '-';
 }
 
 export function fmtSize(bytes = 0): string {
@@ -17,10 +39,9 @@ export function fmtSize(bytes = 0): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function fmtRelativeTime(v?: number | string): string {
-  if (!v) return '-';
-  const d = typeof v === 'number' ? new Date(v) : new Date(v);
-  if (Number.isNaN(d.getTime())) return String(v);
+export function fmtRelativeTime(v?: unknown): string {
+  const d = toDate(v);
+  if (!d) return '-';
   const now = Date.now();
   const diff = now - d.getTime();
   if (diff < 60_000) return 'just now';
