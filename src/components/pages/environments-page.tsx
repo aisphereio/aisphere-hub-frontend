@@ -286,10 +286,12 @@ export function EnvironmentsPage() {
                       <TableCell className="text-xs">{cluster.kubernetesVersion || '-'}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button size="icon" variant="ghost" className="h-7 w-7" title="探测" onClick={(event) => {
-                            event.stopPropagation();
-                            if (cluster.id) probeCluster.mutate(cluster.id);
-                          }}><Activity className="h-3.5 w-3.5" /></Button>
+                          {cluster.permissions?.canOperate ? (
+                            <Button size="icon" variant="ghost" className="h-7 w-7" title="探测" onClick={(event) => {
+                              event.stopPropagation();
+                              if (cluster.id) probeCluster.mutate(cluster.id);
+                            }}><Activity className="h-3.5 w-3.5" /></Button>
+                          ) : null}
                           {cluster.permissions?.canDelete ? (
                             <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="从平台分离" onClick={(event) => {
                               event.stopPropagation();
@@ -345,9 +347,11 @@ export function EnvironmentsPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex flex-wrap items-center justify-between gap-2">
                 <span>{selectedCluster.displayName || selectedCluster.name} / Namespace</span>
-                <Button size="sm" variant="outline" onClick={() => syncNamespaces.mutate()} disabled={syncNamespaces.isPending}>
-                  <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncNamespaces.isPending ? 'animate-spin' : ''}`} /> 同步
-                </Button>
+                {selectedCluster.permissions?.canOperate ? (
+                  <Button size="sm" variant="outline" onClick={() => syncNamespaces.mutate()} disabled={syncNamespaces.isPending}>
+                    <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncNamespaces.isPending ? 'animate-spin' : ''}`} /> 同步
+                  </Button>
+                ) : null}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -396,50 +400,54 @@ export function EnvironmentsPage() {
           </Card>
 
           <div className="space-y-4">
-            <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><Plus className="h-4 w-4" /> 创建 Namespace</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <Input placeholder="DNS-1123 名称，如 agent-runtime" value={namespaceForm.name} onChange={(event) => setNamespaceForm({ ...namespaceForm, name: event.target.value })} />
-                <Input placeholder="展示名称" value={namespaceForm.displayName} onChange={(event) => setNamespaceForm({ ...namespaceForm, displayName: event.target.value })} />
-                <Textarea rows={2} placeholder="说明" value={namespaceForm.description} onChange={(event) => setNamespaceForm({ ...namespaceForm, description: event.target.value })} />
-                <Select value={namespaceForm.visibility} onValueChange={(visibility) => setNamespaceForm({ ...namespaceForm, visibility: visibility as NamespaceVisibility })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={V1NamespaceVisibility.NAMESPACE_VISIBILITY_PRIVATE}>私有</SelectItem>
-                    <SelectItem value={V1NamespaceVisibility.NAMESPACE_VISIBILITY_PUBLIC}>公开只读</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button className="w-full" disabled={!namespaceForm.name.trim() || createNamespace.isPending} onClick={() => createNamespace.mutate()}>
-                  <Plus className="h-4 w-4 mr-1" /> 创建到远端集群
-                </Button>
-              </CardContent>
-            </Card>
+            {selectedCluster.permissions?.canCreateNamespace ? (
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><Plus className="h-4 w-4" /> 创建 Namespace</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <Input placeholder="DNS-1123 名称，如 agent-runtime" value={namespaceForm.name} onChange={(event) => setNamespaceForm({ ...namespaceForm, name: event.target.value })} />
+                  <Input placeholder="展示名称" value={namespaceForm.displayName} onChange={(event) => setNamespaceForm({ ...namespaceForm, displayName: event.target.value })} />
+                  <Textarea rows={2} placeholder="说明" value={namespaceForm.description} onChange={(event) => setNamespaceForm({ ...namespaceForm, description: event.target.value })} />
+                  <Select value={namespaceForm.visibility} onValueChange={(visibility) => setNamespaceForm({ ...namespaceForm, visibility: visibility as NamespaceVisibility })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={V1NamespaceVisibility.NAMESPACE_VISIBILITY_PRIVATE}>私有</SelectItem>
+                      <SelectItem value={V1NamespaceVisibility.NAMESPACE_VISIBILITY_PUBLIC}>公开只读</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button className="w-full" disabled={!namespaceForm.name.trim() || createNamespace.isPending} onClick={() => createNamespace.mutate()}>
+                    <Plus className="h-4 w-4 mr-1" /> 创建到远端集群
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : null}
 
-            <Card>
-              <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><KeyRound className="h-4 w-4" /> 轮换集群凭据</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                <Select value={rotateForm.credentialKind} onValueChange={(value: CredentialKind) => setRotateForm({ ...rotateForm, credentialKind: value })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="kubeconfig">Kubeconfig</SelectItem><SelectItem value="service-account">ServiceAccount Token</SelectItem></SelectContent>
-                </Select>
-                {rotateForm.credentialKind === 'kubeconfig' ? (
-                  <Textarea className="font-mono text-xs" rows={6} placeholder="新 kubeconfig" value={rotateForm.kubeconfig} onChange={(event) => setRotateForm({ ...rotateForm, kubeconfig: event.target.value })} />
-                ) : (
-                  <>
-                    <Textarea className="font-mono text-xs" rows={3} placeholder="新 Token" value={rotateForm.token} onChange={(event) => setRotateForm({ ...rotateForm, token: event.target.value })} />
-                    <Textarea className="font-mono text-xs" rows={3} placeholder="新 CA PEM（可选）" value={rotateForm.caCert} onChange={(event) => setRotateForm({ ...rotateForm, caCert: event.target.value })} />
-                  </>
-                )}
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  disabled={rotateCredential.isPending || (rotateForm.credentialKind === 'kubeconfig' ? !rotateForm.kubeconfig.trim() : !rotateForm.token.trim())}
-                  onClick={() => rotateCredential.mutate(selectedCluster)}
-                >
-                  <RotateCcw className="h-4 w-4 mr-1" /> 探测并原子轮换
-                </Button>
-              </CardContent>
-            </Card>
+            {selectedCluster.permissions?.canManage ? (
+              <Card>
+                <CardHeader className="pb-3"><CardTitle className="text-sm flex items-center gap-2"><KeyRound className="h-4 w-4" /> 轮换集群凭据</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  <Select value={rotateForm.credentialKind} onValueChange={(value: CredentialKind) => setRotateForm({ ...rotateForm, credentialKind: value })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="kubeconfig">Kubeconfig</SelectItem><SelectItem value="service-account">ServiceAccount Token</SelectItem></SelectContent>
+                  </Select>
+                  {rotateForm.credentialKind === 'kubeconfig' ? (
+                    <Textarea className="font-mono text-xs" rows={6} placeholder="新 kubeconfig" value={rotateForm.kubeconfig} onChange={(event) => setRotateForm({ ...rotateForm, kubeconfig: event.target.value })} />
+                  ) : (
+                    <>
+                      <Textarea className="font-mono text-xs" rows={3} placeholder="新 Token" value={rotateForm.token} onChange={(event) => setRotateForm({ ...rotateForm, token: event.target.value })} />
+                      <Textarea className="font-mono text-xs" rows={3} placeholder="新 CA PEM（可选）" value={rotateForm.caCert} onChange={(event) => setRotateForm({ ...rotateForm, caCert: event.target.value })} />
+                    </>
+                  )}
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={rotateCredential.isPending || (rotateForm.credentialKind === 'kubeconfig' ? !rotateForm.kubeconfig.trim() : !rotateForm.token.trim())}
+                    onClick={() => rotateCredential.mutate(selectedCluster)}
+                  >
+                    <RotateCcw className="h-4 w-4 mr-1" /> 探测并原子轮换
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : null}
           </div>
         </div>
       ) : null}
