@@ -14,7 +14,7 @@
  * surfaces 409 conflicts as error.isConflict for the parent to handle.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Editor, { DiffEditor, type OnMount } from "@monaco-editor/react";
+import Editor, { DiffEditor, loader, type OnMount } from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Save, AlertTriangle, RotateCcw, Download, Pencil } from "lucide-react";
@@ -22,6 +22,13 @@ import { useSaveFile } from "@/hooks/use-skill-files";
 import { fileApi } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { toast } from "sonner";
+
+// Self-host Monaco: load the editor core + workers from /monaco/vs
+// (same-origin) instead of the default jsdelivr CDN. The assets are
+// copied into public/monaco/vs by .zscripts/copy-monaco.mjs (dev) and
+// into .next/standalone/public/monaco/vs by copy-standalone-assets.mjs
+// (prod). This runs once at module load, before any <Editor> mounts.
+loader.config({ paths: { vs: "/monaco/vs" } });
 
 export type MonacoSkillEditorProps = {
   skillName: string;
