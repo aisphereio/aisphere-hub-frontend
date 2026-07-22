@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { ArrowLeft, Loader2, Save, Trash2, Star, Bell, X, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -606,9 +606,15 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
   // Open tabs: one entry per file the user has opened. We keep both
   // real files and in-progress new-file drafts here so each tab owns
   // its own editor instance + dirty/sha state. `create` flips to false
-  // after the first successful save (POST → subsequent PUTs).
-  const [tabs, setTabs] = useState<{ path: string; create: boolean }[]>([]);
+  // after the first successful save (POST → subsequent PUTs). `dirty`
+  // is a mirror of the editor's `value !== savedValue` flag, reported
+  // via onDirtyChange; it lets the tab strip show a marker and intercept
+  // close without lifting the editor's text state.
+  const [tabs, setTabs] = useState<{ path: string; create: boolean; dirty: boolean }[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
+  // Path of a dirty tab the user asked to close; the ConfirmDialog gates
+  // the actual removal. null means no close is pending.
+  const [pendingClosePath, setPendingClosePath] = useState<string | null>(null);
 
   const tree = useFileTree(skillName, currentPath, defaultBranch);
   const deleteMutation = useDeleteFile();
@@ -622,7 +628,9 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
       { skillName, path, sha, branch: defaultBranch },
       {
         onSuccess: () => {
-          closeTab(path);
+          // The delete itself was already confirmed and the file is gone
+          // server-side, so close the tab without a second dirty prompt.
+          forceCloseTab(path);
           toast.success(t("editor.fileDeleted"));
         },
         onError: (err) => {
@@ -666,16 +674,29 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
     toast.success(t("editor.fileCreated"));
   };
 
-  // Open a real file tab (or focus it if already open).
+  // Open a real file tab (or focus it if already open). New tabs start
+  // clean; dirty flips to true only when the user actually types.
   const openTab = (path: string, create: boolean) => {
     setTabs((prev) => {
       if (prev.some((tab) => tab.path === path)) return prev;
-      return [...prev, { path, create }];
+      return [...prev, { path, create, dirty: false }];
     });
     setActivePath(path);
   };
 
-  const closeTab = (path: string) => {
+  // Mirror a single tab's dirty flag, reported upward by the editor.
+  const markTabDirty = useCallback((path: string, dirty: boolean) => {
+    setTabs((prev) =>
+      prev.map((tab) =>
+        tab.path === path && tab.dirty !== dirty ? { ...tab, dirty } : tab,
+      ),
+    );
+  }, []);
+
+  // Actually remove a tab and fix up focus. Used by the confirm dialog
+  // (after the user accepts discarding) and by unconditional close paths
+  // (file delete). Never prompts.
+  const forceCloseTab = useCallback((path: string) => {
     setTabs((prev) => {
       const idx = prev.findIndex((tab) => tab.path === path);
       if (idx < 0) return prev;
@@ -689,15 +710,50 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
       });
       return next;
     });
-  };
+  }, []);
+
+  // User-initiated close (the tab X). Clean tabs close immediately;
+  // dirty tabs route through the ConfirmDialog via pendingClosePath.
+  const requestCloseTab = useCallback(
+    (path: string) => {
+      const tab = tabs.find((item) => item.path === path);
+      if (!tab?.dirty) {
+        forceCloseTab(path);
+        return;
+      }
+      setPendingClosePath(path);
+    },
+    [tabs, forceCloseTab],
+  );
 
   // After a new-file tab saves successfully, flip it to edit mode so the
-  // next save is a PUT (not another POST).
+  // next save is a PUT (not another POST). A fresh save also means the
+  // buffer is clean.
   const markSaved = (path: string) => {
     setTabs((prev) =>
-      prev.map((tab) => (tab.path === path ? { ...tab, create: false } : tab)),
+      prev.map((tab) =>
+        tab.path === path
+          ? { ...tab, create: false, dirty: false }
+          : tab,
+      ),
     );
   };
+
+  // Browser refresh / tab close / external navigation protection. Lifted
+  // to the pane so the whole page registers exactly one listener, gated
+  // on whether *any* open tab is dirty (the editors no longer self-register).
+  const hasDirtyTabs = tabs.some((tab) => tab.dirty);
+  useEffect(() => {
+    if (!hasDirtyTabs) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasDirtyTabs]);
 
   return (
     <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
@@ -760,13 +816,19 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
                         new
                       </span>
                     )}
+                    {tab.dirty && (
+                      <span
+                        className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"
+                        title={t("editor.unsavedChanges")}
+                      />
+                    )}
                     <button
                       type="button"
                       className="rounded p-0.5 opacity-50 hover:bg-muted hover:opacity-100"
                       title={t("editor.closeTab")}
                       onClick={(e) => {
                         e.stopPropagation();
-                        closeTab(tab.path);
+                        requestCloseTab(tab.path);
                       }}
                     >
                       <X className="h-3 w-3" />
@@ -791,6 +853,7 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
                     create={tab.create}
                     active={tab.path === activePath}
                     onSaved={() => markSaved(tab.path)}
+                    onDirtyChange={(dirty) => markTabDirty(tab.path, dirty)}
                   />
                 </div>
               ))}
@@ -806,6 +869,25 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
         error={createError}
         currentPath={currentPath}
         onConfirm={confirmCreate}
+      />
+      <ConfirmDialog
+        open={pendingClosePath !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingClosePath(null);
+        }}
+        title={t("editor.unsavedCloseTitle")}
+        description={
+          pendingClosePath
+            ? t("editor.unsavedCloseMessage", { path: pendingClosePath })
+            : ""
+        }
+        confirmLabel={t("editor.discardAndClose")}
+        variant="destructive"
+        onConfirm={() => {
+          if (!pendingClosePath) return;
+          forceCloseTab(pendingClosePath);
+          setPendingClosePath(null);
+        }}
       />
     </ResizablePanelGroup>
   );
@@ -881,7 +963,9 @@ function CreateFileDialog({
 // EditorTab wraps MonacoSkillEditor per open file. Each tab owns its
 // own useFileContent/useSaveFile so concurrent tabs don't share query
 // or mutation state. `active` is currently informational (Monaco loads
-// lazily); the parent hides non-active tabs via CSS.
+// lazily); the parent hides non-active tabs via CSS. `onDirtyChange`
+// forwards the editor's dirty flag so the pane can mark the tab and
+// intercept close.
 type EditorTabProps = {
   skillName: string;
   filePath: string;
@@ -889,9 +973,17 @@ type EditorTabProps = {
   create: boolean;
   active: boolean;
   onSaved: () => void;
+  onDirtyChange: (dirty: boolean) => void;
 };
 
-function EditorTab({ skillName, filePath, branch, create, onSaved }: EditorTabProps) {
+function EditorTab({
+  skillName,
+  filePath,
+  branch,
+  create,
+  onSaved,
+  onDirtyChange,
+}: EditorTabProps) {
   // Only fetch content for real files (create tabs start empty).
   const fileQuery = useFileContent(skillName, filePath, branch, {
     enabled: !create,
@@ -917,6 +1009,7 @@ function EditorTab({ skillName, filePath, branch, create, onSaved }: EditorTabPr
       readOnly={saveMutation.isPending}
       onSaved={(_sha, _content) => onSaved()}
       onConflict={handleConflict}
+      onDirtyChange={onDirtyChange}
     />
   );
 }
