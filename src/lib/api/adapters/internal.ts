@@ -83,11 +83,13 @@ export function normalizeSkill(skill: Skill): Skill {
   // renders owner and timestamps regardless of codec.
   const raw = skill as any;
   const ownerId = skill.ownerId || raw.owner_id;
+  const ownerName = skill.ownerName || raw.owner_name;
   const createTime = skill.createTime ?? raw.create_time;
   const updateTime = skill.updateTime ?? raw.update_time;
   return {
     ...skill,
     ownerId,
+    ownerName,
     createTime,
     updateTime,
     versions,
@@ -100,7 +102,9 @@ export function normalizeSkill(skill: Skill): Skill {
     bizTags: skill.bizTags || tags,
     keywords: skill.keywords || tags,
     scope: skill.scope || skill.visibility || 'private',
-    owner: skill.owner || ownerId,
+    // Prefer the human-readable owner name when the backend provides it;
+    // fall back to the raw owner id so the field is never empty.
+    owner: skill.owner || ownerName || ownerId,
     latestVersion:
       skill.latestVersion || skill.version || versions[0]?.version,
     stableVersion: skill.stableVersion || onlineVersion || skill.version,

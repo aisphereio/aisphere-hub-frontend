@@ -944,7 +944,7 @@ function CreateFileDialog({
                 }
               }}
               placeholder={t("editor.fileNamePlaceholder") ?? "filename.md or path/to/file.md"}
-              className="h-0 flex-1 border-0 p-0 focus-visible:ring-0"
+              className="h-auto flex-1 border-0 px-0 shadow-none focus-visible:ring-0"
             />
           </div>
           {error && <p className="text-xs text-destructive">{error}</p>}
