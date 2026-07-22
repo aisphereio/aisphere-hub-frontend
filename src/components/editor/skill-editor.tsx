@@ -379,42 +379,42 @@ git add SKILL.md && git commit -m "update skill" && git push`}
 
         {/* ─── Right: Settings / Shares ───────────────────────────────── */}
         {showRightPanel && (
-          <div className="w-80 shrink-0 flex flex-col bg-card/40">
+          <div className="w-80 min-w-0 min-h-0 shrink-0 flex flex-col overflow-hidden bg-card/40">
             <Tabs
               value={rightTab}
               onValueChange={(v) => setRightTab(v as RightPanelTab)}
-              className="flex flex-col flex-1"
+              className="flex min-h-0 min-w-0 flex-1 flex-col"
             >
-              <div className="px-3 border-b">
-                <TabsList className="h-9 bg-transparent p-0 gap-1 w-full justify-start">
+              <div className="min-w-0 overflow-x-auto border-b px-3">
+                <TabsList className="h-9 min-w-max bg-transparent p-0 gap-1 justify-start">
                   <TabsTrigger
                     value="overview"
-                    className="text-xs h-8 px-3 data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
+                    className="h-8 shrink-0 whitespace-nowrap px-3 text-xs data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
                   >
                     Overview
                   </TabsTrigger>
                   <TabsTrigger
                     value="settings"
-                    className="text-xs h-8 px-3 data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
+                    className="h-8 shrink-0 whitespace-nowrap px-3 text-xs data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
                   >
                     Settings
                   </TabsTrigger>
                   <TabsTrigger
                     value="shares"
-                    className="text-xs h-8 px-3 data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
+                    className="h-8 shrink-0 whitespace-nowrap px-3 text-xs data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
                   >
                     Shares
                   </TabsTrigger>
                   <TabsTrigger
                     value="prs"
-                    className="text-xs h-8 px-3 data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
+                    className="h-8 shrink-0 whitespace-nowrap px-3 text-xs data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
                   >
                     Pull Requests
                   </TabsTrigger>
                 </TabsList>
               </div>
 
-              <ScrollArea className="flex-1">
+              <ScrollArea className="min-h-0 min-w-0 flex-1 overflow-hidden">
                 {/* OVERVIEW */}
                 <TabsContent value="overview" className="p-3 space-y-3 mt-0">
                   <div className="grid grid-cols-2 gap-2">
