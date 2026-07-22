@@ -18,7 +18,6 @@ node_modules/
 # === 构建产物 ===
 /build/
 /dist/
-/public/monaco/
 
 # === 操作系统 ===
 .DS_Store
