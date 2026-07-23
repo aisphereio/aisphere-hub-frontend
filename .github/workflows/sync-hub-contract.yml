@@ -1,0 +1,58 @@
+name: Sync Hub Contract
+
+on:
+  push:
+    branches:
+      - feat/skill-release-sdk
+    paths:
+      - '.github/workflows/sync-hub-contract.yml'
+      - 'scripts/sync-contract.mjs'
+      - 'orval.config.ts'
+  workflow_dispatch:
+    inputs:
+      hub_ref:
+        description: Hub branch, tag, or commit SHA
+        required: true
+        default: feat/skill-release-control-plane
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-hub-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    env:
+      HUB_REF: ${{ inputs.hub_ref || 'feat/skill-release-control-plane' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Sync OpenAPI and regenerate Orval SDK
+        run: npm run contract:sync -- --ref "$HUB_REF"
+      - name: Validate generated SDK
+        run: |
+          npm run typecheck
+          npm run test
+      - name: Commit contract and SDK
+        run: |
+          if git diff --quiet -- openapi src/lib/api/generated; then
+            echo 'Generated SDK is already up to date.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add openapi src/lib/api/generated
+          git commit -m 'chore(api): sync Hub skill release SDK'
+          git push origin HEAD:${{ github.ref_name }}
