@@ -62,11 +62,34 @@ jobs:
         run: npm ci
       - name: Sync OpenAPI and regenerate Orval SDK
         run: npm run contract:sync -- --ref "${{ steps.contract.outputs.hub_ref }}"
+      - name: Package generated SDK
+        run: tar -czf generated-sdk.tar.gz openapi src/lib/api/generated
+      - name: Upload generated SDK
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-sdk
+          path: generated-sdk.tar.gz
+          if-no-files-found: error
       - name: Validate generated SDK
+        id: validate
+        continue-on-error: true
         run: |
-          npm run api:check
-          npm run typecheck
-          npm run test
+          set -o pipefail
+          {
+            npm run api:check
+            npm run typecheck
+            npm run test
+          } 2>&1 | tee generated-sdk-validation.log
+      - name: Upload validation log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-sdk-validation
+          path: generated-sdk-validation.log
+          if-no-files-found: error
+      - name: Stop on validation failure
+        if: steps.validate.outcome == 'failure'
+        run: exit 1
       - name: Commit contract and SDK
         env:
           TARGET_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
