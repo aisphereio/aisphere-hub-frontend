@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Pencil } from 'lucide-react';
 import { toast } from 'sonner';
@@ -129,10 +129,6 @@ export function ClusterEditDialog({ cluster }: ClusterEditDialogProps) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<ClusterEditForm>(() => formFromCluster(cluster));
-
-  useEffect(() => {
-    if (!open) setForm(formFromCluster(cluster));
-  }, [cluster, open]);
 
   const updateState = useMemo(() => {
     try {
