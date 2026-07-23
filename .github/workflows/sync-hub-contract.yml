@@ -9,6 +9,13 @@ on:
       - 'openapi/hub-contract.ref'
       - 'scripts/sync-contract.mjs'
       - '.github/workflows/sync-hub-contract.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'openapi/hub-contract.ref'
+      - 'scripts/sync-contract.mjs'
+      - '.github/workflows/sync-hub-contract.yml'
   workflow_dispatch:
     inputs:
       hub_ref:
@@ -20,7 +27,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: sync-hub-contract-${{ github.ref }}
+  group: sync-hub-contract-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -30,7 +37,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
@@ -62,7 +69,7 @@ jobs:
           npm run test
       - name: Commit contract and SDK
         env:
-          TARGET_REF: ${{ github.ref_name }}
+          TARGET_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
         run: |
           if git diff --quiet -- openapi src/lib/api/generated; then
             echo 'Generated SDK is already up to date.'
