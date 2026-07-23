@@ -87,6 +87,59 @@ export const sandboxServiceCreateSandboxTemplate = async (clusterId: string,
 );}
 
 
+export const getSandboxServiceDeleteSandboxTemplateUrl = (clusterId: string,
+    id: string,
+    params: SandboxServiceDeleteSandboxTemplateParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/clusters/${encodeURIComponent(String(clusterId))}/sandbox-templates/${encodeURIComponent(String(id))}?${stringifiedParams}` : `/v1/clusters/${encodeURIComponent(String(clusterId))}/sandbox-templates/${encodeURIComponent(String(id))}`
+}
+
+export const sandboxServiceDeleteSandboxTemplate = async (clusterId: string,
+    id: string,
+    params: SandboxServiceDeleteSandboxTemplateParams, options?: RequestInit): Promise<V1DeleteSandboxTemplateResponse> => {
+
+  return hubFetch<V1DeleteSandboxTemplateResponse>(getSandboxServiceDeleteSandboxTemplateUrl(clusterId,id,params),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getSandboxServiceGetSandboxTemplateUrl = (clusterId: string,
+    id: string,) => {
+
+
+
+
+  return `/v1/clusters/${encodeURIComponent(String(clusterId))}/sandbox-templates/${encodeURIComponent(String(id))}`
+}
+
+export const sandboxServiceGetSandboxTemplate = async (clusterId: string,
+    id: string, options?: RequestInit): Promise<V1SandboxTemplate> => {
+
+  return hubFetch<V1SandboxTemplate>(getSandboxServiceGetSandboxTemplateUrl(clusterId,id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
 export const getSandboxServiceListSandboxClaimsUrl = (namespaceId: string,
     params?: SandboxServiceListSandboxClaimsParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -280,55 +333,6 @@ export const sandboxServiceDeleteSandboxClaim = async (id: string,
   {
     ...options,
     method: 'DELETE'
-
-
-  }
-);}
-
-
-export const getSandboxServiceDeleteSandboxTemplateUrl = (id: string,
-    params: SandboxServiceDeleteSandboxTemplateParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : String(value))
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/v1/sandbox-templates/${encodeURIComponent(String(id))}?${stringifiedParams}` : `/v1/sandbox-templates/${encodeURIComponent(String(id))}`
-}
-
-export const sandboxServiceDeleteSandboxTemplate = async (id: string,
-    params: SandboxServiceDeleteSandboxTemplateParams, options?: RequestInit): Promise<V1DeleteSandboxTemplateResponse> => {
-
-  return hubFetch<V1DeleteSandboxTemplateResponse>(getSandboxServiceDeleteSandboxTemplateUrl(id,params),
-  {
-    ...options,
-    method: 'DELETE'
-
-
-  }
-);}
-
-
-export const getSandboxServiceGetSandboxTemplateUrl = (id: string,) => {
-
-
-
-
-  return `/v1/sandbox-templates/${encodeURIComponent(String(id))}`
-}
-
-export const sandboxServiceGetSandboxTemplate = async (id: string, options?: RequestInit): Promise<V1SandboxTemplate> => {
-
-  return hubFetch<V1SandboxTemplate>(getSandboxServiceGetSandboxTemplateUrl(id),
-  {
-    ...options,
-    method: 'GET'
 
 
   }
