@@ -81,20 +81,21 @@ function ClusterEditForm({ cluster, onSaved }: { cluster: V1Cluster; onSaved: ()
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <label className="text-xs font-medium">集群标识</label>
-          <Input value={cluster.name ?? ''} disabled />
+          <label htmlFor="cluster-edit-name" className="text-xs font-medium">集群标识</label>
+          <Input id="cluster-edit-name" value={cluster.name ?? ''} disabled />
           <p className="text-[10px] text-muted-foreground">创建后不可修改</p>
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-medium">组织 / Zone ID</label>
-          <Input value={cluster.orgId ?? ''} disabled />
+          <label htmlFor="cluster-edit-org" className="text-xs font-medium">组织 / Zone ID</label>
+          <Input id="cluster-edit-org" value={cluster.orgId ?? ''} disabled />
           <p className="text-[10px] text-muted-foreground">集群归属不可迁移</p>
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-medium">展示名称</label>
+        <label htmlFor="cluster-edit-display-name" className="text-xs font-medium">展示名称</label>
         <Input
+          id="cluster-edit-display-name"
           placeholder="展示名称"
           value={form.displayName}
           onChange={(event) => setForm({ ...form, displayName: event.target.value })}
@@ -102,8 +103,9 @@ function ClusterEditForm({ cluster, onSaved }: { cluster: V1Cluster; onSaved: ()
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-medium">发行版</label>
+        <label htmlFor="cluster-edit-distribution" className="text-xs font-medium">发行版</label>
         <Input
+          id="cluster-edit-distribution"
           placeholder="例如 k3s / rke2 / eks"
           value={form.distribution}
           onChange={(event) => setForm({ ...form, distribution: event.target.value })}
@@ -111,8 +113,9 @@ function ClusterEditForm({ cluster, onSaved }: { cluster: V1Cluster; onSaved: ()
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-medium">说明</label>
+        <label htmlFor="cluster-edit-description" className="text-xs font-medium">说明</label>
         <Textarea
+          id="cluster-edit-description"
           rows={3}
           placeholder="集群用途、环境或维护说明"
           value={form.description}
@@ -121,8 +124,8 @@ function ClusterEditForm({ cluster, onSaved }: { cluster: V1Cluster; onSaved: ()
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-medium">API Server</label>
-        <Input value={cluster.serverUrl ?? ''} disabled className="font-mono text-xs" />
+        <label htmlFor="cluster-edit-server-url" className="text-xs font-medium">API Server</label>
+        <Input id="cluster-edit-server-url" value={cluster.serverUrl ?? ''} disabled className="font-mono text-xs" />
         <p className="text-[10px] text-muted-foreground">
           API Server 属于集群身份信息；连接凭据请使用页面中的“轮换集群凭据”。
         </p>
