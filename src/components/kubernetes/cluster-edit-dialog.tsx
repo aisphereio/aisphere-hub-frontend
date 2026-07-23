@@ -27,7 +27,7 @@ type ClusterEditDialogProps = {
   cluster: V1Cluster;
 };
 
-type ClusterEditForm = {
+export type ClusterEditForm = {
   displayName: string;
   description: string;
   distribution: string;
@@ -129,27 +129,29 @@ export function ClusterEditDialog({ cluster }: ClusterEditDialogProps) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<ClusterEditForm>(() => formFromCluster(cluster));
-  const [validationError, setValidationError] = useState('');
 
   useEffect(() => {
     if (!open) setForm(formFromCluster(cluster));
   }, [cluster, open]);
 
-  const updateBody = useMemo(() => {
+  const updateState = useMemo(() => {
     try {
-      const body = buildClusterUpdateBody(cluster, form);
-      setValidationError('');
-      return body;
+      return {
+        body: buildClusterUpdateBody(cluster, form),
+        error: '',
+      };
     } catch (error) {
-      setValidationError(error instanceof Error ? error.message : '标签格式错误');
-      return null;
+      return {
+        body: null,
+        error: error instanceof Error ? error.message : '标签格式错误',
+      };
     }
   }, [cluster, form]);
 
   const updateCluster = useMutation({
     mutationFn: () => {
-      if (!cluster.id || !updateBody) throw new Error('没有需要保存的修改');
-      return clusterServiceUpdateCluster(cluster.id, updateBody);
+      if (!cluster.id || !updateState.body) throw new Error('没有需要保存的修改');
+      return clusterServiceUpdateCluster(cluster.id, updateState.body);
     },
     onSuccess: async () => {
       toast.success(`集群 ${form.displayName || cluster.name || ''} 已更新`);
@@ -166,10 +168,7 @@ export function ClusterEditDialog({ cluster }: ClusterEditDialogProps) {
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
-    if (nextOpen) {
-      setForm(formFromCluster(cluster));
-      setValidationError('');
-    }
+    if (nextOpen) setForm(formFromCluster(cluster));
   };
 
   return (
@@ -247,8 +246,8 @@ export function ClusterEditDialog({ cluster }: ClusterEditDialogProps) {
             placeholder={'environment=production\nregion=cn-north-1'}
             onChange={(event) => setForm((current) => ({ ...current, labels: event.target.value }))}
           />
-          <div className={validationError ? 'text-xs text-destructive' : 'text-[11px] text-muted-foreground'}>
-            {validationError || '每行一个标签，格式为 key=value；留空可清除全部标签。'}
+          <div className={updateState.error ? 'text-xs text-destructive' : 'text-[11px] text-muted-foreground'}>
+            {updateState.error || '每行一个标签，格式为 key=value；留空可清除全部标签。'}
           </div>
         </div>
 
@@ -257,7 +256,7 @@ export function ClusterEditDialog({ cluster }: ClusterEditDialogProps) {
             取消
           </Button>
           <Button
-            disabled={!updateBody || Boolean(validationError) || updateCluster.isPending}
+            disabled={!updateState.body || Boolean(updateState.error) || updateCluster.isPending}
             onClick={() => updateCluster.mutate()}
           >
             {updateCluster.isPending ? '保存中…' : '保存修改'}
