@@ -33,7 +33,9 @@ import {
   sandboxServiceListSandboxTools,
   sandboxServiceListSandboxes,
   sandboxServiceListWarmPools,
+  sandboxServiceSyncSandboxClaims,
   sandboxServiceSyncSandboxes,
+  sandboxServiceSyncWarmPools,
 } from '../generated/sandbox-service/sandbox-service';
 import type {
   SandboxServiceCallSandboxToolBody,
@@ -56,7 +58,9 @@ import type {
   V1Sandbox,
   V1SandboxClaim,
   V1SandboxTemplate,
+  V1SyncSandboxClaimsResponse,
   V1SyncSandboxesResponse,
+  V1SyncWarmPoolsResponse,
   V1WarmPool,
 } from '../generated/model';
 
@@ -225,6 +229,14 @@ export const sandboxApi = {
   /** Sync sandboxes from the remote cluster into the Hub (import/update/remove). */
   syncSandboxes: async (namespaceId: string): Promise<V1SyncSandboxesResponse> =>
     sandboxServiceSyncSandboxes(namespaceId),
+
+  /** Sync warm pools from the remote cluster into the Hub. */
+  syncWarmPools: async (namespaceId: string): Promise<V1SyncWarmPoolsResponse> =>
+    sandboxServiceSyncWarmPools(namespaceId),
+
+  /** Sync sandbox claims from the remote cluster into the Hub. */
+  syncSandboxClaims: async (namespaceId: string): Promise<V1SyncSandboxClaimsResponse> =>
+    sandboxServiceSyncSandboxClaims(namespaceId),
 
   /** List WarmPools in a namespace. */
   listWarmPools: async ({

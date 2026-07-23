@@ -97,6 +97,33 @@ export function useSyncSandboxes() {
   });
 }
 
+/** Sync warm pools from the remote cluster into the Hub. */
+export function useSyncWarmPools() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (namespaceId: string) => sandboxApi.syncWarmPools(namespaceId),
+    onSuccess: async (_data, namespaceId) => {
+      await queryClient.invalidateQueries({
+        queryKey: warmPoolsKey(namespaceId),
+      });
+    },
+  });
+}
+
+/** Sync sandbox claims from the remote cluster into the Hub. */
+export function useSyncSandboxClaims() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (namespaceId: string) =>
+      sandboxApi.syncSandboxClaims(namespaceId),
+    onSuccess: async (_data, namespaceId) => {
+      await queryClient.invalidateQueries({
+        queryKey: claimsKey(namespaceId),
+      });
+    },
+  });
+}
+
 /** List tools exposed by a sandbox. Enabled only when id is set. */
 export function useSandboxTools(id: string | null) {
   return useQuery({
