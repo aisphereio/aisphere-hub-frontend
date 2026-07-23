@@ -1,8 +1,8 @@
 {
   "repository": "https://github.com/aisphereio/aisphere-hub.git",
-  "git_sha": "b91d253f9fa228eb64e46af336583e244e7694a8",
-  "ref": "feat/skill-zip-import",
-  "sha256": "2418d9c1c8f5025a996ea21e6e9b35fe2ff204b49003e6c3f7d57b6dff8ce62e",
+  "git_sha": "feat/skill-release-control-plane",
+  "ref": "feat/skill-release-control-plane",
+  "sha256": "45f51f7f87236b8b9a553e79523bb639275e306ba4e7276c929b4834d7912594",
   "kernel_version": "v0.4.2",
   "generator": "protoc-gen-openapiv2@v2.29.0"
 }
