@@ -83,7 +83,7 @@ jobs:
           path: contract-sync-diagnostics.tar.gz
           if-no-files-found: error
       - name: Stop on validation failure
-        if: steps.validate.outcome == 'failure'
+        if: ${{ steps.validate.outcome == 'failure' }}
         run: exit 1
       - name: Commit contract and SDK
         env:
