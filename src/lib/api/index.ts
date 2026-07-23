@@ -267,6 +267,9 @@ export { authzApi } from './adapters/authz';
 // See adapters/skill.ts for the generated -> domain-type mapping.
 export { skillApi } from './adapters/skill';
 
+// skillReleaseApi wraps the generated immutable SkillReleaseService client.
+export { skillReleaseApi } from './adapters/skill-release';
+
 // fileApi is the in-browser editor's content surface: list/get/create/
 // update/delete over the hub FileService (a convenience layer on top
 // of the bare git repo). See adapters/file.ts.

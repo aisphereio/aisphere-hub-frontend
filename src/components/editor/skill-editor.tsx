@@ -47,6 +47,7 @@ import { useT } from "@/lib/i18n";
 import type { Skill, AccessMode } from "@/lib/api/types";
 import { SkillFileTree } from "./skill-file-tree";
 import { PullRequestsPanel } from "./pull-requests-panel";
+import { SkillReleasesPanel } from "./skill-releases-panel";
 
 // Monaco is the first next/dynamic({ ssr: false }) import in the repo.
 // It pulls in web workers and touches `self` at module load, so it must
@@ -69,7 +70,7 @@ interface SkillEditorProps {
   onBack: () => void;
 }
 
-type RightPanelTab = "overview" | "settings" | "shares" | "prs";
+type RightPanelTab = "overview" | "settings" | "shares" | "prs" | "releases";
 
 /**
  * SkillEditor — settings-focused editor for the Git-native Hub.
@@ -401,6 +402,12 @@ git add SKILL.md && git commit -m "update skill" && git push`}
                   >
                     Pull Requests
                   </TabsTrigger>
+        <TabsTrigger
+          value="releases"
+          className="h-8 shrink-0 whitespace-nowrap px-3 text-xs data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
+        >
+          Releases
+        </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -444,6 +451,11 @@ git add SKILL.md && git commit -m "update skill" && git push`}
                 <TabsContent value="prs" className="p-3 mt-0">
                   <PullRequestsPanel skillName={detail.name} />
                 </TabsContent>
+
+      {/* RELEASES */}
+      <TabsContent value="releases" className="p-3 mt-0">
+        <SkillReleasesPanel skillName={detail.name} />
+      </TabsContent>
               </div>
             </Tabs>
           </div>
