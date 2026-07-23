@@ -1,12 +1,20 @@
 name: Sync Hub Contract
 
 on:
+  push:
+    branches:
+      - 'feat/**'
+      - 'fix/**'
+    paths:
+      - 'openapi/hub-contract.ref'
+      - 'scripts/sync-contract.mjs'
+      - '.github/workflows/sync-hub-contract.yml'
   workflow_dispatch:
     inputs:
       hub_ref:
-        description: Hub branch, tag, or commit containing a generated contract lock
-        required: true
-        default: main
+        description: Optional Hub branch, tag, or commit override
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -19,8 +27,6 @@ jobs:
   sync:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    env:
-      HUB_REF: ${{ inputs.hub_ref }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,16 +36,33 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Resolve pinned Hub contract
+        id: contract
+        env:
+          INPUT_REF: ${{ inputs.hub_ref }}
+        run: |
+          if [ -n "$INPUT_REF" ]; then
+            HUB_REF="$INPUT_REF"
+          else
+            HUB_REF="$(tr -d '[:space:]' < openapi/hub-contract.ref)"
+          fi
+          if ! [[ "$HUB_REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "Hub contract ref must be an immutable 40-character commit SHA: $HUB_REF" >&2
+            exit 1
+          fi
+          echo "hub_ref=$HUB_REF" >> "$GITHUB_OUTPUT"
       - name: Install dependencies
         run: npm ci
       - name: Sync OpenAPI and regenerate Orval SDK
-        run: npm run contract:sync -- --ref "$HUB_REF"
+        run: npm run contract:sync -- --ref "${{ steps.contract.outputs.hub_ref }}"
       - name: Validate generated SDK
         run: |
           npm run api:check
           npm run typecheck
           npm run test
       - name: Commit contract and SDK
+        env:
+          TARGET_REF: ${{ github.ref_name }}
         run: |
           if git diff --quiet -- openapi src/lib/api/generated; then
             echo 'Generated SDK is already up to date.'
@@ -49,4 +72,6 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add openapi src/lib/api/generated
           git commit -m 'chore(api): sync generated Hub SDK'
-          git push origin HEAD:${{ github.ref_name }}
+          git fetch origin "$TARGET_REF"
+          git rebase "origin/$TARGET_REF"
+          git push origin HEAD:"$TARGET_REF"
