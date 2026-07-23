@@ -100,9 +100,13 @@ export function SandboxProfilesPage() {
   };
 
   const handleDelete = (tpl: V1SandboxTemplate) => {
-    if (!tpl.id) return;
+    if (!activeClusterId || !tpl.id) return;
     deleteTemplate.mutate(
-      { id: tpl.id, expectedRevision: tpl.revision },
+      {
+        clusterId: activeClusterId,
+        id: tpl.id,
+        expectedRevision: tpl.revision,
+      },
       {
         onSuccess: () => {
           toast.success(`模板 ${tpl.displayName || tpl.name || ''} 已删除`);

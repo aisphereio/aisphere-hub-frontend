@@ -86,6 +86,7 @@ export interface CreateSandboxTemplateInput {
 }
 
 export interface DeleteSandboxTemplateInput {
+  clusterId: string;
   id: string;
   expectedRevision?: string;
 }
@@ -170,13 +171,14 @@ export const sandboxApi = {
 
   /** Delete a SandboxTemplate by id (requires expectedRevision). */
   deleteSandboxTemplate: async ({
+    clusterId,
     id,
     expectedRevision,
   }: DeleteSandboxTemplateInput) => {
     const params: SandboxServiceDeleteSandboxTemplateParams = {
       expectedRevision: expectedRevision ?? DEFAULT_REVISION,
     };
-    return sandboxServiceDeleteSandboxTemplate(id, params);
+    return sandboxServiceDeleteSandboxTemplate(clusterId, id, params);
   },
 
   /** List Sandboxes in a namespace. */
