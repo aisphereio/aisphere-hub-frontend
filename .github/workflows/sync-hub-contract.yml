@@ -63,10 +63,28 @@ jobs:
       - name: Sync OpenAPI and regenerate Orval SDK
         run: npm run contract:sync -- --ref "${{ steps.contract.outputs.hub_ref }}"
       - name: Validate generated SDK
+        id: validate
+        continue-on-error: true
         run: |
-          npm run contract:check
-          npm run typecheck
-          npm run test
+          set -o pipefail
+          {
+            npm run contract:check
+            npm run typecheck
+            npm run test
+          } 2>&1 | tee contract-sync-validation.log
+      - name: Package diagnostics
+        if: always()
+        run: tar -czf contract-sync-diagnostics.tar.gz contract-sync-validation.log openapi src/lib/api/generated
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-sync-diagnostics
+          path: contract-sync-diagnostics.tar.gz
+          if-no-files-found: error
+      - name: Stop on validation failure
+        if: steps.validate.outcome == 'failure'
+        run: exit 1
       - name: Commit contract and SDK
         env:
           TARGET_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
