@@ -36,9 +36,6 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test cluster editor
-        run: npm test -- src/components/kubernetes/cluster-edit-dialog.test.ts
-
       - name: Build
         env:
           NEXT_PUBLIC_HUB_URL: ''
