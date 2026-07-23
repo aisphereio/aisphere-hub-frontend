@@ -15,8 +15,10 @@ export type CreateSkillReleaseInput = SkillReleaseServiceCreateSkillReleaseBody;
 /**
  * Adapter over protobuf/OpenAPI-generated release clients.
  *
- * Routes, request bodies, and response models are owned by Hub protobuf. This
- * adapter only gives the UI one stable domain entry point and does not copy the
+ * Routes, request bodies, and response models are owned by Hub protobuf. The
+ * generated client is synchronized from an immutable Hub commit and its
+ * contract-lock SHA-256 is verified before Orval runs. This adapter only gives
+ * the UI one stable domain entry point; it does not copy or reinterpret the
  * transport contract.
  */
 export const skillReleaseApi = {
