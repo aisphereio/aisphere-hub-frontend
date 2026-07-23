@@ -17,6 +17,7 @@ import type {
   V1CreateSkillRequest,
   V1DeleteSkillResponse,
   V1DeleteSkillShareResponse,
+  V1ImportSkillArchiveRequest,
   V1ListPullRequestsResponse,
   V1ListSkillReleasesResponse,
   V1ListSkillSharesResponse,
@@ -382,6 +383,26 @@ export const skillServiceUpdateSkillVisibility = async (name: string,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(skillServiceUpdateSkillVisibilityBody)
+  }
+);}
+
+
+export const getSkillServiceImportSkillArchiveUrl = () => {
+
+
+
+
+  return `/v1/skills:importArchive`
+}
+
+export const skillServiceImportSkillArchive = async (v1ImportSkillArchiveRequest: V1ImportSkillArchiveRequest, options?: RequestInit): Promise<V1Skill> => {
+
+  return hubFetch<V1Skill>(getSkillServiceImportSkillArchiveUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(v1ImportSkillArchiveRequest)
   }
 );}
 

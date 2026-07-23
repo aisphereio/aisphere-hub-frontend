@@ -3016,6 +3016,38 @@
         ]
       }
     },
+    "/v1/skills:importArchive": {
+      "post": {
+        "operationId": "SkillService_ImportSkillArchive",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/v1Skill"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ImportSkillArchiveRequest"
+            }
+          }
+        ],
+        "tags": [
+          "SkillService"
+        ]
+      }
+    },
     "/v1/warm-pools/{id}": {
       "delete": {
         "operationId": "SandboxService_DeleteWarmPool",
@@ -4337,6 +4369,39 @@
         }
       }
     },
+    "v1ImportSkillArchiveRequest": {
+      "type": "object",
+      "properties": {
+        "orgId": {
+          "type": "string"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "visibility": {
+          "type": "string"
+        },
+        "archiveZip": {
+          "type": "string",
+          "format": "byte"
+        }
+      },
+      "required": [
+        "orgId",
+        "archiveZip"
+      ]
+    },
+    "v1ImportSkillArchiveResponse": {
+      "type": "object",
+      "properties": {
+        "skill": {
+          "$ref": "#/definitions/v1Skill"
+        },
+        "metadata": {
+          "$ref": "#/definitions/v1SkillArchiveMetadata"
+        }
+      }
+    },
     "v1InClusterCredential": {
       "type": "object",
       "description": "Uses the Hub pod's service account token. V1 requires AllowInsecureDev\n because Hub is not necessarily in-cluster; reserved for local dev."
@@ -5556,6 +5621,28 @@
         "ownerName": {
           "type": "string",
           "description": "Human-readable owner name (e.g. Casdoor displayName). Populated at skill\ncreation from the authenticated principal; empty for skills created before\nthis field existed (clients fall back to owner_id)."
+        }
+      }
+    },
+    "v1SkillArchiveMetadata": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "fileCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "unpackedSize": {
+          "type": "string",
+          "format": "int64"
         }
       }
     },
