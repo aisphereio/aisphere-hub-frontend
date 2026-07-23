@@ -1,19 +1,12 @@
 name: Sync Hub Contract
 
 on:
-  push:
-    branches:
-      - feat/skill-release-sdk
-    paths:
-      - '.github/workflows/sync-hub-contract.yml'
-      - 'scripts/sync-contract.mjs'
-      - 'orval.config.ts'
   workflow_dispatch:
     inputs:
       hub_ref:
-        description: Hub branch, tag, or commit SHA
+        description: Hub branch, tag, or commit containing a generated contract lock
         required: true
-        default: feat/skill-release-control-plane
+        default: main
 
 permissions:
   contents: write
@@ -27,7 +20,7 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     env:
-      HUB_REF: ${{ inputs.hub_ref || 'feat/skill-release-control-plane' }}
+      HUB_REF: ${{ inputs.hub_ref }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,6 +36,7 @@ jobs:
         run: npm run contract:sync -- --ref "$HUB_REF"
       - name: Validate generated SDK
         run: |
+          npm run api:check
           npm run typecheck
           npm run test
       - name: Commit contract and SDK
@@ -54,5 +48,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add openapi src/lib/api/generated
-          git commit -m 'chore(api): sync Hub skill release SDK'
+          git commit -m 'chore(api): sync generated Hub SDK'
           git push origin HEAD:${{ github.ref_name }}
