@@ -27,14 +27,18 @@ jobs:
           editor = Path('src/components/editor/skill-editor.tsx')
           text = editor.read_text()
 
-          if 'import { SkillReleasesPanel } from "./skill-releases-panel";' not in text:
-              anchor = 'import { PullRequestsPanel } from "./pull-requests-panel";'
+          def insert_after(anchor: str, addition: str, label: str) -> None:
+              global text
               if anchor not in text:
-                  raise SystemExit('pull request panel import anchor not found')
-              text = text.replace(
-                  anchor,
-                  anchor + '\nimport { SkillReleasesPanel } from "./skill-releases-panel";',
-                  1,
+                  raise SystemExit(f'{label} anchor not found')
+              text = text.replace(anchor, anchor + addition, 1)
+
+          release_import = 'import { SkillReleasesPanel } from "./skill-releases-panel";'
+          if release_import not in text:
+              insert_after(
+                  'import { PullRequestsPanel } from "./pull-requests-panel";',
+                  '\n' + release_import,
+                  'pull request import',
               )
 
           old_tabs = 'type RightPanelTab = "overview" | "settings" | "shares" | "prs";'
@@ -44,15 +48,8 @@ jobs:
           elif new_tabs not in text:
               raise SystemExit('right panel tab type anchor not found')
 
-          if 'value="releases"' not in text:
-              trigger_anchor = '''                  <TabsTrigger
-                    value="prs"
-                    className="h-8 shrink-0 whitespace-nowrap px-3 text-xs data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
-                  >
-                    Pull Requests
-                  </TabsTrigger>'''
-              if trigger_anchor not in text:
-                  raise SystemExit('pull request tab trigger anchor not found')
+          if '<TabsTrigger\n                    value="releases"' not in text:
+              trigger_end = '                    Pull Requests\n                  </TabsTrigger>'
               release_trigger = '''
                   <TabsTrigger
                     value="releases"
@@ -60,37 +57,33 @@ jobs:
                   >
                     Releases
                   </TabsTrigger>'''
-              text = text.replace(trigger_anchor, trigger_anchor + release_trigger, 1)
+              insert_after(trigger_end, release_trigger, 'pull request trigger')
 
           if '<SkillReleasesPanel skillName={detail.name} />' not in text:
-              content_anchor = '''                <TabsContent value="prs" className="p-3 mt-0">
-                  <PullRequestsPanel skillName={detail.name} />
-                </TabsContent>'''
-              if content_anchor not in text:
-                  raise SystemExit('pull request tab content anchor not found')
+              content_end = '                  <PullRequestsPanel skillName={detail.name} />\n                </TabsContent>'
               release_content = '''
 
                 {/* RELEASES */}
                 <TabsContent value="releases" className="p-3 mt-0">
                   <SkillReleasesPanel skillName={detail.name} />
                 </TabsContent>'''
-              text = text.replace(content_anchor, content_anchor + release_content, 1)
+              insert_after(content_end, release_content, 'pull request content')
 
           editor.write_text(text)
 
           index = Path('src/lib/api/index.ts')
-          text = index.read_text()
+          index_text = index.read_text()
           release_export = "export { skillReleaseApi } from './adapters/skill-release';"
-          if release_export not in text:
+          if release_export not in index_text:
               anchor = "export { skillApi } from './adapters/skill';"
-              if anchor not in text:
+              if anchor not in index_text:
                   raise SystemExit('skillApi export anchor not found')
-              text = text.replace(
+              index_text = index_text.replace(
                   anchor,
                   anchor + "\n\n// skillReleaseApi wraps the generated immutable SkillReleaseService client.\n" + release_export,
                   1,
               )
-          index.write_text(text)
+          index.write_text(index_text)
           PY
       - name: Commit UI integration
         env:
