@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Bell, Menu, ChevronRight, CloudCog, FileCode2, Search, Command } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ClusterEditDialog } from '@/components/kubernetes/cluster-edit-dialog';
 import { NamespaceSharesDialog } from '@/components/kubernetes/namespace-shares-dialog';
 import { useT } from '@/lib/i18n';
 import { LanguageToggle } from './language-toggle';
@@ -95,7 +96,12 @@ export function Topbar({
             <span className="hidden lg:inline">运行环境</span>
           </Button>
 
-          {activeTab === 'namespaces' ? <NamespaceSharesDialog /> : null}
+          {activeTab === 'namespaces' ? (
+            <>
+              <ClusterEditDialog />
+              <NamespaceSharesDialog />
+            </>
+          ) : null}
 
           <LanguageToggle />
 
