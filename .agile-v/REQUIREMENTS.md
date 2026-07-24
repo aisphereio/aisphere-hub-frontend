@@ -530,14 +530,14 @@ These requirements define the expected behavior of the Aisphere Hub Frontend (Sk
 
 ## REQ-FE-SKILL-005 — Skill Version Management
 - **Priority:** P0 | **Status:** `OBSERVED_IMPLEMENTED`
-- **Requirement:** Version lifecycle with 5 states: draft → submitted → published → online → offline.
+- **Requirement:** Publish immutable SemVer Skill releases backed by Git tags. Runtime-facing versions must be exact releases, not floating branches.
 - **API:**
-  - Submit: `POST /v1/skills/{name}/versions/{version}:submit`
-  - Publish: `POST /v1/skills/{name}/versions/{version}:publish`
-  - Online: `POST /v1/skills/{name}/versions/{version}:online`
-  - Offline: `POST /v1/skills/{name}/versions/{version}:offline`
-- **UI:** Version timeline with state badges (colored). State transition buttons enabled/disabled based on current state. Loading state per transition.
-- **Verification:** 1) States display correctly. 2) Transition buttons enabled/disabled correctly. 3) Transitions call correct API.
+  - Resolve source ref: `GET /v1/skills/{name}/refs:resolve?ref=refs/heads/main` → `{ ref, commitSha }`
+  - Create release: `POST /v1/skills/{name}/releases` → `{ version, sourceRef, expectedCommitSha, releaseNotes }` → `SkillRelease`
+  - List releases: `GET /v1/skills/{name}/releases` → `SkillRelease[]`
+  - Resolve release: `GET /v1/skills/{name}/releases/{version}:resolve` → `SkillRelease`
+- **UI:** Release panel shows the selected source branch and its resolved current commit. Users enter only version and release notes; the UI sends `expectedCommitSha` internally for stale-branch protection. `SKILL_RELEASE_STALE` is surfaced as a refresh-and-retry prompt.
+- **Verification:** 1) Source ref resolves automatically. 2) Publish stays disabled until a version and source commit are available. 3) Create release sends the resolved commit SHA. 4) Stale source errors ask the user to refresh.
 - **Done criteria:** Component test.
 
 ## REQ-FE-SKILL-006 — Skill Sharing

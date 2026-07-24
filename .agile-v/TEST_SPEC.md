@@ -37,13 +37,14 @@ Framework: vitest + @testing-library/react + happy-dom
 | TC-FE-016 | REQ-FE-AUTHZADMIN-008 | Permission explain shows steps | Shows explanation steps after explain | component | 1. Fill form. 2. Click Explain. 3. Verify steps display. |
 | TC-FE-017 | REQ-FE-AUTHZADMIN-009 | Effective permissions renders | Shows permission table | component | 1. Fill form. 2. Submit. 3. Verify table renders. |
 | TC-FE-018 | REQ-FE-SKILL-002 | Skill create requires Principal Zone and selected Project | Submit stays disabled without either value and sends both values when complete | component | 1. Mock Principal and Project list. 2. Render create dialog. 3. Select Project. 4. Verify create mutation receives `orgId` and `projectId`. |
+| TC-FE-019 | REQ-FE-SKILL-005 | Skill release publish hides expected commit SHA from users | Publish form resolves the source ref, displays the current commit, and sends it as `expectedCommitSha` internally | component | 1. Mock `useSkillReleaseRef` to return `commit-1`. 2. Render release panel. 3. Enter version and notes. 4. Publish. 5. Verify create mutation receives `sourceRef` and `expectedCommitSha` while no editable SHA input is shown. |
 
 ## 3. Summary
 
 | Dimension | Count |
 |-----------|:-----:|
-| Total TCs | 18 |
-| Component tests | 18 |
-| P0 priority | 18 |
+| Total TCs | 19 |
+| Component tests | 19 |
+| P0 priority | 19 |
 | **Implemented** | **8** (TC-FE-001~008) |
-| **Pending** | **10** (TC-FE-009~018) |
+| **Pending** | **11** (TC-FE-009~019) |
