@@ -12,10 +12,12 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import {
   useCreateSkillRelease,
+  useSkillReleaseRef,
   useResolveSkillRelease,
   useSkillReleases,
 } from '@/hooks/use-skill-releases';
 import type { SkillRelease } from '@/lib/api/adapters/skill-release';
+import { HubApiError } from '@/lib/api/hub-fetch';
 import { fmtTime } from '@/lib/utils';
 
 type SkillReleasesPanelProps = {
@@ -26,14 +28,27 @@ function releaseTime(release: SkillRelease): string {
   return release.createTime ? fmtTime(release.createTime) : '-';
 }
 
+function shortSha(commitSha: string | undefined): string {
+  return commitSha ? commitSha.slice(0, 12) : '-';
+}
+
+function publishErrorMessage(error: unknown): string {
+  if (error instanceof HubApiError && error.code === 'SKILL_RELEASE_STALE') {
+    return '发布失败：源分支已有新提交，请刷新提交后重新确认发布。';
+  }
+  return error instanceof Error ? error.message : 'Skill 发布失败';
+}
+
 export function SkillReleasesPanel({ skillName }: SkillReleasesPanelProps) {
   const releases = useSkillReleases(skillName);
   const createRelease = useCreateSkillRelease(skillName);
   const resolveRelease = useResolveSkillRelease(skillName);
   const [version, setVersion] = useState('');
   const [sourceRef, setSourceRef] = useState('refs/heads/main');
-  const [expectedCommitSha, setExpectedCommitSha] = useState('');
   const [releaseNotes, setReleaseNotes] = useState('');
+  const normalizedSourceRef = sourceRef.trim() || 'refs/heads/main';
+  const sourceHead = useSkillReleaseRef(skillName, normalizedSourceRef);
+  const currentCommitSha = sourceHead.data?.commitSha;
 
   const orderedReleases = useMemo(
     () => [...(releases.data ?? [])].sort((left, right) =>
@@ -42,22 +57,22 @@ export function SkillReleasesPanel({ skillName }: SkillReleasesPanelProps) {
     [releases.data],
   );
 
-  const canPublish = Boolean(version.trim() && expectedCommitSha.trim());
+  const canPublish = Boolean(version.trim() && currentCommitSha);
 
   const publish = async () => {
     if (!canPublish) return;
     try {
       const release = await createRelease.mutateAsync({
         version: version.trim(),
-        sourceRef: sourceRef.trim() || undefined,
-        expectedCommitSha: expectedCommitSha.trim(),
+        sourceRef: normalizedSourceRef,
+        expectedCommitSha: currentCommitSha!,
         releaseNotes: releaseNotes.trim() || undefined,
       });
       toast.success(`已发布 ${release.tag || version.trim()}`);
       setVersion('');
       setReleaseNotes('');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Skill 发布失败');
+      toast.error(publishErrorMessage(error));
     }
   };
 
@@ -75,10 +90,10 @@ export function SkillReleasesPanel({ skillName }: SkillReleasesPanelProps) {
     <div className="space-y-4">
       <div>
         <div className="flex items-center gap-2 text-sm font-medium">
-          <Tag className="h-4 w-4" /> 发布不可变版本
+          <Tag className="h-4 w-4" /> 发布上线
         </div>
         <p className="mt-1 text-[11px] text-muted-foreground">
-          发布会在 Git 仓库创建不可覆盖的 SemVer Tag。提交 SHA 用于防止 main 在确认后被其他操作移动。
+          发布会在 Git 仓库创建不可覆盖的 SemVer Tag。系统会自动锁定当前分支提交，避免误发到其他提交。
         </p>
       </div>
 
@@ -92,22 +107,48 @@ export function SkillReleasesPanel({ skillName }: SkillReleasesPanelProps) {
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">源分支</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-xs">发布来源</Label>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-[11px]"
+              onClick={() => sourceHead.refetch()}
+              disabled={sourceHead.isFetching}
+            >
+              <RefreshCw className={`mr-1 h-3.5 w-3.5 ${sourceHead.isFetching ? 'animate-spin' : ''}`} />
+              刷新提交
+            </Button>
+          </div>
           <Input
             className="font-mono text-xs"
             value={sourceRef}
             placeholder="refs/heads/main"
             onChange={(event) => setSourceRef(event.target.value)}
           />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">期望提交 SHA</Label>
-          <Input
-            className="font-mono text-xs"
-            value={expectedCommitSha}
-            placeholder="发布前确认的精确 commit SHA"
-            onChange={(event) => setExpectedCommitSha(event.target.value)}
-          />
+          <div className="rounded-md border bg-background px-2.5 py-2 text-[11px]">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground">当前提交</span>
+              {sourceHead.isFetching ? (
+                <span className="inline-flex items-center text-muted-foreground">
+                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  解析中
+                </span>
+              ) : (
+                <span className="font-mono">{shortSha(currentCommitSha)}</span>
+              )}
+            </div>
+            {currentCommitSha ? (
+              <div className="mt-1 break-all font-mono text-[10px] text-muted-foreground">
+                {currentCommitSha}
+              </div>
+            ) : sourceHead.isError ? (
+              <div className="mt-1 text-[10px] text-destructive">
+                无法解析该发布来源，请确认分支存在并刷新。
+              </div>
+            ) : null}
+          </div>
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">发布说明</Label>
@@ -120,7 +161,7 @@ export function SkillReleasesPanel({ skillName }: SkillReleasesPanelProps) {
         </div>
         <Button
           className="w-full"
-          disabled={!canPublish || createRelease.isPending}
+          disabled={!canPublish || createRelease.isPending || sourceHead.isFetching}
           onClick={publish}
         >
           {createRelease.isPending ? (
@@ -128,7 +169,7 @@ export function SkillReleasesPanel({ skillName }: SkillReleasesPanelProps) {
           ) : (
             <Tag className="mr-1.5 h-4 w-4" />
           )}
-          发布版本
+          发布上线
         </Button>
       </div>
 

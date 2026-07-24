@@ -6,10 +6,41 @@
  */
 import type {
   SkillReleaseServiceCreateSkillReleaseBody,
+  SkillReleaseServiceResolveSkillRefParams,
+  V1SkillRef,
   V1SkillRelease
 } from '../model';
 
 import { hubFetch } from '../../hub-fetch';
+
+export const getSkillReleaseServiceResolveSkillRefUrl = (name: string,
+    params?: SkillReleaseServiceResolveSkillRefParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/skills/${encodeURIComponent(String(name))}/refs:resolve?${stringifiedParams}` : `/v1/skills/${encodeURIComponent(String(name))}/refs:resolve`
+}
+
+export const skillReleaseServiceResolveSkillRef = async (name: string,
+    params?: SkillReleaseServiceResolveSkillRefParams, options?: RequestInit): Promise<V1SkillRef> => {
+
+  return hubFetch<V1SkillRef>(getSkillReleaseServiceResolveSkillRefUrl(name,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
 
 export const getSkillReleaseServiceCreateSkillReleaseUrl = (name: string,) => {
 

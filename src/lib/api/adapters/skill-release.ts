@@ -1,16 +1,21 @@
 import {
   skillReleaseServiceCreateSkillRelease,
   skillReleaseServiceGetSkillRelease,
+  skillReleaseServiceResolveSkillRef,
   skillReleaseServiceResolveSkillRelease,
 } from '../generated/skill-release-service/skill-release-service';
 import { skillServiceListSkillReleases } from '../generated/skill-service/skill-service';
 import type {
   SkillReleaseServiceCreateSkillReleaseBody,
+  SkillReleaseServiceResolveSkillRefParams,
+  V1SkillRef,
   V1SkillRelease,
 } from '../generated/model';
 
 export type SkillRelease = V1SkillRelease;
+export type SkillRef = V1SkillRef;
 export type CreateSkillReleaseInput = SkillReleaseServiceCreateSkillReleaseBody;
+export type ResolveSkillRefInput = SkillReleaseServiceResolveSkillRefParams;
 
 /**
  * Adapter over protobuf/OpenAPI-generated release clients.
@@ -22,6 +27,12 @@ export type CreateSkillReleaseInput = SkillReleaseServiceCreateSkillReleaseBody;
  * transport contract.
  */
 export const skillReleaseApi = {
+  resolveRef: (
+    skillName: string,
+    input: ResolveSkillRefInput = {},
+  ): Promise<SkillRef> =>
+    skillReleaseServiceResolveSkillRef(skillName, input),
+
   list: async (skillName: string): Promise<SkillRelease[]> => {
     const response = await skillServiceListSkillReleases(skillName);
     return response.releases ?? [];
