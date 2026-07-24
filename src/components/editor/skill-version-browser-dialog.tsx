@@ -115,14 +115,18 @@ export function SkillVersionBrowserDialog({
                 已发布内容由不可变 Tag 固定，只能浏览，不能直接修改。
               </DialogDescription>
             </div>
-            <button
+            <Button
               type="button"
-              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              size="sm"
+              variant="outline"
+              className="h-8 shrink-0 px-2 text-xs"
               title={isFullscreen ? '退出全屏' : '全屏'}
+              aria-label={isFullscreen ? '退出全屏' : '全屏'}
               onClick={() => setIsFullscreen((v) => !v)}
             >
-              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-            </button>
+              {isFullscreen ? <Minimize2 className="mr-1 h-3.5 w-3.5" /> : <Maximize2 className="mr-1 h-3.5 w-3.5" />}
+              {isFullscreen ? '退出全屏' : '全屏'}
+            </Button>
             <Select value={selectedVersion?.tag} onValueChange={switchVersion}>
               <SelectTrigger className="w-[240px] font-mono text-xs">
                 <SelectValue placeholder="选择版本" />
@@ -246,14 +250,18 @@ export function SkillVersionBrowserDialog({
         <div className="flex shrink-0 items-center justify-between border-t bg-muted/20 px-4 py-2 text-[11px] text-muted-foreground">
           <div className="flex items-center gap-2">
             <span>{selectedVersion?.tag ?? '-'}</span>
-            <button
+            <Button
               type="button"
-              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-[11px]"
               title={isFullscreen ? '退出全屏' : '全屏'}
+              aria-label={isFullscreen ? '退出全屏' : '全屏'}
               onClick={() => setIsFullscreen((v) => !v)}
             >
-              {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-            </button>
+              {isFullscreen ? <Minimize2 className="mr-1 h-3.5 w-3.5" /> : <Maximize2 className="mr-1 h-3.5 w-3.5" />}
+              {isFullscreen ? '退出全屏' : '全屏'}
+            </Button>
           </div>
           <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>
             关闭

@@ -99,18 +99,14 @@ function renderInSkillEditor(onOpenChange = vi.fn()) {
   return { ...result, onOpenChange };
 }
 
-describe('SkillVersionBrowserDialog inline workspace', () => {
-  it('aligns a non-dialog release preview with the primary editor pane', async () => {
+describe('SkillVersionBrowserDialog', () => {
+  it('opens as a medium dialog and toggles fullscreen from the header button', async () => {
     renderInSkillEditor();
 
-    const preview = await screen.findByTestId('skill-version-inline-preview');
-    expect(preview.style.top).toBe('48px');
-    expect(preview.style.left).toBe('0px');
-    expect(preview.style.width).toBe('960px');
-    expect(preview.style.height).toBe('720px');
-
-    expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.getByText('已发布版本预览')).toBeDefined();
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.className).toContain('h-[85vh]');
+    expect(dialog.className).toContain('w-[90vw]');
+    expect(dialog.className).not.toContain('h-screen');
     expect(screen.getByText('monaco:refs/tags/v1.0.0:SKILL.md:readonly')).toBeDefined();
     expect(useFileTree).toHaveBeenLastCalledWith(
       'search',
@@ -119,13 +115,23 @@ describe('SkillVersionBrowserDialog inline workspace', () => {
       { enabled: true },
     );
     expect(screen.getByText('draft editor remains mounted')).toBeDefined();
+
+    fireEvent.click(screen.getAllByRole('button', { name: '全屏' })[0]);
+    expect(dialog.className).toContain('h-screen');
+    expect(dialog.className).toContain('w-screen');
+    expect(dialog.className).toContain('rounded-none');
+    expect(dialog.className).toContain('border-0');
+
+    fireEvent.click(screen.getAllByRole('button', { name: '退出全屏' })[0]);
+    expect(dialog.className).toContain('h-[85vh]');
+    expect(dialog.className).toContain('w-[90vw]');
   });
 
-  it('switches files in the same workspace and returns to the preserved draft', async () => {
+  it('switches files in the dialog and closes without unmounting the draft editor', async () => {
     const onOpenChange = vi.fn();
     renderInSkillEditor(onOpenChange);
 
-    await screen.findByText('已发布版本预览');
+    await screen.findByRole('dialog');
 
     fireEvent.click(screen.getByRole('button', { name: 'README.md' }));
     await waitFor(() => {
@@ -137,7 +143,7 @@ describe('SkillVersionBrowserDialog inline workspace', () => {
       );
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '返回草稿' }));
+    fireEvent.click(screen.getByRole('button', { name: '关闭' }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(screen.getByText('draft editor remains mounted')).toBeDefined();
   });
