@@ -9,5 +9,11 @@ export interface V1SkillRelease {
   commitSha?: string;
   createTime?: string;
   manifestSha256?: string;
+  publisherEmail?: string;
+  publisherId?: string;
+  publisherName?: string;
+  releaseNotes?: string;
+  sourceRef?: string;
   tag?: string;
+  treeSha?: string;
 }

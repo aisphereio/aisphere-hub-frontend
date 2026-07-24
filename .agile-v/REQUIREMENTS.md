@@ -530,14 +530,16 @@ These requirements define the expected behavior of the Aisphere Hub Frontend (Sk
 
 ## REQ-FE-SKILL-005 — Skill Version Management
 - **Priority:** P0 | **Status:** `OBSERVED_IMPLEMENTED`
-- **Requirement:** Version lifecycle with 5 states: draft → submitted → published → online → offline.
+- **Requirement:** Manage Skill versions as Git-native development refs and immutable SemVer releases.
 - **API:**
-  - Submit: `POST /v1/skills/{name}/versions/{version}:submit`
-  - Publish: `POST /v1/skills/{name}/versions/{version}:publish`
-  - Online: `POST /v1/skills/{name}/versions/{version}:online`
-  - Offline: `POST /v1/skills/{name}/versions/{version}:offline`
-- **UI:** Version timeline with state badges (colored). State transition buttons enabled/disabled based on current state. Loading state per transition.
-- **Verification:** 1) States display correctly. 2) Transition buttons enabled/disabled correctly. 3) Transitions call correct API.
+  - Refs: `GET /v1/skills/{name}/refs`
+  - Commits: `GET /v1/skills/{name}/commits?ref=...`
+  - Publish: `POST /v1/skills/{name}/releases`
+  - Releases: `GET /v1/skills/{name}/releases`
+  - Resolve: `GET /v1/skills/{name}/releases/{version}:resolve`
+  - Restore: `POST /v1/skills/{name}:restore`
+- **UI:** Git version panel with branch selector and server-provided HEAD, immutable release publishing, complete release provenance/integrity metadata, commit history, and an explicit auditable restore confirmation.
+- **Verification:** 1) Publish automatically sends the selected branch HEAD as `expectedCommitSha`. 2) Releases preserve backend SemVer order and show publisher, notes, commit/tree/manifest hashes and publication time. 3) Restore creates a new commit with CAS instead of moving a Tag.
 - **Done criteria:** Component test.
 
 ## REQ-FE-SKILL-006 — Skill Sharing
@@ -581,10 +583,10 @@ These requirements define the expected behavior of the Aisphere Hub Frontend (Sk
 
 ## REQ-FE-SKILL-010 — Skill Version Diff
 - **Priority:** P0 | **Status:** `OBSERVED_IMPLEMENTED`
-- **Requirement:** View differences between skill versions.
-- **API:** Composite: `GET /v1/skills/{name}/versions/{version}/files` + `GET /v1/skills/{name}/versions/{version}/file?path=...` (called for both base and target versions)
-- **UI:** Side-by-side diff view. File selector. Added/removed/changed file indicators.
-- **Verification:** 1) Diff renders. 2) File selector works. 3) Changes highlighted.
+- **Requirement:** Compare any two Git branch, Tag, or commit refs using the backend's canonical diff.
+- **API:** `GET /v1/skills/{name}/compare?baseRef=...&targetRef=...`
+- **UI:** Base and target ref selectors, per-file status/addition/deletion summary, commit SHAs, unified patch, and a truncation notice when the server bounds a large patch.
+- **Verification:** 1) Both selectors are populated from the refs API. 2) Compare sends exact refs. 3) File stats and unified patch render, including truncation state.
 - **Done criteria:** Component test.
 
 ---
@@ -618,13 +620,13 @@ These requirements define the expected behavior of the Aisphere Hub Frontend (Sk
 
 ## REQ-FE-SKILLSET-004 — SkillSet Member Management
 - **Priority:** P0 | **Status:** `OBSERVED_IMPLEMENTED`
-- **Requirement:** Bind/unbind skills to/from a group.
+- **Requirement:** Bind/unbind Skills while pinning every member to an exact immutable Skill Release.
 - **API:**
   - Bind: `POST /v1/skillsets/{name}/members` → `SkillSetMember`
   - Unbind: `DELETE /v1/skillsets/{name}/members/{skillName}` → `{}`
   - Update member: `PUT /v1/skillsets/{name}/members/{skillName}` → `Partial<SkillSetMember>` → `SkillSetMember`
-- **UI:** Member list with add/remove controls. "Add Skill" search dialog. Required flag toggle per member.
-- **Verification:** 1) Member list renders. 2) Add/remove works. 3) Required flag toggle works.
+- **UI:** Member list with add/remove controls, Skill search, required Release selector, resolved Commit display, and in-place Release updates.
+- **Verification:** 1) Add stays disabled until a Skill and exact Release are selected. 2) Bind/update sends the selected SemVer Tag. 3) Returned Commit and unresolved legacy state are visible.
 - **Done criteria:** Component test.
 
 ## REQ-FE-SKILLSET-005 — SkillSet Delete
@@ -635,12 +637,12 @@ These requirements define the expected behavior of the Aisphere Hub Frontend (Sk
 - **Verification:** 1) Confirmation shows. 2) Submit calls API. 3) Success refreshes list.
 - **Done criteria:** Component test.
 
-## REQ-FE-SKILLSET-006 — SkillSet Required Flag
+## REQ-FE-SKILLSET-006 — SkillSet Immutable Lock Snapshot
 - **Priority:** P0 | **Status:** `OBSERVED_IMPLEMENTED`
-- **Requirement:** Mark skills as required within a group.
-- **API:** `PUT /v1/skillsets/{name}/members/{skillName}` → `{ required: boolean }` → `SkillSetMember`
-- **UI:** Required badge/toggle per member in the member list.
-- **Verification:** 1) Required badge displays. 2) Toggle calls API. 3) State updates.
+- **Requirement:** Validate and expose a reproducible SkillSet snapshot for Runtime consumption.
+- **API:** `GET /v1/skillsets/{name}:resolve` → `{ schemaVersion, skillSet: { name, revision }, skills: [{ skillName, version, commitSha, treeSha, manifestSha256 }], resolvedAt }`
+- **UI:** "校验锁" action, unresolved-member warning, and a reviewable JSON lock snapshot.
+- **Verification:** 1) Unresolved members block snapshot generation and are clearly identified. 2) Resolve returns exact Tag/Commit/Tree/manifest hashes for all members. 3) Snapshot revision and members render for review.
 - **Done criteria:** Component test.
 
 ---
