@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, CloudCog, Edit, KeyRound, Pencil, Plus, RefreshCw, RotateCcw, Server, ShieldCheck, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { ClusterEditDialog } from '@/components/kubernetes/cluster-edit-dialog';
+import { buildClusterUpdateBody, formatClusterLabels, type ClusterEditForm } from '@/components/kubernetes/cluster-edit-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -185,28 +185,20 @@ export function EnvironmentsPage() {
   });
 
   const [editingClusterId, setEditingClusterId] = useState('');
-	const [editForm, setEditForm] = useState({
-	    displayName: '',
-	    description: '',
-	    distribution: '',
-	    serverUrl: '',
-	  });
+  const [editForm, setEditForm] = useState<ClusterEditForm & { serverUrl: string }>({
+    displayName: '',
+    description: '',
+    distribution: '',
+    labels: '',
+    serverUrl: '',
+  });
 
   const isEditing = (cluster: V1Cluster) => editingClusterId === cluster.id;
 
   const updateCluster = useMutation({
     mutationFn: (cluster: V1Cluster) => {
-	const body: ClusterServiceUpdateClusterBody = {
-	        cluster: {
-	          displayName: editForm.displayName || undefined,
-	          description: editForm.description || undefined,
-	          distribution: editForm.distribution || undefined,
-	          serverUrl: editForm.serverUrl || undefined,
-	        },
-	        expectedRevision: cluster.revision ?? '0',
-	        updateMask: ['displayName', 'description', 'distribution', 'serverUrl'].join(','),
-	      };
-      return clusterServiceUpdateCluster(cluster.id ?? '', body);
+      if (!editState.body) throw new Error('没有需要保存的修改');
+      return clusterServiceUpdateCluster(cluster.id ?? '', editState.body);
     },
     onMutate: (cluster) => {
       // Snapshot current values so we can reset on error
@@ -217,8 +209,39 @@ export function EnvironmentsPage() {
       setEditingClusterId('');
       refreshClusters();
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : '更新集群信息失败'),
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : '更新集群信息失败';
+      toast.error(message.includes('REVISION_CONFLICT')
+        ? '集群信息已被其他操作更新，请刷新后重试'
+        : message);
+    },
   });
+
+  // Compute the update body + parse errors for the inline edit form so the
+  // save button can be disabled and label errors shown. Extends the shared
+  // builder with the serverUrl diff. The computation is cheap (string diffs),
+  // so no memoization is needed.
+  const editState = (() => {
+    if (!selectedCluster) return { body: null as ClusterServiceUpdateClusterBody | null, error: '', hasChange: false };
+    try {
+      const base = buildClusterUpdateBody(selectedCluster, editForm);
+      const serverUrl = editForm.serverUrl.trim();
+      const updateMask: string[] = base ? base.updateMask.split(',').filter(Boolean) : [];
+      const patch: V1Cluster = base ? { ...base.cluster } : {};
+      if (serverUrl !== (selectedCluster.serverUrl ?? '')) {
+        updateMask.push('serverUrl');
+        patch.serverUrl = serverUrl;
+      }
+      if (updateMask.length === 0) return { body: null, error: '', hasChange: false };
+      return {
+        body: { cluster: patch, expectedRevision: selectedCluster.revision ?? '0', updateMask: updateMask.join(',') },
+        error: '',
+        hasChange: true,
+      };
+    } catch (err) {
+      return { body: null, error: err instanceof Error ? err.message : '标签格式错误', hasChange: false };
+    }
+  })();
 
   const deleteCluster = useMutation({
     mutationFn: (cluster: V1Cluster) => clusterServiceDeleteCluster(cluster.id ?? '', {
@@ -337,7 +360,6 @@ export function EnvironmentsPage() {
                       <TableCell className="text-xs">{cluster.kubernetesVersion || '-'}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          {cluster.permissions?.canManage ? <ClusterEditDialog cluster={cluster} /> : null}
                           {cluster.permissions?.canOperate ? (
                             <Button size="icon" variant="ghost" className="h-7 w-7" title="探测" onClick={(event) => {
                               event.stopPropagation();
@@ -405,12 +427,13 @@ export function EnvironmentsPage() {
                     size="sm"
                     variant="outline"
                     onClick={() => {
-setEditForm({
-	                        displayName: selectedCluster.displayName ?? '',
-	                        description: selectedCluster.description ?? '',
-	                        distribution: selectedCluster.distribution ?? '',
-	                        serverUrl: selectedCluster.serverUrl ?? '',
-	                      });
+                      setEditForm({
+                        displayName: selectedCluster.displayName ?? '',
+                        description: selectedCluster.description ?? '',
+                        distribution: selectedCluster.distribution ?? '',
+                        labels: formatClusterLabels(selectedCluster.labels),
+                        serverUrl: selectedCluster.serverUrl ?? '',
+                      });
                       setEditingClusterId(selectedCluster.id ?? '');
                     }}
                   >
@@ -483,10 +506,21 @@ setEditForm({
                   value={editForm.description}
                   onChange={(event) => setEditForm({ ...editForm, description: event.target.value })}
                 />
+                <div className="space-y-1">
+                  <Textarea
+                    rows={4}
+                    className="font-mono text-xs"
+                    placeholder={'environment=production\nregion=cn-north-1'}
+                    value={editForm.labels}
+                    onChange={(event) => setEditForm({ ...editForm, labels: event.target.value })}
+                  />
+                  <div className="text-[11px] text-muted-foreground">每行一个标签，格式为 key=value；留空可清除全部标签。</div>
+                </div>
+                {editState.error ? <div className="text-xs text-destructive">{editState.error}</div> : null}
                 <div className="flex gap-2">
                   <Button
                     className="flex-1"
-                    disabled={updateCluster.isPending}
+                    disabled={updateCluster.isPending || Boolean(editState.error) || !editState.hasChange}
                     onClick={() => updateCluster.mutate(selectedCluster)}
                   >
                     {updateCluster.isPending ? '保存中...' : '保存修改'}
