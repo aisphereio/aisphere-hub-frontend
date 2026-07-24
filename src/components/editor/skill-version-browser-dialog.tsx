@@ -39,6 +39,14 @@ type SkillVersionBrowserDialogProps = {
   onOpenChange: (open: boolean) => void;
 };
 
+type PreviewTarget = {
+  element: HTMLElement;
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+};
+
 function parentPath(path: string): string {
   const index = path.lastIndexOf('/');
   return index < 0 ? '' : path.slice(0, index);
@@ -51,6 +59,25 @@ function breadcrumb(path: string): { label: string; path: string }[] {
     current = current ? `${current}/${label}` : label;
     return { label, path: current };
   });
+}
+
+function targetSnapshot(element: HTMLElement): PreviewTarget {
+  const rect = element.getBoundingClientRect();
+  return {
+    element,
+    top: rect.top,
+    left: rect.left,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+function sameTarget(left: PreviewTarget, right: PreviewTarget): boolean {
+  return left.element === right.element &&
+    left.top === right.top &&
+    left.left === right.left &&
+    left.width === right.width &&
+    left.height === right.height;
 }
 
 /**
@@ -90,7 +117,7 @@ function findMainEditorPane(marker: HTMLElement | null): HTMLElement | null {
 /**
  * Compatibility note: this component keeps its historical export name so
  * callers do not need to change, but it no longer renders a Dialog. It mounts
- * a read-only release workspace into SkillEditor's primary content pane.
+ * a read-only release workspace over SkillEditor's primary content pane.
  */
 export function SkillVersionBrowserDialog({
   skillName,
@@ -99,37 +126,49 @@ export function SkillVersionBrowserDialog({
   open,
   onOpenChange,
 }: SkillVersionBrowserDialogProps) {
-  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<PreviewTarget | null>(null);
   const versions = useMemo(() => buildSkillReleaseViews(releases), [releases]);
   const [selectedTag, setSelectedTag] = useState(initialTag);
   const [currentPath, setCurrentPath] = useState('');
   const [selectedFile, setSelectedFile] = useState('SKILL.md');
 
   const attachMarker = useCallback((node: HTMLSpanElement | null) => {
-    setPortalTarget(open && node ? findMainEditorPane(node) : null);
+    const target = open && node ? findMainEditorPane(node) : null;
+    setPreviewTarget(target ? targetSnapshot(target) : null);
   }, [open]);
 
+  const targetElement = previewTarget?.element ?? null;
   useEffect(() => {
-    if (!portalTarget) return;
+    if (!targetElement) return;
 
-    const previousPosition = portalTarget.style.position;
-    if (window.getComputedStyle(portalTarget).position === 'static') {
-      portalTarget.style.position = 'relative';
-    }
+    const updatePosition = () => {
+      const next = targetSnapshot(targetElement);
+      setPreviewTarget((current) => {
+        if (!current || current.element !== targetElement) return current;
+        return sameTarget(current, next) ? current : next;
+      });
+    };
+
+    const observer = new ResizeObserver(updatePosition);
+    observer.observe(targetElement);
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
 
     return () => {
-      portalTarget.style.position = previousPosition;
+      observer.disconnect();
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [portalTarget]);
+  }, [targetElement]);
 
   const selectedVersion =
     versions.find((version) => version.tag === selectedTag) ?? versions[0];
   const selectedRef = selectedVersion?.ref ?? '';
   const tree = useFileTree(skillName, currentPath, selectedRef, {
-    enabled: open && Boolean(portalTarget && selectedRef),
+    enabled: open && Boolean(previewTarget && selectedRef),
   });
   const file = useFileContent(skillName, selectedFile, selectedRef, {
-    enabled: open && Boolean(portalTarget && selectedRef && selectedFile),
+    enabled: open && Boolean(previewTarget && selectedRef && selectedFile),
   });
 
   const entries = (tree.data ?? []).slice().sort((left, right) => {
@@ -149,10 +188,16 @@ export function SkillVersionBrowserDialog({
     setSelectedFile('SKILL.md');
   };
 
-  const workspace = portalTarget && open ? createPortal(
+  const workspace = previewTarget && open ? createPortal(
     <div
       data-testid="skill-version-inline-preview"
-      className="absolute inset-0 z-30 flex min-h-0 flex-col overflow-hidden bg-background"
+      className="fixed z-30 flex min-h-0 flex-col overflow-hidden border-r bg-background shadow-sm"
+      style={{
+        top: previewTarget.top,
+        left: previewTarget.left,
+        width: previewTarget.width,
+        height: previewTarget.height,
+      }}
     >
       <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-b bg-card/95 px-3 py-2 backdrop-blur-sm">
         <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -301,7 +346,7 @@ export function SkillVersionBrowserDialog({
         <span>切换版本会重置到 SKILL.md；草稿编辑状态保留在后台。</span>
       </div>
     </div>,
-    portalTarget,
+    document.body,
   ) : null;
 
   return (
