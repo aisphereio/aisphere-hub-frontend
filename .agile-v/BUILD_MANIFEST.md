@@ -101,12 +101,12 @@
 | ART-0040 | REQ-FE-SKILL-002 | `src/components/skills/skill-create-dialog.tsx`, `src/hooks/use-iam.ts`, `src/hooks/use-skills.ts` | Project-scoped Skill create |
 | ART-0041 | REQ-FE-SKILL-003 | `src/components/pages/skills-page.tsx` | Skill detail view |
 | ART-0042 | REQ-FE-SKILL-004 | `src/components/editor/code-editor.tsx` | Skill file editor |
-| ART-0043 | REQ-FE-SKILL-005 | `src/components/editor/skill-releases-panel.tsx`, `src/hooks/use-skill-releases.ts`, `src/lib/api/adapters/skill-release.ts` | Git tag release publishing with automatic source commit resolution |
+| ART-0043 | REQ-FE-SKILL-005 | `src/components/editor/skill-releases-panel.tsx`, `src/hooks/use-skill-releases.ts`, `src/lib/api/adapters/skill-release.ts` | Exact ref resolution, Git refs, immutable releases, commit history, auditable restore |
 | ART-0044 | REQ-FE-SKILL-006 | `src/components/aihub/resource-share-panel.tsx` | Skill sharing |
 | ART-0045 | REQ-FE-SKILL-007 | `src/components/pages/skills-page.tsx` | Skill search |
 | ART-0046 | REQ-FE-SKILL-008 | `src/components/pages/skills-page.tsx` | Skill delete |
 | ART-0047 | REQ-FE-SKILL-009 | `src/components/editor/file-tree.tsx` | Skill file tree |
-| ART-0048 | REQ-FE-SKILL-010 | `src/components/pages/skills-page.tsx` | Skill version diff |
+| ART-0048 | REQ-FE-SKILL-010 | `src/components/editor/skill-releases-panel.tsx`, `src/lib/api/generated/skill-release-service/` | Canonical branch/Tag/commit comparison |
 
 ### SkillSets (6 REQs, 6 ART)
 
@@ -115,9 +115,9 @@
 | ART-0049 | REQ-FE-SKILLSET-001 | `src/components/pages/skillsets-page.tsx` | SkillSet list |
 | ART-0050 | REQ-FE-SKILLSET-002 | `src/components/pages/skillsets-page.tsx` | SkillSet create |
 | ART-0051 | REQ-FE-SKILLSET-003 | `src/components/pages/skillsets-page.tsx` | SkillSet detail |
-| ART-0052 | REQ-FE-SKILLSET-004 | `src/components/skillsets/skillset-member-list.tsx` | SkillSet member management |
+| ART-0052 | REQ-FE-SKILLSET-004 | `src/components/skillsets/skillset-member-list.tsx`, `src/hooks/use-skillsets.ts` | Exact Release-pinned SkillSet members |
 | ART-0053 | REQ-FE-SKILLSET-005 | `src/components/pages/skillsets-page.tsx` | SkillSet delete |
-| ART-0054 | REQ-FE-SKILLSET-006 | `src/components/pages/skillsets-page.tsx` | SkillSet required flag |
+| ART-0054 | REQ-FE-SKILLSET-006 | `src/components/skillsets/skillset-member-list.tsx`, `src/lib/api/index.ts`, `src/lib/api/types.ts` | Runtime-consumable immutable lock snapshot |
 
 ### Agents (6 REQs, 6 ART)
 

@@ -64,6 +64,7 @@ import type {
   SkillDraft,
   SkillSetUpdate,
   SkillSetMember,
+  SkillSetLock,
   AccessEvaluateResult,
   AccessOverview,
   AccessResourceTemplate,
@@ -331,6 +332,11 @@ export const skillSetApi = {
   skillSetOfSkill: (skillName: string) =>
     request<{ skillsets: string[] }>(
       `/v1/skills/${encodeURIComponent(skillName)}/skillsets`,
+    ),
+  /** Produce an immutable, Runtime-consumable lock snapshot. */
+  resolve: (skillSetName: string) =>
+    request<SkillSetLock>(
+      `/v1/skillsets/${encodeURIComponent(skillSetName)}:resolve`,
     ),
 };
 

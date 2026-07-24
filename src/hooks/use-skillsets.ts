@@ -122,3 +122,9 @@ export function useSkillSetsOfSkill(skillName: string | null) {
     staleTime: 30_000,
   });
 }
+
+export function useResolveSkillSet() {
+  return useMutation({
+    mutationFn: (skillSetName: string) => skillSetApi.resolve(skillSetName),
+  });
+}

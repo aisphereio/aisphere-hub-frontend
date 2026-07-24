@@ -1,11 +1,11 @@
 # Test Specification — Aisphere Hub Frontend
 
-> Cycle: C1 | Generated: 2026-07-13 | Status: IN_PROGRESS
+> Cycle: C1 | Updated: 2026-07-24 | Status: IN_PROGRESS
 > Designed by: Test Designer
 
 ## 1. Overview
 
-Total TCs: 20 (P0 priority)
+Total TCs: 22 (P0 priority)
 Framework: vitest + @testing-library/react + happy-dom
 
 ## 2. Test Cases
@@ -37,14 +37,22 @@ Framework: vitest + @testing-library/react + happy-dom
 | TC-FE-016 | REQ-FE-AUTHZADMIN-008 | Permission explain shows steps | Shows explanation steps after explain | component | 1. Fill form. 2. Click Explain. 3. Verify steps display. |
 | TC-FE-017 | REQ-FE-AUTHZADMIN-009 | Effective permissions renders | Shows permission table | component | 1. Fill form. 2. Submit. 3. Verify table renders. |
 | TC-FE-018 | REQ-FE-SKILL-002 | Skill create requires Principal Zone and selected Project | Submit stays disabled without either value and sends both values when complete | component | 1. Mock Principal and Project list. 2. Render create dialog. 3. Select Project. 4. Verify create mutation receives `orgId` and `projectId`. |
-| TC-FE-019 | REQ-FE-SKILL-005 | Skill release publish hides expected commit SHA from users | Publish form resolves the source ref, displays the current commit, and sends it as `expectedCommitSha` internally | component | 1. Mock `useSkillReleaseRef` to return `commit-1`. 2. Render release panel. 3. Enter version and notes. 4. Publish. 5. Verify create mutation receives `sourceRef` and `expectedCommitSha` while no editable SHA input is shown. |
+
+### Wave 3 — Git-native Skill Versions
+
+| TC-ID | REQ-ID | Description | Expected | Type | Steps |
+|-------|--------|-------------|----------|------|-------|
+| TC-FE-019 | REQ-FE-SKILL-005 | Publish derives expected SHA from selected branch | Create mutation receives `sourceRef` and current server-provided `expectedCommitSha`; no manual SHA input exists; stale HEAD prompts refresh | component | 1. Mock refs with default branch HEAD. 2. Enter SemVer. 3. Publish and verify exact request. 4. Return `SKILL_RELEASE_STALE` and verify refresh guidance. |
+| TC-FE-020 | REQ-FE-SKILL-005 | Release provenance and integrity render | Release card shows notes, publisher, commit, tree, manifest hash and publication time | component | 1. Mock a complete release. 2. Open Versions tab. 3. Verify metadata. |
+| TC-FE-021 | REQ-FE-SKILLSET-004 | Adding a member requires an exact Release | Add is disabled without a release and bind sends `{ skillName, version }` after selection | component | 1. Mock available Skills and releases. 2. Select Skill. 3. Select release. 4. Verify bind request. |
+| TC-FE-022 | REQ-FE-SKILLSET-006 | Lock snapshot validation renders resolved payload | Resolve action shows revision and exact member hashes | component | 1. Mock resolved SkillSet lock. 2. Click validate. 3. Verify success state and JSON payload. |
 
 ## 3. Summary
 
 | Dimension | Count |
 |-----------|:-----:|
-| Total TCs | 19 |
-| Component tests | 19 |
-| P0 priority | 19 |
-| **Implemented** | **8** (TC-FE-001~008) |
-| **Pending** | **11** (TC-FE-009~019) |
+| Total TCs | 22 |
+| Component tests | 22 |
+| P0 priority | 22 |
+| **Implemented** | **10** (TC-FE-001~008, TC-FE-019~020) |
+| **Pending** | **12** (TC-FE-009~018, TC-FE-021~022) |

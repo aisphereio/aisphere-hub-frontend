@@ -140,6 +140,7 @@ export type SkillSet = {
   scope?: string;
   labels?: Record<string, string>;
   members?: SkillSetMember[];
+  revision?: number;
   createdAt?: string;
   updatedAt?: string;
   downloadCount?: number;
@@ -148,9 +149,25 @@ export type SkillSet = {
 export type SkillSetMember = {
   skillName: string;
   version?: string;
+  commitSha?: string;
+  treeSha?: string;
+  manifestSha256?: string;
+  resolvedAt?: string;
+  displayName?: string;
   label?: string;
   required?: boolean;
   order?: number;
+};
+
+export type SkillSetLock = {
+  schemaVersion: number;
+  skillSet: {
+    name: string;
+    revision: number;
+    updatedAt?: string;
+  };
+  skills: SkillSetMember[];
+  resolvedAt: string;
 };
 
 export type AgentSkillRef = {

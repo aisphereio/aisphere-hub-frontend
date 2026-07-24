@@ -5,13 +5,98 @@
  * OpenAPI spec version: v1
  */
 import type {
+  SkillReleaseServiceCompareSkillRefsParams,
   SkillReleaseServiceCreateSkillReleaseBody,
+  SkillReleaseServiceListSkillCommitsParams,
   SkillReleaseServiceResolveSkillRefParams,
+  SkillReleaseServiceRestoreSkillRefBody,
+  V1CompareSkillRefsResponse,
+  V1ListSkillCommitsResponse,
+  V1ListSkillRefsResponse,
+  V1RestoreSkillRefResponse,
   V1SkillRef,
   V1SkillRelease
 } from '../model';
 
 import { hubFetch } from '../../hub-fetch';
+
+export const getSkillReleaseServiceListSkillCommitsUrl = (name: string,
+    params?: SkillReleaseServiceListSkillCommitsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/skills/${encodeURIComponent(String(name))}/commits?${stringifiedParams}` : `/v1/skills/${encodeURIComponent(String(name))}/commits`
+}
+
+export const skillReleaseServiceListSkillCommits = async (name: string,
+    params?: SkillReleaseServiceListSkillCommitsParams, options?: RequestInit): Promise<V1ListSkillCommitsResponse> => {
+
+  return hubFetch<V1ListSkillCommitsResponse>(getSkillReleaseServiceListSkillCommitsUrl(name,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getSkillReleaseServiceCompareSkillRefsUrl = (name: string,
+    params: SkillReleaseServiceCompareSkillRefsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/skills/${encodeURIComponent(String(name))}/compare?${stringifiedParams}` : `/v1/skills/${encodeURIComponent(String(name))}/compare`
+}
+
+export const skillReleaseServiceCompareSkillRefs = async (name: string,
+    params: SkillReleaseServiceCompareSkillRefsParams, options?: RequestInit): Promise<V1CompareSkillRefsResponse> => {
+
+  return hubFetch<V1CompareSkillRefsResponse>(getSkillReleaseServiceCompareSkillRefsUrl(name,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getSkillReleaseServiceListSkillRefsUrl = (name: string,) => {
+
+
+
+
+  return `/v1/skills/${encodeURIComponent(String(name))}/refs`
+}
+
+export const skillReleaseServiceListSkillRefs = async (name: string, options?: RequestInit): Promise<V1ListSkillRefsResponse> => {
+
+  return hubFetch<V1ListSkillRefsResponse>(getSkillReleaseServiceListSkillRefsUrl(name),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
 
 export const getSkillReleaseServiceResolveSkillRefUrl = (name: string,
     params?: SkillReleaseServiceResolveSkillRefParams,) => {
@@ -103,6 +188,32 @@ export const skillReleaseServiceResolveSkillRelease = async (name: string,
     method: 'GET'
 
 
+  }
+);}
+
+
+export const getSkillReleaseServiceRestoreSkillRefUrl = (name: string,) => {
+
+
+
+
+  return `/v1/skills/${encodeURIComponent(String(name))}:restore`
+}
+
+/**
+ * @summary RestoreSkillRef creates a new commit whose tree exactly matches source_ref
+and advances target_branch with compare-and-swap. Existing release tags
+remain immutable; rollback is therefore auditable and non-destructive.
+ */
+export const skillReleaseServiceRestoreSkillRef = async (name: string,
+    skillReleaseServiceRestoreSkillRefBody: SkillReleaseServiceRestoreSkillRefBody, options?: RequestInit): Promise<V1RestoreSkillRefResponse> => {
+
+  return hubFetch<V1RestoreSkillRefResponse>(getSkillReleaseServiceRestoreSkillRefUrl(name),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(skillReleaseServiceRestoreSkillRefBody)
   }
 );}
 
