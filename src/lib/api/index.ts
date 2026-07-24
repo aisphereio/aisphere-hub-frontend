@@ -496,11 +496,18 @@ const IAM_URL: string = (
 ).replace(/\/+$/, '');
 
 function iamRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const fullUrl = IAM_URL + path;
-  const headers = new Headers(init.headers || []);
-  const token = getToken();
-  if (token) headers.set('Authorization', `Bearer ${token}`);
-  if (IS_GATEWAY_OIDC) headers.set('X-Requested-With', 'XMLHttpRequest');
+	  const fullUrl = IAM_URL + path;
+	  const headers = new Headers(init.headers || []);
+	  // In gateway OIDC mode, the hub access token is stored in a cookie.
+	  // getToken() returns '' in that mode because it only reads localStorage,
+	  // so we must extract it from document.cookie directly.
+	  let token = getToken();
+	  if (!token && IS_GATEWAY_OIDC && typeof document !== 'undefined') {
+	    const m = document.cookie.match(/(?:^|;\s*)Aisphere-Hub-AccessToken=([^;]+)/);
+	    if (m) token = m[1];
+	  }
+	  if (token) headers.set('Authorization', `Bearer ${token}`);
+	  if (IS_GATEWAY_OIDC) headers.set('X-Requested-With', 'XMLHttpRequest');
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
