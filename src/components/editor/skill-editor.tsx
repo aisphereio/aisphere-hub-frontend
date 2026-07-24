@@ -47,6 +47,7 @@ import { useT } from "@/lib/i18n";
 import type { Skill, AccessMode } from "@/lib/api/types";
 import { SkillFileTree } from "./skill-file-tree";
 import { PullRequestsPanel } from "./pull-requests-panel";
+import { SkillReleasesPanel } from "./skill-releases-panel";
 
 // Monaco is the first next/dynamic({ ssr: false }) import in the repo.
 // It pulls in web workers and touches `self` at module load, so it must
@@ -62,14 +63,13 @@ function defaultBranchOf(detail: Skill): string {
   const v = (detail as Skill & { defaultBranch?: string }).defaultBranch;
   return v && v.length > 0 ? v : "main";
 }
-import { deriveAccessMode } from "@/lib/api/types";
 
 interface SkillEditorProps {
   skillName: string;
   onBack: () => void;
 }
 
-type RightPanelTab = "overview" | "settings" | "shares" | "prs";
+type RightPanelTab = "shares" | "prs" | "releases";
 
 /**
  * SkillEditor — settings-focused editor for the Git-native Hub.
@@ -83,7 +83,7 @@ type RightPanelTab = "overview" | "settings" | "shares" | "prs";
  */
 export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
   const t = useT();
-  const [rightTab, setRightTab] = useState<RightPanelTab>("overview");
+  const [rightTab, setRightTab] = useState<RightPanelTab>("shares");
   const [showRightPanel, setShowRightPanel] = useState(true);
   const [metaExpanded, setMetaExpanded] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -99,17 +99,12 @@ export function SkillEditor({ skillName, onBack }: SkillEditorProps) {
   const subscribeMutation = useSocialSubscribe();
   const ratingMutation = useSocialRating();
 
-  // The shares query backs both the Shares tab and the Settings tab's
-  // access-mode display, so enable it whenever either tab is visible.
+  // The shares query backs the Shares tab, so only enable it when visible.
   const { data: sharesData } = useResourceShares("skill", skillName, {
-    enabled: showRightPanel && (rightTab === "shares" || rightTab === "settings"),
+    enabled: showRightPanel && rightTab === "shares",
   });
-  // deriveAccessMode([]) returns "private", which is wrong for a skill whose
-  // visibility is public/internal before the shares query resolves. Only
-  // derive from shares once the query has actually resolved; otherwise fall
-  // back to the skill's own scope (visibility) so the first render is correct.
   const skillAccessMode: AccessMode = sharesData
-    ? (sharesData.accessMode ?? deriveAccessMode(sharesData.items || []))
+    ? (sharesData.accessMode ?? "private")
     : ((detail?.scope as AccessMode | undefined) ?? "private");
 
   const handleDelete = async () => {
@@ -378,18 +373,6 @@ git add SKILL.md && git commit -m "update skill" && git push`}
               <div className="min-w-0 overflow-x-auto border-b px-3">
                 <TabsList className="h-9 min-w-max bg-transparent p-0 gap-1 justify-start">
                   <TabsTrigger
-                    value="overview"
-                    className="h-8 shrink-0 whitespace-nowrap px-3 text-xs data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
-                  >
-                    Overview
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="settings"
-                    className="h-8 shrink-0 whitespace-nowrap px-3 text-xs data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
-                  >
-                    Settings
-                  </TabsTrigger>
-                  <TabsTrigger
                     value="shares"
                     className="h-8 shrink-0 whitespace-nowrap px-3 text-xs data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
                   >
@@ -401,36 +384,16 @@ git add SKILL.md && git commit -m "update skill" && git push`}
                   >
                     Pull Requests
                   </TabsTrigger>
+                  <TabsTrigger
+                    value="releases"
+                    className="h-8 shrink-0 whitespace-nowrap px-3 text-xs data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
+                  >
+                    Releases
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
               <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
-                {/* OVERVIEW */}
-                <TabsContent value="overview" className="p-3 space-y-3 mt-0">
-                  <div className="grid grid-cols-2 gap-2">
-                    <InfoItem label="Owner" value={detail.owner || "-"} />
-                    <InfoItem label="Scope" value={detail.scope || "-"} />
-                    <InfoItem
-                      label="Status"
-                      value={statusLabel || "-"}
-                    />
-                    <InfoItem
-                      label="Org"
-                      value={detail.orgId || "-"}
-                    />
-                  </div>
-                </TabsContent>
-
-                {/* SETTINGS */}
-                <TabsContent value="settings" className="p-3 mt-0">
-                  <SettingsTab
-                    key={detail.name + (detail.updateTime || "")}
-                    detail={detail}
-                    accessMode={skillAccessMode}
-                    onDelete={() => setDeleteConfirmOpen(true)}
-                  />
-                </TabsContent>
-
                 {/* SHARES */}
                 <TabsContent value="shares" className="p-3 mt-0">
                   <ResourceSharePanel
@@ -443,6 +406,11 @@ git add SKILL.md && git commit -m "update skill" && git push`}
                 {/* PULL REQUESTS */}
                 <TabsContent value="prs" className="p-3 mt-0">
                   <PullRequestsPanel skillName={detail.name} />
+                </TabsContent>
+
+                {/* RELEASES */}
+                <TabsContent value="releases" className="p-3 mt-0">
+                  <SkillReleasesPanel skillName={detail.name} />
                 </TabsContent>
               </div>
             </Tabs>
@@ -459,76 +427,6 @@ git add SKILL.md && git commit -m "update skill" && git push`}
         variant="destructive"
         onConfirm={handleDelete}
       />
-    </div>
-  );
-}
-
-// ─── Child: SettingsTab ────────────────────────────────────────────
-interface SettingsTabProps {
-  detail: Skill;
-  accessMode: AccessMode;
-  onDelete: () => void;
-}
-
-function SettingsTab({
-  detail,
-  accessMode,
-  onDelete,
-}: SettingsTabProps) {
-  const t = useT();
-
-  return (
-    <div className="space-y-3">
-      {/* Access mode (read-only — managed by the Sharing tab) */}
-      <div className="space-y-2">
-        <Label className="text-xs font-medium">{t("accessMode.label")}</Label>
-        <div className="rounded-md border bg-card/50 px-3 py-2.5 flex items-center gap-2">
-          <div className="flex-1">
-            <div className="text-xs font-medium">
-              {t(`accessMode.${accessMode}`)}
-            </div>
-            <div className="text-[10px] text-muted-foreground">
-              {t(`accessMode.${accessMode}Desc`)}
-            </div>
-          </div>
-          <span className="text-[10px] text-muted-foreground">
-            {t("accessMode.managedByShares")}
-          </span>
-        </div>
-      </div>
-
-      <Separator />
-
-      {/* Content metadata is Git-owned; this is a projection preview only. */}
-      <div className="space-y-2 rounded-md border bg-muted/20 p-3">
-        <div className="text-xs font-medium">{t("editor.displayName")}</div>
-        <div className="text-sm">{detail.displayName || detail.name}</div>
-        <div className="text-xs font-medium pt-1">{t("editor.descriptionLabel")}</div>
-        <div className="text-xs text-muted-foreground whitespace-pre-wrap">
-          {detail.description || t("skillCard.noDesc")}
-        </div>
-        <p className="text-[11px] text-muted-foreground pt-1">
-          {t("editor.metadataManagedByGit")}
-        </p>
-      </div>
-
-      <Separator />
-
-      {/* Danger zone */}
-      <div className="space-y-1.5">
-        <Label className="text-xs font-medium text-destructive">
-          {t("editor.dangerZone")}
-        </Label>
-        <Button
-          size="sm"
-          variant="outline"
-          className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
-          onClick={onDelete}
-        >
-          <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-          {t("editor.deleteSkill")}
-        </Button>
-      </div>
     </div>
   );
 }
