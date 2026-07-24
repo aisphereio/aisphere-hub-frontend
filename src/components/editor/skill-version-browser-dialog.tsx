@@ -7,6 +7,8 @@ import {
   File,
   Folder,
   Loader2,
+  Maximize2,
+  Minimize2,
   PackageOpen,
 } from 'lucide-react';
 
@@ -67,6 +69,7 @@ export function SkillVersionBrowserDialog({
   const [selectedTag, setSelectedTag] = useState(initialTag);
   const [currentPath, setCurrentPath] = useState('');
   const [selectedFile, setSelectedFile] = useState('SKILL.md');
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const selectedVersion =
     versions.find((version) => version.tag === selectedTag) ?? versions[0];
@@ -93,9 +96,16 @@ export function SkillVersionBrowserDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-screen w-screen max-h-screen max-w-screen flex-col gap-0 overflow-hidden rounded-none border-0 p-0">
+      <DialogContent
+        className={
+          isFullscreen
+            ? "flex h-screen w-screen max-h-screen max-w-screen flex-col gap-0 overflow-hidden rounded-none border-0 p-0"
+            : "flex h-[85vh] w-[90vw] max-h-[85vh] max-w-[90vw] flex-col gap-0 overflow-hidden p-0"
+        }
+        showCloseButton={false}
+      >
         <DialogHeader className="shrink-0 border-b px-5 py-4 text-left">
-          <div className="flex flex-wrap items-center gap-3 pr-8">
+          <div className="flex flex-wrap items-center gap-3 pr-12">
             <div className="min-w-0 flex-1">
               <DialogTitle className="flex items-center gap-2">
                 <PackageOpen className="h-4 w-4" />
@@ -105,6 +115,14 @@ export function SkillVersionBrowserDialog({
                 已发布内容由不可变 Tag 固定，只能浏览，不能直接修改。
               </DialogDescription>
             </div>
+            <button
+              type="button"
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              title={isFullscreen ? '退出全屏' : '全屏'}
+              onClick={() => setIsFullscreen((v) => !v)}
+            >
+              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
             <Select value={selectedVersion?.tag} onValueChange={switchVersion}>
               <SelectTrigger className="w-[240px] font-mono text-xs">
                 <SelectValue placeholder="选择版本" />
@@ -226,7 +244,17 @@ export function SkillVersionBrowserDialog({
         </div>
 
         <div className="flex shrink-0 items-center justify-between border-t bg-muted/20 px-4 py-2 text-[11px] text-muted-foreground">
-          <span>{selectedVersion?.tag ?? '-'}</span>
+          <div className="flex items-center gap-2">
+            <span>{selectedVersion?.tag ?? '-'}</span>
+            <button
+              type="button"
+              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              title={isFullscreen ? '退出全屏' : '全屏'}
+              onClick={() => setIsFullscreen((v) => !v)}
+            >
+              {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            </button>
+          </div>
           <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>
             关闭
           </Button>
