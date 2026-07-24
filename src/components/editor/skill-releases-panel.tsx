@@ -83,7 +83,7 @@ export function SkillReleasesPanel({ skillName }: SkillReleasesPanelProps) {
   const draftHead = defaultBranch?.commitSha ?? '';
   const commits = useSkillCommits(skillName, draftRef);
   const versionViews = useMemo(
-    () => buildSkillReleaseViews(releases.data ?? []),
+    () => buildSkillReleaseViews<SkillRelease>(releases.data ?? []),
     [releases.data],
   );
   const effectiveCompareBase = compareBaseRef || versionViews[0]?.ref || '';
