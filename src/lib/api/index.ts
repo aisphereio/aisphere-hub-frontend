@@ -489,16 +489,17 @@ export const iamApi = {
 // The IAM service URL is configured via NEXT_PUBLIC_IAM_URL env var
 // (defaults to http://127.0.0.1:18080 for local dev).
 
-const configuredIamUrl = process.env.NEXT_PUBLIC_IAM_URL;
+let configuredIamUrl: string | undefined = process.env.NEXT_PUBLIC_IAM_URL;
+if (configuredIamUrl === '') configuredIamUrl = undefined;
 const IAM_URL: string = (
-  configuredIamUrl === undefined ? 'http://127.0.0.1:18080' : configuredIamUrl
+  configuredIamUrl === undefined ? '' : configuredIamUrl
 ).replace(/\/+$/, '');
 
 function iamRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const fullUrl = IAM_URL + path;
   const headers = new Headers(init.headers || []);
   const token = getToken();
-  if (!IS_GATEWAY_OIDC && token) headers.set('Authorization', `Bearer ${token}`);
+  if (token) headers.set('Authorization', `Bearer ${token}`);
   if (IS_GATEWAY_OIDC) headers.set('X-Requested-With', 'XMLHttpRequest');
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
