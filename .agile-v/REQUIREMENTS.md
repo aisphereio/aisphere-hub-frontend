@@ -532,14 +532,15 @@ These requirements define the expected behavior of the Aisphere Hub Frontend (Sk
 - **Priority:** P0 | **Status:** `OBSERVED_IMPLEMENTED`
 - **Requirement:** Manage Skill versions as Git-native development refs and immutable SemVer releases.
 - **API:**
+  - Resolve one ref: `GET /v1/skills/{name}/refs:resolve?ref=...`
   - Refs: `GET /v1/skills/{name}/refs`
   - Commits: `GET /v1/skills/{name}/commits?ref=...`
   - Publish: `POST /v1/skills/{name}/releases`
   - Releases: `GET /v1/skills/{name}/releases`
   - Resolve: `GET /v1/skills/{name}/releases/{version}:resolve`
   - Restore: `POST /v1/skills/{name}:restore`
-- **UI:** Git version panel with branch selector and server-provided HEAD, immutable release publishing, complete release provenance/integrity metadata, commit history, and an explicit auditable restore confirmation.
-- **Verification:** 1) Publish automatically sends the selected branch HEAD as `expectedCommitSha`. 2) Releases preserve backend SemVer order and show publisher, notes, commit/tree/manifest hashes and publication time. 3) Restore creates a new commit with CAS instead of moving a Tag.
+- **UI:** Git version panel with branch selector and server-provided HEAD, immutable release publishing, stale-HEAD refresh guidance, complete release provenance/integrity metadata, commit history, and an explicit auditable restore confirmation.
+- **Verification:** 1) Publish automatically sends the selected branch HEAD as `expectedCommitSha` and surfaces `SKILL_RELEASE_STALE` as a refresh-and-retry prompt. 2) Releases preserve backend SemVer order and show publisher, notes, commit/tree/manifest hashes and publication time. 3) Restore creates a new commit with CAS instead of moving a Tag.
 - **Done criteria:** Component test.
 
 ## REQ-FE-SKILL-006 — Skill Sharing

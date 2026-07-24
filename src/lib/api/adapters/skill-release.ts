@@ -4,6 +4,7 @@ import {
   skillReleaseServiceGetSkillRelease,
   skillReleaseServiceListSkillCommits,
   skillReleaseServiceListSkillRefs,
+  skillReleaseServiceResolveSkillRef,
   skillReleaseServiceResolveSkillRelease,
   skillReleaseServiceRestoreSkillRef,
 } from '../generated/skill-release-service/skill-release-service';
@@ -12,20 +13,24 @@ import type {
   SkillReleaseServiceCompareSkillRefsParams,
   SkillReleaseServiceCreateSkillReleaseBody,
   SkillReleaseServiceListSkillCommitsParams,
+  SkillReleaseServiceResolveSkillRefParams,
   SkillReleaseServiceRestoreSkillRefBody,
   V1SkillCommit,
   V1SkillComparison,
   V1SkillGitRef,
+  V1SkillRef,
   V1SkillRelease,
 } from '../generated/model';
 
 export type SkillRelease = V1SkillRelease;
+export type SkillRef = V1SkillRef;
 export type SkillGitRef = V1SkillGitRef;
 export type SkillCommit = V1SkillCommit;
 export type SkillComparison = V1SkillComparison;
 export type CreateSkillReleaseInput = SkillReleaseServiceCreateSkillReleaseBody;
 export type ListSkillCommitsInput = SkillReleaseServiceListSkillCommitsParams;
 export type CompareSkillRefsInput = SkillReleaseServiceCompareSkillRefsParams;
+export type ResolveSkillRefInput = SkillReleaseServiceResolveSkillRefParams;
 export type RestoreSkillRefInput = SkillReleaseServiceRestoreSkillRefBody;
 
 /**
@@ -38,6 +43,12 @@ export type RestoreSkillRefInput = SkillReleaseServiceRestoreSkillRefBody;
  * transport contract.
  */
 export const skillReleaseApi = {
+  resolveRef: (
+    skillName: string,
+    input: ResolveSkillRefInput = {},
+  ): Promise<SkillRef> =>
+    skillReleaseServiceResolveSkillRef(skillName, input),
+
   list: async (skillName: string): Promise<SkillRelease[]> => {
     const response = await skillServiceListSkillReleases(skillName);
     return response.releases ?? [];

@@ -101,7 +101,7 @@
 | ART-0040 | REQ-FE-SKILL-002 | `src/components/skills/skill-create-dialog.tsx`, `src/hooks/use-iam.ts`, `src/hooks/use-skills.ts` | Project-scoped Skill create |
 | ART-0041 | REQ-FE-SKILL-003 | `src/components/pages/skills-page.tsx` | Skill detail view |
 | ART-0042 | REQ-FE-SKILL-004 | `src/components/editor/code-editor.tsx` | Skill file editor |
-| ART-0043 | REQ-FE-SKILL-005 | `src/components/editor/skill-releases-panel.tsx`, `src/hooks/use-skill-releases.ts`, `src/lib/api/adapters/skill-release.ts` | Git refs, immutable releases, commit history, auditable restore |
+| ART-0043 | REQ-FE-SKILL-005 | `src/components/editor/skill-releases-panel.tsx`, `src/hooks/use-skill-releases.ts`, `src/lib/api/adapters/skill-release.ts` | Exact ref resolution, Git refs, immutable releases, commit history, auditable restore |
 | ART-0044 | REQ-FE-SKILL-006 | `src/components/aihub/resource-share-panel.tsx` | Skill sharing |
 | ART-0045 | REQ-FE-SKILL-007 | `src/components/pages/skills-page.tsx` | Skill search |
 | ART-0046 | REQ-FE-SKILL-008 | `src/components/pages/skills-page.tsx` | Skill delete |

@@ -1,5 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { toast } from 'sonner';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { HubApiError } from '@/lib/api/hub-fetch';
 
 import { SkillReleasesPanel } from './skill-releases-panel';
 
@@ -110,6 +113,26 @@ describe('SkillReleasesPanel', () => {
         expectedCommitSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         releaseNotes: undefined,
       });
+    });
+  });
+
+  it('asks the user to refresh when the selected branch HEAD became stale', async () => {
+    createRelease.mockRejectedValueOnce(new HubApiError(409, {
+      code: 'SKILL_RELEASE_STALE',
+      message: 'skill release source changed',
+    }));
+
+    render(<SkillReleasesPanel skillName="search" />);
+
+    fireEvent.change(screen.getByPlaceholderText('例如 1.0.0 或 v1.0.0'), {
+      target: { value: '1.11.0' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '发布不可变版本' }));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        '发布失败：源分支已有新提交，请刷新分支后重新确认发布。',
+      );
     });
   });
 

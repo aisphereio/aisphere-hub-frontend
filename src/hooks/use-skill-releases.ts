@@ -11,6 +11,8 @@ import {
 
 const releaseQueryKey = (skillName: string) => ['skills', 'releases', skillName] as const;
 const refsQueryKey = (skillName: string) => ['skills', 'refs', skillName] as const;
+const releaseRefQueryKey = (skillName: string, ref: string) =>
+  ['skills', 'release-ref', skillName, ref] as const;
 const commitsQueryKey = (skillName: string, ref: string) =>
   ['skills', 'commits', skillName, ref] as const;
 
@@ -38,6 +40,17 @@ export function useResolveSkillRelease(skillName: string) {
   return useMutation({
     mutationFn: (version: string) =>
       skillReleaseApi.resolve(skillName, version),
+  });
+}
+
+// Kept for callers that only need one canonical ref + SHA. The full version
+// management panel uses useSkillRefs so it can render branch and tag choices.
+export function useSkillReleaseRef(skillName: string | null, ref: string | null) {
+  return useQuery({
+    queryKey: releaseRefQueryKey(skillName ?? '', ref ?? ''),
+    queryFn: () => skillReleaseApi.resolveRef(skillName!, { ref: ref || undefined }),
+    enabled: Boolean(skillName) && Boolean(ref),
+    staleTime: 5_000,
   });
 }
 

@@ -40,6 +40,7 @@ import type {
   SkillGitRef,
   SkillRelease,
 } from '@/lib/api/adapters/skill-release';
+import { HubApiError } from '@/lib/api/hub-fetch';
 import { fmtTime } from '@/lib/utils';
 
 type SkillReleasesPanelProps = {
@@ -56,6 +57,13 @@ function releaseTime(release: SkillRelease): string {
 
 function refLabel(ref: SkillGitRef): string {
   return `${ref.type === 'tag' ? 'Tag' : '分支'} · ${ref.name || ref.fullRef || '-'}`;
+}
+
+function publishErrorMessage(error: unknown): string {
+  if (error instanceof HubApiError && error.code === 'SKILL_RELEASE_STALE') {
+    return '发布失败：源分支已有新提交，请刷新分支后重新确认发布。';
+  }
+  return error instanceof Error ? error.message : 'Skill 发布失败';
 }
 
 export function SkillReleasesPanel({ skillName }: SkillReleasesPanelProps) {
@@ -108,7 +116,7 @@ export function SkillReleasesPanel({ skillName }: SkillReleasesPanelProps) {
       setReleaseNotes('');
       await refs.refetch();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Skill 发布失败');
+      toast.error(publishErrorMessage(error));
     }
   };
 

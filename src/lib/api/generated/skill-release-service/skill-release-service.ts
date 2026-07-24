@@ -8,11 +8,13 @@ import type {
   SkillReleaseServiceCompareSkillRefsParams,
   SkillReleaseServiceCreateSkillReleaseBody,
   SkillReleaseServiceListSkillCommitsParams,
+  SkillReleaseServiceResolveSkillRefParams,
   SkillReleaseServiceRestoreSkillRefBody,
   V1CompareSkillRefsResponse,
   V1ListSkillCommitsResponse,
   V1ListSkillRefsResponse,
   V1RestoreSkillRefResponse,
+  V1SkillRef,
   V1SkillRelease
 } from '../model';
 
@@ -87,6 +89,35 @@ export const getSkillReleaseServiceListSkillRefsUrl = (name: string,) => {
 export const skillReleaseServiceListSkillRefs = async (name: string, options?: RequestInit): Promise<V1ListSkillRefsResponse> => {
 
   return hubFetch<V1ListSkillRefsResponse>(getSkillReleaseServiceListSkillRefsUrl(name),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getSkillReleaseServiceResolveSkillRefUrl = (name: string,
+    params?: SkillReleaseServiceResolveSkillRefParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/skills/${encodeURIComponent(String(name))}/refs:resolve?${stringifiedParams}` : `/v1/skills/${encodeURIComponent(String(name))}/refs:resolve`
+}
+
+export const skillReleaseServiceResolveSkillRef = async (name: string,
+    params?: SkillReleaseServiceResolveSkillRefParams, options?: RequestInit): Promise<V1SkillRef> => {
+
+  return hubFetch<V1SkillRef>(getSkillReleaseServiceResolveSkillRefUrl(name,params),
   {
     ...options,
     method: 'GET'

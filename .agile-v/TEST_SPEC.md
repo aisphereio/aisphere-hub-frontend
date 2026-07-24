@@ -42,7 +42,7 @@ Framework: vitest + @testing-library/react + happy-dom
 
 | TC-ID | REQ-ID | Description | Expected | Type | Steps |
 |-------|--------|-------------|----------|------|-------|
-| TC-FE-019 | REQ-FE-SKILL-005 | Publish derives expected SHA from selected branch | Create mutation receives `sourceRef` and current server-provided `expectedCommitSha`; no manual SHA input exists | component | 1. Mock refs with default branch HEAD. 2. Enter SemVer. 3. Publish. 4. Verify exact request. |
+| TC-FE-019 | REQ-FE-SKILL-005 | Publish derives expected SHA from selected branch | Create mutation receives `sourceRef` and current server-provided `expectedCommitSha`; no manual SHA input exists; stale HEAD prompts refresh | component | 1. Mock refs with default branch HEAD. 2. Enter SemVer. 3. Publish and verify exact request. 4. Return `SKILL_RELEASE_STALE` and verify refresh guidance. |
 | TC-FE-020 | REQ-FE-SKILL-005 | Release provenance and integrity render | Release card shows notes, publisher, commit, tree, manifest hash and publication time | component | 1. Mock a complete release. 2. Open Versions tab. 3. Verify metadata. |
 | TC-FE-021 | REQ-FE-SKILLSET-004 | Adding a member requires an exact Release | Add is disabled without a release and bind sends `{ skillName, version }` after selection | component | 1. Mock available Skills and releases. 2. Select Skill. 3. Select release. 4. Verify bind request. |
 | TC-FE-022 | REQ-FE-SKILLSET-006 | Lock snapshot validation renders resolved payload | Resolve action shows revision and exact member hashes | component | 1. Mock resolved SkillSet lock. 2. Click validate. 3. Verify success state and JSON payload. |
