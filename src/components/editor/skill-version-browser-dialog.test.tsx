@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { SkillVersionBrowserDialog } from './skill-version-browser-dialog';
 
-const useFileTree = vi.fn(() => ({
+const useFileTree = vi.fn((..._args: unknown[]) => ({
   data: [
     { name: 'docs', path: 'docs', type: 'dir' },
     { name: 'README.md', path: 'README.md', type: 'file' },
@@ -11,11 +11,32 @@ const useFileTree = vi.fn(() => ({
   ],
   isLoading: false,
 }));
-const useFileContent = vi.fn(() => ({
+const useFileContent = vi.fn((..._args: unknown[]) => ({
   data: { content: '# release content', sha: 'release-file-sha' },
   isLoading: false,
   isError: false,
 }));
+
+vi.stubGlobal('ResizeObserver', class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+});
+
+Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
+  configurable: true,
+  value: () => ({
+    x: 0,
+    y: 48,
+    top: 48,
+    left: 0,
+    right: 960,
+    bottom: 768,
+    width: 960,
+    height: 720,
+    toJSON: () => ({}),
+  }),
+});
 
 vi.mock('@/hooks/use-skill-files', () => ({
   useFileTree: (...args: unknown[]) => useFileTree(...args),
@@ -79,15 +100,14 @@ function renderInSkillEditor(onOpenChange = vi.fn()) {
 }
 
 describe('SkillVersionBrowserDialog inline workspace', () => {
-  it('mounts the release preview inside the primary editor pane instead of a dialog', async () => {
+  it('aligns a non-dialog release preview with the primary editor pane', async () => {
     renderInSkillEditor();
 
-    const mainPane = screen.getByTestId('main-editor-pane');
-    await waitFor(() => {
-      expect(
-        mainPane.querySelector('[data-testid="skill-version-inline-preview"]'),
-      ).not.toBeNull();
-    });
+    const preview = await screen.findByTestId('skill-version-inline-preview');
+    expect(preview.style.top).toBe('48px');
+    expect(preview.style.left).toBe('0px');
+    expect(preview.style.width).toBe('960px');
+    expect(preview.style.height).toBe('720px');
 
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.getByText('已发布版本预览')).toBeDefined();
@@ -98,15 +118,14 @@ describe('SkillVersionBrowserDialog inline workspace', () => {
       'refs/tags/v1.0.0',
       { enabled: true },
     );
+    expect(screen.getByText('draft editor remains mounted')).toBeDefined();
   });
 
   it('switches files in the same workspace and returns to the preserved draft', async () => {
     const onOpenChange = vi.fn();
     renderInSkillEditor(onOpenChange);
 
-    await waitFor(() => {
-      expect(screen.getByText('已发布版本预览')).toBeDefined();
-    });
+    await screen.findByText('已发布版本预览');
 
     fireEvent.click(screen.getByRole('button', { name: 'README.md' }));
     await waitFor(() => {
