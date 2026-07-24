@@ -95,7 +95,7 @@ export function Topbar({
             <span className="hidden lg:inline">运行环境</span>
           </Button>
 
-          {activeTab === 'namespaces' ? <NamespaceSharesDialog /> : null}
+          {activeTab !== 'namespaces' ? <NamespaceSharesDialog /> : null}
 
           <LanguageToggle />
 
