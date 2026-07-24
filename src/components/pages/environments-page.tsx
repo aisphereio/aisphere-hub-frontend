@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Activity, CloudCog, KeyRound, Plus, RefreshCw, RotateCcw, Server, ShieldCheck, Trash2 } from 'lucide-react';
+import { Activity, CloudCog, Edit, KeyRound, Pencil, Plus, RefreshCw, RotateCcw, Server, ShieldCheck, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { ClusterEditDialog } from '@/components/kubernetes/cluster-edit-dialog';
@@ -22,6 +22,7 @@ import {
   clusterServiceListClusters,
   clusterServiceProbeCluster,
   clusterServiceRotateCredential,
+  clusterServiceUpdateCluster,
 } from '@/lib/api/generated/cluster-service/cluster-service';
 import {
   namespaceServiceCreateNamespace,
@@ -32,6 +33,7 @@ import {
 } from '@/lib/api/generated/namespace-service/namespace-service';
 import {
   ClusterServiceDeleteClusterDeletePolicy,
+  ClusterServiceUpdateClusterBody,
   NamespaceServiceDeleteNamespaceDeletePolicy,
   V1CreateMode,
   V1NamespaceVisibility,
@@ -180,6 +182,42 @@ export function EnvironmentsPage() {
       await refreshClusters();
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : '凭据轮换失败'),
+  });
+
+  const [editingClusterId, setEditingClusterId] = useState('');
+	const [editForm, setEditForm] = useState({
+	    displayName: '',
+	    description: '',
+	    distribution: '',
+	    serverUrl: '',
+	  });
+
+  const isEditing = (cluster: V1Cluster) => editingClusterId === cluster.id;
+
+  const updateCluster = useMutation({
+    mutationFn: (cluster: V1Cluster) => {
+	const body: ClusterServiceUpdateClusterBody = {
+	        cluster: {
+	          displayName: editForm.displayName || undefined,
+	          description: editForm.description || undefined,
+	          distribution: editForm.distribution || undefined,
+	          serverUrl: editForm.serverUrl || undefined,
+	        },
+	        expectedRevision: cluster.revision ?? '0',
+	        updateMask: ['display_name', 'description', 'distribution', 'server_url'].join(','),
+	      };
+      return clusterServiceUpdateCluster(cluster.id ?? '', body);
+    },
+    onMutate: (cluster) => {
+      // Snapshot current values so we can reset on error
+      return { cluster };
+    },
+    onSuccess: (_data, cluster) => {
+      toast.success(`集群 ${cluster.displayName || cluster.name} 信息已更新`);
+      setEditingClusterId('');
+      refreshClusters();
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : '更新集群信息失败'),
   });
 
   const deleteCluster = useMutation({
@@ -357,6 +395,115 @@ export function EnvironmentsPage() {
 
       {selectedCluster ? (
         <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-4">
+          {/* 编辑按钮 + 集群元信息卡片 */}
+          {!isEditing(selectedCluster) && selectedCluster.permissions?.canManage ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex flex-wrap items-center justify-between gap-2">
+                  <span className="flex items-center gap-2"><Server className="h-4 w-4" /> 集群信息</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+setEditForm({
+	                        displayName: selectedCluster.displayName ?? '',
+	                        description: selectedCluster.description ?? '',
+	                        distribution: selectedCluster.distribution ?? '',
+	                        serverUrl: selectedCluster.serverUrl ?? '',
+	                      });
+                      setEditingClusterId(selectedCluster.id ?? '');
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5 mr-1" /> 编辑
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5">
+                  <span className="text-muted-foreground">ID</span>
+                  <code className="font-mono text-xs truncate max-w-64">{selectedCluster.id}</code>
+                  <span className="text-muted-foreground">集群名称</span>
+                  <code className="font-mono text-xs">{selectedCluster.name}</code>
+                  <span className="text-muted-foreground">API Server</span>
+                  <code className="font-mono text-xs">{selectedCluster.serverUrl}</code>
+                  <span className="text-muted-foreground">所属组织</span>
+                  <code className="font-mono text-xs">{selectedCluster.orgId}</code>
+                  <span className="text-muted-foreground">K8s 版本</span>
+                  <code className="font-mono text-xs">{selectedCluster.kubernetesVersion || '-'}</code>
+                  <span className="text-muted-foreground">状态</span>
+                  <Badge variant={statusVariant(selectedCluster.status)} className="w-fit">{selectedCluster.status || 'UNKNOWN'}</Badge>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {/* 编辑表单 */}
+          {isEditing(selectedCluster) && selectedCluster.permissions?.canManage ? (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex flex-wrap items-center justify-between gap-2">
+                  <span className="flex items-center gap-2"><Edit className="h-4 w-4" /> 编辑集群信息</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* 只读字段 */}
+                <div className="grid grid-cols-2 gap-2 p-3 bg-muted/40 rounded-md">
+	                <div>
+	                    <label className="text-xs text-muted-foreground block mb-0.5">集群标识</label>
+	                    <code className="font-mono text-xs">{selectedCluster.name}</code>
+	                  </div>
+	                  <div>
+	                    <label className="text-xs text-muted-foreground block mb-0.5">组织 / Zone ID</label>
+	                    <code className="font-mono text-xs">{selectedCluster.orgId}</code>
+	                  </div>
+	                  <div>
+	                    <label className="text-xs text-muted-foreground block mb-0.5">ID</label>
+	                    <code className="font-mono text-xs">{selectedCluster.id}</code>
+	                  </div>
+	                </div>
+	                {/* 可编辑字段 */}
+	                <Input
+	                  placeholder="API Server，例如 https://10.0.0.10:6443"
+	                  value={editForm.serverUrl}
+	                  onChange={(event) => setEditForm({ ...editForm, serverUrl: event.target.value })}
+	                />
+	                <Input
+                  placeholder="展示名称"
+                  value={editForm.displayName}
+                  onChange={(event) => setEditForm({ ...editForm, displayName: event.target.value })}
+                />
+                <Input
+                  placeholder="Kubernetes 发行版，如 k3s / rke2"
+                  value={editForm.distribution}
+                  onChange={(event) => setEditForm({ ...editForm, distribution: event.target.value })}
+                />
+                <Textarea
+                  rows={2}
+                  placeholder="说明"
+                  value={editForm.description}
+                  onChange={(event) => setEditForm({ ...editForm, description: event.target.value })}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1"
+                    disabled={updateCluster.isPending}
+                    onClick={() => updateCluster.mutate(selectedCluster)}
+                  >
+                    {updateCluster.isPending ? '保存中...' : '保存修改'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    disabled={updateCluster.isPending}
+                    onClick={() => setEditingClusterId('')}
+                  >
+                    取消
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex flex-wrap items-center justify-between gap-2">
