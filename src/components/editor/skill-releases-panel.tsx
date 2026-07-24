@@ -1,10 +1,12 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import {
   CheckCircle2,
   Eye,
   FileDiff,
+  FileText,
   History,
   Loader2,
   RefreshCw,
@@ -28,6 +30,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   useCompareSkillRefs,
   useCreateSkillRelease,
@@ -36,12 +39,19 @@ import {
   useSkillRefs,
   useSkillReleases,
 } from '@/hooks/use-skill-releases';
+import { useFileContent } from '@/hooks/use-skill-files';
 import type { SkillCommit, SkillRelease } from '@/lib/api/adapters/skill-release';
 import { HubApiError } from '@/lib/api/hub-fetch';
 import { buildSkillReleaseViews } from '@/lib/skill-versions';
 import { fmtTime } from '@/lib/utils';
 
 import { SkillVersionBrowserDialog } from './skill-version-browser-dialog';
+
+// Monaco loads client-side only — it touches web workers and global `self`.
+const MonacoSkillEditor = dynamic(
+  () => import('./monaco-skill-editor').then((m) => m.MonacoSkillEditor),
+  { ssr: false, loading: () => <Loader2 className="h-4 w-4 animate-spin" /> },
+);
 
 type SkillReleasesPanelProps = {
   skillName: string;
@@ -74,6 +84,18 @@ export function SkillReleasesPanel({ skillName }: SkillReleasesPanelProps) {
   const [compareBaseRef, setCompareBaseRef] = useState('');
   const [restoreCommit, setRestoreCommit] = useState<SkillCommit | null>(null);
   const [browserTag, setBrowserTag] = useState<string | null>(null);
+  // Inline preview state: a version ref to fetch SKILL.md content for.
+  const [previewTag, setPreviewTag] = useState('');
+
+  const versionViews = useMemo(
+    () => buildSkillReleaseViews<SkillRelease>(releases.data ?? []),
+    [releases.data],
+  );
+  const previewVersion = versionViews.find((v) => v.tag === previewTag) ?? null;
+  const previewRef = previewVersion?.ref ?? '';
+  const previewContent = useFileContent(skillName, 'SKILL.md', previewRef, {
+    enabled: Boolean(previewRef),
+  });
 
   const defaultBranch = useMemo(() => {
     const branches = (refs.data ?? []).filter((ref) => ref.type === 'branch');
@@ -82,10 +104,6 @@ export function SkillReleasesPanel({ skillName }: SkillReleasesPanelProps) {
   const draftRef = defaultBranch?.fullRef ?? '';
   const draftHead = defaultBranch?.commitSha ?? '';
   const commits = useSkillCommits(skillName, draftRef);
-  const versionViews = useMemo(
-    () => buildSkillReleaseViews<SkillRelease>(releases.data ?? []),
-    [releases.data],
-  );
   const effectiveCompareBase = compareBaseRef || versionViews[0]?.ref || '';
   const canPublish = Boolean(version.trim() && draftRef && draftHead);
   const versionLooksPrerelease = version.trim().replace(/^v/, '').includes('-');
@@ -229,6 +247,66 @@ export function SkillReleasesPanel({ skillName }: SkillReleasesPanelProps) {
           </Button>
         </div>
 
+        {/* ── Inline version preview ──────────────────────────────── */}
+        {versionViews.length > 0 && (
+          <div className="space-y-2 rounded-md border bg-muted/10 p-2.5">
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <Label className="text-[10px] text-muted-foreground">选择版本预览</Label>
+                <Select value={previewTag} onValueChange={(tag) => { setPreviewTag(tag); setBrowserTag(null); }}>
+                  <SelectTrigger className="h-8 text-xs font-mono">
+                    <SelectValue placeholder="选择版本…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {versionViews.map((view) => (
+                      <SelectItem key={view.tag} value={view.tag}>
+                        {view.kind === 'stable' ? '稳定版' : '预发布'} · {view.version}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {previewTag && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 shrink-0 px-2 text-[10px]"
+                  onClick={() => setBrowserTag(previewTag)}
+                >
+                  <Eye className="mr-1 h-3.5 w-3.5" /> 全屏浏览
+                </Button>
+              )}
+            </div>
+            {previewTag && (
+              <div className="h-48 overflow-hidden rounded border bg-background">
+                <div className="flex items-center gap-1 border-b bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground">
+                  <FileText className="h-3 w-3" />
+                  <span className="font-mono">SKILL.md</span>
+                  <Badge variant="outline" className="text-[9px]">只读</Badge>
+                  {previewVersion?.version && (
+                    <span className="ml-auto">{previewVersion.version}</span>
+                  )}
+                </div>
+                {previewContent.isLoading ? (
+                  <div className="flex h-32 items-center justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <MonacoSkillEditor
+                    key={`preview:${previewTag}`}
+                    skillName={skillName}
+                    filePath="SKILL.md"
+                    branch={previewRef}
+                    initialContent={previewContent.data?.content ?? ''}
+                    sha={previewContent.data?.sha}
+                    readOnly
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {releases.isLoading ? (
           <Loading />
         ) : versionViews.length === 0 ? (
@@ -263,9 +341,9 @@ export function SkillReleasesPanel({ skillName }: SkillReleasesPanelProps) {
                       size="sm"
                       variant="outline"
                       className="h-7 shrink-0 px-2 text-[10px]"
-                      onClick={() => setBrowserTag(view.tag)}
+                      onClick={() => { setPreviewTag(view.tag); setBrowserTag(null); }}
                     >
-                      <Eye className="mr-1 h-3.5 w-3.5" /> 查看内容
+                      <Eye className="mr-1 h-3.5 w-3.5" /> 预览
                     </Button>
                   </div>
 
