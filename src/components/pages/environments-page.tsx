@@ -204,7 +204,7 @@ export function EnvironmentsPage() {
 	          serverUrl: editForm.serverUrl || undefined,
 	        },
 	        expectedRevision: cluster.revision ?? '0',
-	        updateMask: ['display_name', 'description', 'distribution', 'server_url'].join(','),
+	        updateMask: ['displayName', 'description', 'distribution', 'serverUrl'].join(','),
 	      };
       return clusterServiceUpdateCluster(cluster.id ?? '', body);
     },
