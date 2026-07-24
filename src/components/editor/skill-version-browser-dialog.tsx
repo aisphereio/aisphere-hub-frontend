@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ChevronRight,
@@ -99,32 +99,28 @@ export function SkillVersionBrowserDialog({
   open,
   onOpenChange,
 }: SkillVersionBrowserDialogProps) {
-  const markerRef = useRef<HTMLSpanElement>(null);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const versions = useMemo(() => buildSkillReleaseViews(releases), [releases]);
   const [selectedTag, setSelectedTag] = useState(initialTag);
   const [currentPath, setCurrentPath] = useState('');
   const [selectedFile, setSelectedFile] = useState('SKILL.md');
 
+  const attachMarker = useCallback((node: HTMLSpanElement | null) => {
+    setPortalTarget(open && node ? findMainEditorPane(node) : null);
+  }, [open]);
+
   useEffect(() => {
-    if (!open) {
-      setPortalTarget(null);
-      return;
-    }
+    if (!portalTarget) return;
 
-    const target = findMainEditorPane(markerRef.current);
-    if (!target) return;
-
-    const previousPosition = target.style.position;
-    if (window.getComputedStyle(target).position === 'static') {
-      target.style.position = 'relative';
+    const previousPosition = portalTarget.style.position;
+    if (window.getComputedStyle(portalTarget).position === 'static') {
+      portalTarget.style.position = 'relative';
     }
-    setPortalTarget(target);
 
     return () => {
-      target.style.position = previousPosition;
+      portalTarget.style.position = previousPosition;
     };
-  }, [open]);
+  }, [portalTarget]);
 
   const selectedVersion =
     versions.find((version) => version.tag === selectedTag) ?? versions[0];
@@ -310,7 +306,7 @@ export function SkillVersionBrowserDialog({
 
   return (
     <>
-      <span ref={markerRef} className="hidden" aria-hidden="true" />
+      <span ref={attachMarker} className="hidden" aria-hidden="true" />
       {workspace}
     </>
   );
