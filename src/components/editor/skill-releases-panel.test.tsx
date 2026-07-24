@@ -22,6 +22,12 @@ vi.mock('@/components/ui/tabs', () => ({
   TabsContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
+vi.mock('./skill-version-browser-dialog', () => ({
+  SkillVersionBrowserDialog: ({ initialTag }: { initialTag: string }) => (
+    <div>{`browser:${initialTag}`}</div>
+  ),
+}));
+
 vi.mock('@/hooks/use-skill-releases', () => ({
   useSkillReleases: () => ({
     data: [
@@ -35,6 +41,14 @@ vi.mock('@/hooks/use-skill-releases', () => ({
         sourceRef: 'refs/heads/main',
         createTime: '2026-07-24T10:00:00Z',
       },
+      {
+        tag: 'v2.0.0-beta.1',
+        commitSha: '3333333333333333333333333333333333333333',
+        publisherName: 'Release Owner',
+        releaseNotes: 'Preview the next major version',
+        createTime: '2026-07-24T11:00:00Z',
+      },
+      { tag: 'backup-0724' },
     ],
     isLoading: false,
     isFetching: false,
@@ -50,10 +64,11 @@ vi.mock('@/hooks/use-skill-releases', () => ({
         commitSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       },
       {
-        name: 'v1.10.0',
-        fullRef: 'refs/tags/v1.10.0',
-        type: 'tag',
-        commitSha: '1111111111111111111111111111111111111111',
+        name: 'experimental',
+        fullRef: 'refs/heads/experimental',
+        type: 'branch',
+        isDefault: false,
+        commitSha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
       },
     ],
     isLoading: false,
@@ -68,13 +83,10 @@ vi.mock('@/hooks/use-skill-releases', () => ({
     mutateAsync: createRelease,
     isPending: false,
   }),
-  useResolveSkillRelease: () => ({
-    mutateAsync: vi.fn(),
-    isPending: false,
-  }),
   useCompareSkillRefs: () => ({
     mutateAsync: vi.fn(),
     isPending: false,
+    data: undefined,
   }),
   useRestoreSkillRef: () => ({
     mutateAsync: vi.fn(),
@@ -92,19 +104,17 @@ describe('SkillReleasesPanel', () => {
     });
   });
 
-  // TC-FE-019
-  it('publishes with the current default branch HEAD instead of manual SHA input', async () => {
+  it('publishes the current draft without asking the user to select a branch', async () => {
     render(<SkillReleasesPanel skillName="search" />);
 
-    expect(
-      screen.getByText('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'),
-    ).toBeDefined();
-    expect(screen.queryByPlaceholderText('发布前确认的精确 commit SHA')).toBeNull();
+    expect(screen.getByText('当前草稿')).toBeDefined();
+    expect(screen.queryByText('源分支')).toBeNull();
+    expect(screen.queryByText('experimental')).toBeNull();
 
-    fireEvent.change(screen.getByPlaceholderText('例如 1.0.0 或 v1.0.0'), {
+    fireEvent.change(screen.getByPlaceholderText('例如 1.4.2 或 1.5.0-beta.1'), {
       target: { value: '1.11.0' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '发布不可变版本' }));
+    fireEvent.click(screen.getByRole('button', { name: '发布新版本' }));
 
     await waitFor(() => {
       expect(createRelease).toHaveBeenCalledWith({
@@ -116,7 +126,7 @@ describe('SkillReleasesPanel', () => {
     });
   });
 
-  it('asks the user to refresh when the selected branch HEAD became stale', async () => {
+  it('asks the user to refresh when the draft changed during publication', async () => {
     createRelease.mockRejectedValueOnce(new HubApiError(409, {
       code: 'SKILL_RELEASE_STALE',
       message: 'skill release source changed',
@@ -124,29 +134,33 @@ describe('SkillReleasesPanel', () => {
 
     render(<SkillReleasesPanel skillName="search" />);
 
-    fireEvent.change(screen.getByPlaceholderText('例如 1.0.0 或 v1.0.0'), {
+    fireEvent.change(screen.getByPlaceholderText('例如 1.4.2 或 1.5.0-beta.1'), {
       target: { value: '1.11.0' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '发布不可变版本' }));
+    fireEvent.click(screen.getByRole('button', { name: '发布新版本' }));
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith(
-        '发布失败：源分支已有新提交，请刷新分支后重新确认发布。',
+        '发布失败：草稿已有新修改，请刷新后重新确认发布。',
       );
     });
   });
 
-  // TC-FE-020
-  it('renders release provenance and integrity metadata', async () => {
+  it('classifies stable and prerelease versions and filters ordinary git tags', () => {
     render(<SkillReleasesPanel skillName="search" />);
 
-    await waitFor(() => {
-      expect(screen.getByText('v1.10.0')).toBeDefined();
-      expect(screen.getByText('Improve ranking quality')).toBeDefined();
-      expect(screen.getByText(/Release Owner/)).toBeDefined();
-      expect(screen.getByText(/commit 1111111111 · tree 2222222222/)).toBeDefined();
-      expect(screen.getByText(/manifest manifest-sha-256/)).toBeDefined();
-      expect(screen.getByText('refs/heads/main')).toBeDefined();
-    });
+    expect(screen.getByText('1.10.0')).toBeDefined();
+    expect(screen.getByText('2.0.0-beta.1')).toBeDefined();
+    expect(screen.getByText('最新稳定版')).toBeDefined();
+    expect(screen.getAllByText('预发布').length).toBeGreaterThan(0);
+    expect(screen.queryByText('backup-0724')).toBeNull();
+    expect(screen.getByText('Improve ranking quality')).toBeDefined();
+  });
+
+  it('opens a read-only browser for the selected release', () => {
+    render(<SkillReleasesPanel skillName="search" />);
+
+    fireEvent.click(screen.getAllByRole('button', { name: '查看内容' })[0]);
+    expect(screen.getByText('browser:v2.0.0-beta.1')).toBeDefined();
   });
 });
