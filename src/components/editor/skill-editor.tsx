@@ -402,18 +402,12 @@ git add SKILL.md && git commit -m "update skill" && git push`}
                   >
                     Pull Requests
                   </TabsTrigger>
-        <TabsTrigger
-          value="releases"
-          className="h-8 shrink-0 whitespace-nowrap px-3 text-xs data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
-        >
-          Releases
-        </TabsTrigger>
-        <TabsTrigger
-          value="releases"
-          className="h-8 shrink-0 whitespace-nowrap px-3 text-xs data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
-        >
-          Releases
-        </TabsTrigger>
+                  <TabsTrigger
+                    value="releases"
+                    className="h-8 shrink-0 whitespace-nowrap px-3 text-xs data-[state=active]:bg-violet-600/10 data-[state=active]:text-violet-600"
+                  >
+                    Releases
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
