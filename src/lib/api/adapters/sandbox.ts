@@ -26,14 +26,18 @@ import {
   sandboxServiceCreateSandboxTemplate,
   sandboxServiceCreateWarmPool,
   sandboxServiceDeleteSandbox,
+  sandboxServiceDeleteSandboxClaim,
   sandboxServiceDeleteSandboxTemplate,
+  sandboxServiceDeleteWarmPool,
   sandboxServiceGetSandbox,
   sandboxServiceListSandboxClaims,
   sandboxServiceListSandboxTemplates,
   sandboxServiceListSandboxTools,
   sandboxServiceListSandboxes,
   sandboxServiceListWarmPools,
+  sandboxServiceSyncSandboxClaims,
   sandboxServiceSyncSandboxes,
+  sandboxServiceSyncWarmPools,
 } from '../generated/sandbox-service/sandbox-service';
 import type {
   SandboxServiceCallSandboxToolBody,
@@ -41,13 +45,17 @@ import type {
   SandboxServiceCreateSandboxClaimBody,
   SandboxServiceCreateSandboxTemplateBody,
   SandboxServiceCreateWarmPoolBody,
+  SandboxServiceDeleteSandboxClaimParams,
   SandboxServiceDeleteSandboxParams,
   SandboxServiceDeleteSandboxTemplateParams,
+  SandboxServiceDeleteWarmPoolParams,
   SandboxServiceListSandboxClaimsParams,
   SandboxServiceListSandboxTemplatesParams,
   SandboxServiceListSandboxesParams,
   SandboxServiceListWarmPoolsParams,
   V1CallSandboxToolResponse,
+  V1DeleteSandboxClaimResponse,
+  V1DeleteWarmPoolResponse,
   V1ListSandboxClaimsResponse,
   V1ListSandboxTemplatesResponse,
   V1ListSandboxToolsResponse,
@@ -56,7 +64,9 @@ import type {
   V1Sandbox,
   V1SandboxClaim,
   V1SandboxTemplate,
+  V1SyncSandboxClaimsResponse,
   V1SyncSandboxesResponse,
+  V1SyncWarmPoolsResponse,
   V1WarmPool,
 } from '../generated/model';
 
@@ -136,6 +146,18 @@ export interface CallSandboxToolInput {
   /** Tool arguments as a JSON-encoded string (matches the proto field). */
   inputJson?: string;
   traceId?: string;
+}
+
+export interface DeleteWarmPoolInput {
+  namespaceId: string;
+  id: string;
+  expectedRevision?: string;
+}
+
+export interface DeleteSandboxClaimInput {
+  namespaceId: string;
+  id: string;
+  expectedRevision?: string;
 }
 
 export const sandboxApi = {
@@ -286,6 +308,40 @@ export const sandboxApi = {
     };
     return sandboxServiceCreateSandboxClaim(input.namespaceId, body);
   },
+
+  /** Delete a WarmPool (namespace-scoped; requires expectedRevision). */
+  deleteWarmPool: async (
+    input: DeleteWarmPoolInput,
+  ): Promise<V1DeleteWarmPoolResponse> => {
+    const params: SandboxServiceDeleteWarmPoolParams = {
+      expectedRevision: input.expectedRevision ?? DEFAULT_REVISION,
+    };
+    return sandboxServiceDeleteWarmPool(input.namespaceId, input.id, params);
+  },
+
+  /** Sync WarmPools from the remote cluster into the Hub (update/remove). */
+  syncWarmPools: async (namespaceId: string): Promise<V1SyncWarmPoolsResponse> =>
+    sandboxServiceSyncWarmPools(namespaceId),
+
+  /** Delete a SandboxClaim (namespace-scoped; requires expectedRevision). */
+  deleteSandboxClaim: async (
+    input: DeleteSandboxClaimInput,
+  ): Promise<V1DeleteSandboxClaimResponse> => {
+    const params: SandboxServiceDeleteSandboxClaimParams = {
+      expectedRevision: input.expectedRevision ?? DEFAULT_REVISION,
+    };
+    return sandboxServiceDeleteSandboxClaim(
+      input.namespaceId,
+      input.id,
+      params,
+    );
+  },
+
+  /** Sync SandboxClaims from the remote cluster into the Hub (update/remove + sandbox linkage). */
+  syncSandboxClaims: async (
+    namespaceId: string,
+  ): Promise<V1SyncSandboxClaimsResponse> =>
+    sandboxServiceSyncSandboxClaims(namespaceId),
 
   /** List tools exposed by a Sandbox. */
   listSandboxTools: async (id: string): Promise<V1ListSandboxToolsResponse> =>

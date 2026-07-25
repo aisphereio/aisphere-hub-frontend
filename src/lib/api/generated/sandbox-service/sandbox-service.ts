@@ -31,7 +31,9 @@ import type {
   V1Sandbox,
   V1SandboxClaim,
   V1SandboxTemplate,
+  V1SyncSandboxClaimsResponse,
   V1SyncSandboxesResponse,
+  V1SyncWarmPoolsResponse,
   V1WarmPool
 } from '../model';
 
@@ -221,6 +223,35 @@ export const sandboxServiceDeleteSandboxClaim = async (namespaceId: string,
 );}
 
 
+export const getSandboxServiceSyncSandboxClaimsUrl = (namespaceId: string,) => {
+
+
+
+
+  return `/v1/namespaces/${encodeURIComponent(String(namespaceId))}/sandbox-claims:sync`
+}
+
+/**
+ * @summary SyncSandboxClaims reconciles Hub-side SandboxClaim rows with the installed
+CRD's observed status (status.conditions[Ready], status.sandbox.name). When
+a claim becomes Ready and the controller has allocated a sandbox, the
+sandbox name/podIP are mirrored onto the claim and a Hub Sandbox row is
+created (template_id=NULL, warm_pool_id+claim_id set) so the delivered
+sandbox is operable from Hub. Mirrors SyncSandboxes/SyncWarmPools but with
+the extra sandbox-linkage step.
+ */
+export const sandboxServiceSyncSandboxClaims = async (namespaceId: string, options?: RequestInit): Promise<V1SyncSandboxClaimsResponse> => {
+
+  return hubFetch<V1SyncSandboxClaimsResponse>(getSandboxServiceSyncSandboxClaimsUrl(namespaceId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
 export const getSandboxServiceListSandboxesUrl = (namespaceId: string,
     params?: SandboxServiceListSandboxesParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -366,6 +397,32 @@ export const sandboxServiceDeleteWarmPool = async (namespaceId: string,
   {
     ...options,
     method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getSandboxServiceSyncWarmPoolsUrl = (namespaceId: string,) => {
+
+
+
+
+  return `/v1/namespaces/${encodeURIComponent(String(namespaceId))}/warm-pools:sync`
+}
+
+/**
+ * @summary SyncWarmPools reconciles Hub-side WarmPool rows with the installed CRD's
+observed status (status.readyReplicas). Apply success only means the API
+server accepted the resource; Ready must be driven by readyReplicas ==
+replicas. Mirrors SyncSandboxes but without importing remote-only pools.
+ */
+export const sandboxServiceSyncWarmPools = async (namespaceId: string, options?: RequestInit): Promise<V1SyncWarmPoolsResponse> => {
+
+  return hubFetch<V1SyncWarmPoolsResponse>(getSandboxServiceSyncWarmPoolsUrl(namespaceId),
+  {
+    ...options,
+    method: 'POST'
 
 
   }

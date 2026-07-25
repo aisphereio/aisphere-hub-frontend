@@ -8,8 +8,10 @@ import type {
   CreateSandboxInput,
   CreateSandboxTemplateInput,
   CreateWarmPoolInput,
+  DeleteSandboxClaimInput,
   DeleteSandboxInput,
   DeleteSandboxTemplateInput,
+  DeleteWarmPoolInput,
 } from '@/lib/api/adapters/sandbox';
 
 /**
@@ -201,6 +203,73 @@ export function useCreateSandboxClaim() {
       });
       await queryClient.invalidateQueries({
         queryKey: sandboxListKey(input.namespaceId),
+      });
+    },
+  });
+}
+
+/** Delete a WarmPool (namespace-scoped; requires expectedRevision). */
+export function useDeleteWarmPool() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: DeleteWarmPoolInput) =>
+      sandboxApi.deleteWarmPool(input),
+    onSuccess: async (_data, input) => {
+      await queryClient.invalidateQueries({
+        queryKey: warmPoolsKey(input.namespaceId),
+      });
+      // A deleted pool may release claims that referenced it.
+      await queryClient.invalidateQueries({
+        queryKey: claimsKey(input.namespaceId),
+      });
+    },
+  });
+}
+
+/** Sync WarmPools from the remote cluster into the Hub (update/remove). */
+export function useSyncWarmPools() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (namespaceId: string) => sandboxApi.syncWarmPools(namespaceId),
+    onSuccess: async (_data, namespaceId) => {
+      await queryClient.invalidateQueries({
+        queryKey: warmPoolsKey(namespaceId),
+      });
+    },
+  });
+}
+
+/** Delete a SandboxClaim (namespace-scoped; requires expectedRevision). */
+export function useDeleteSandboxClaim() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: DeleteSandboxClaimInput) =>
+      sandboxApi.deleteSandboxClaim(input),
+    onSuccess: async (_data, input) => {
+      await queryClient.invalidateQueries({
+        queryKey: claimsKey(input.namespaceId),
+      });
+    },
+  });
+}
+
+/** Sync SandboxClaims from the remote cluster into the Hub (update/remove + sandbox linkage). */
+export function useSyncSandboxClaims() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (namespaceId: string) =>
+      sandboxApi.syncSandboxClaims(namespaceId),
+    onSuccess: async (_data, namespaceId) => {
+      // A claim sync may create/link Hub Sandbox rows, so refresh claims,
+      // sandboxes and warm pools (ready_replicas change as claims consume pods).
+      await queryClient.invalidateQueries({
+        queryKey: claimsKey(namespaceId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: sandboxListKey(namespaceId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: warmPoolsKey(namespaceId),
       });
     },
   });
