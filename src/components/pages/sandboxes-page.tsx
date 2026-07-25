@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Boxes,
+  Pause,
   Play,
   Plus,
   RefreshCw,
@@ -40,6 +41,8 @@ import {
   useDeleteWarmPool,
   useSandboxClaims,
   useSandboxDelete,
+  useSandboxResume,
+  useSandboxSuspend,
   useSandboxToolCall,
   useSandboxTools,
   useSandboxes,
@@ -300,6 +303,8 @@ export function SandboxesPage() {
   });
   const createSandbox = useCreateSandbox();
   const removeSandbox = useSandboxDelete();
+  const suspendSandbox = useSandboxSuspend();
+  const resumeSandbox = useSandboxResume();
   const syncSandboxes = useSyncSandboxes();
   const callTool = useSandboxToolCall();
 
@@ -397,6 +402,32 @@ export function SandboxesPage() {
         },
         onError: (error) =>
           toast.error(error instanceof Error ? error.message : '删除沙箱失败'),
+      },
+    );
+  };
+
+  const handleSuspend = () => {
+    if (!selected?.id) return;
+    suspendSandbox.mutate(
+      { id: selected.id, expectedRevision: selected.revision },
+      {
+        onSuccess: () =>
+          toast.success(`沙箱 ${selected.name || selected.id} 已挂起`),
+        onError: (error) =>
+          toast.error(error instanceof Error ? error.message : '挂起沙箱失败'),
+      },
+    );
+  };
+
+  const handleResume = () => {
+    if (!selected?.id) return;
+    resumeSandbox.mutate(
+      { id: selected.id, expectedRevision: selected.revision },
+      {
+        onSuccess: () =>
+          toast.success(`沙箱 ${selected.name || selected.id} 已恢复`),
+        onError: (error) =>
+          toast.error(error instanceof Error ? error.message : '恢复沙箱失败'),
       },
     );
   };
@@ -787,6 +818,30 @@ export function SandboxesPage() {
                       {selected.name || selected.kubernetesName || selected.id}
                     </CardTitle>
                     <div className="flex gap-2">
+                      {selected.permissions?.canDelete &&
+                      selected.lifecycle ===
+                        V1SandboxLifecycle.SANDBOX_LIFECYCLE_READY ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleSuspend}
+                          disabled={suspendSandbox.isPending}
+                        >
+                          <Pause className="h-3.5 w-3.5 mr-1" /> 挂起
+                        </Button>
+                      ) : null}
+                      {selected.permissions?.canDelete &&
+                      selected.lifecycle ===
+                        V1SandboxLifecycle.SANDBOX_LIFECYCLE_SUSPENDED ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleResume}
+                          disabled={resumeSandbox.isPending}
+                        >
+                          <Play className="h-3.5 w-3.5 mr-1" /> 恢复
+                        </Button>
+                      ) : null}
                       {selected.permissions?.canDelete ? (
                         <Button
                           variant="destructive"

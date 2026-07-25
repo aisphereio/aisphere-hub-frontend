@@ -35,6 +35,8 @@ import {
   sandboxServiceListSandboxTools,
   sandboxServiceListSandboxes,
   sandboxServiceListWarmPools,
+  sandboxServiceResumeSandbox,
+  sandboxServiceSuspendSandbox,
   sandboxServiceSyncSandboxClaims,
   sandboxServiceSyncSandboxes,
   sandboxServiceSyncWarmPools,
@@ -53,6 +55,8 @@ import type {
   SandboxServiceListSandboxTemplatesParams,
   SandboxServiceListSandboxesParams,
   SandboxServiceListWarmPoolsParams,
+  SandboxServiceResumeSandboxParams,
+  SandboxServiceSuspendSandboxParams,
   V1CallSandboxToolResponse,
   V1DeleteSandboxClaimResponse,
   V1DeleteWarmPoolResponse,
@@ -61,9 +65,11 @@ import type {
   V1ListSandboxToolsResponse,
   V1ListSandboxesResponse,
   V1ListWarmPoolsResponse,
+  V1ResumeSandboxResponse,
   V1Sandbox,
   V1SandboxClaim,
   V1SandboxTemplate,
+  V1SuspendSandboxResponse,
   V1SyncSandboxClaimsResponse,
   V1SyncSandboxesResponse,
   V1SyncWarmPoolsResponse,
@@ -121,6 +127,16 @@ export interface DeleteSandboxInput {
   id: string;
   expectedRevision?: string;
   deletePolicy?: 'DELETE_POLICY_DETACH_ONLY' | 'DELETE_POLICY_CASCADE';
+}
+
+export interface SuspendSandboxInput {
+  id: string;
+  expectedRevision?: string;
+}
+
+export interface ResumeSandboxInput {
+  id: string;
+  expectedRevision?: string;
 }
 
 export interface CreateWarmPoolInput {
@@ -244,6 +260,22 @@ export const sandboxApi = {
       deletePolicy,
     };
     return sandboxServiceDeleteSandbox(id, params);
+  },
+
+  /** Suspend a READY sandbox (CRD operatingMode → Suspended, lifecycle → SUSPENDED). */
+  suspendSandbox: async ({ id, expectedRevision }: SuspendSandboxInput) => {
+    const params: SandboxServiceSuspendSandboxParams = {
+      expectedRevision: expectedRevision ?? DEFAULT_REVISION,
+    };
+    return sandboxServiceSuspendSandbox(id, params);
+  },
+
+  /** Resume a SUSPENDED sandbox (operatingMode → Running, lifecycle → READY). */
+  resumeSandbox: async ({ id, expectedRevision }: ResumeSandboxInput) => {
+    const params: SandboxServiceResumeSandboxParams = {
+      expectedRevision: expectedRevision ?? DEFAULT_REVISION,
+    };
+    return sandboxServiceResumeSandbox(id, params);
   },
 
   /** Sync sandboxes from the remote cluster into the Hub (import/update/remove). */
