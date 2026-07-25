@@ -4,6 +4,7 @@
  * Aisphere Hub API
  * OpenAPI spec version: v1
  */
+import type { V1SandboxSkillRef } from './v1SandboxSkillRef';
 import type { V1SandboxTemplateLabels } from './v1SandboxTemplateLabels';
 import type { V1SandboxTemplateStatus } from './v1SandboxTemplateStatus';
 
@@ -29,6 +30,11 @@ export interface V1SandboxTemplate {
   ownerId?: string;
   ownerType?: string;
   revision?: string;
+  /**
+     * Skills declared on the template; inherited by Sandboxes created from it
+     * unless overridden inline in CreateSandboxRequest.
+     */
+  skills?: V1SandboxSkillRef[];
   status?: V1SandboxTemplateStatus;
   updateTime?: string;
 }

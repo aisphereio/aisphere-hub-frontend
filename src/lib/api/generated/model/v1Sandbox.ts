@@ -8,6 +8,7 @@ import type { V1SandboxLifecycle } from './v1SandboxLifecycle';
 import type { V1SandboxNetworkMode } from './v1SandboxNetworkMode';
 import type { V1SandboxOperatingMode } from './v1SandboxOperatingMode';
 import type { V1SandboxPermissions } from './v1SandboxPermissions';
+import type { V1SandboxSkillRef } from './v1SandboxSkillRef';
 
 /**
  * Sandbox is the AISphere control-plane record for an Agent Sandbox instance
@@ -37,6 +38,12 @@ export interface V1Sandbox {
   podIp?: string;
   podName?: string;
   revision?: string;
+  /**
+     * Skills to install into the sandbox. Resolved from the SandboxTemplate +
+     * inline CreateSandboxRequest skills at create time; the resolved snapshot
+     * is carried here and written to the Sandbox CRD annotation for the Runtime.
+     */
+  skills?: V1SandboxSkillRef[];
   templateId?: string;
   updateTime?: string;
   warmPoolId?: string;

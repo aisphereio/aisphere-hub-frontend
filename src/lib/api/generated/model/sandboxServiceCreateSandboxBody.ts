@@ -6,6 +6,7 @@
  */
 import type { SandboxServiceCreateSandboxBodyLabels } from './sandboxServiceCreateSandboxBodyLabels';
 import type { V1SandboxOperatingMode } from './v1SandboxOperatingMode';
+import type { V1SandboxSkillRef } from './v1SandboxSkillRef';
 
 export interface SandboxServiceCreateSandboxBody {
   labels?: SandboxServiceCreateSandboxBodyLabels;
@@ -13,6 +14,8 @@ export interface SandboxServiceCreateSandboxBody {
   operatingMode?: V1SandboxOperatingMode;
   ownerId?: string;
   ownerType?: string;
+  /** Inline skill declarations; merged with (and override) the template's skills. */
+  skills?: V1SandboxSkillRef[];
   templateId?: string;
   warmPoolId?: string;
 }

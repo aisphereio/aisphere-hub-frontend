@@ -18,6 +18,8 @@ import type {
   SandboxServiceListSandboxTemplatesParams,
   SandboxServiceListSandboxesParams,
   SandboxServiceListWarmPoolsParams,
+  SandboxServiceResumeSandboxParams,
+  SandboxServiceSuspendSandboxParams,
   V1CallSandboxToolResponse,
   V1DeleteSandboxClaimResponse,
   V1DeleteSandboxResponse,
@@ -28,9 +30,11 @@ import type {
   V1ListSandboxToolsResponse,
   V1ListSandboxesResponse,
   V1ListWarmPoolsResponse,
+  V1ResumeSandboxResponse,
   V1Sandbox,
   V1SandboxClaim,
   V1SandboxTemplate,
+  V1SuspendSandboxResponse,
   V1SyncSandboxClaimsResponse,
   V1SyncSandboxesResponse,
   V1SyncWarmPoolsResponse,
@@ -472,6 +476,69 @@ export const sandboxServiceGetSandbox = async (id: string, options?: RequestInit
   {
     ...options,
     method: 'GET'
+
+
+  }
+);}
+
+
+export const getSandboxServiceResumeSandboxUrl = (id: string,
+    params: SandboxServiceResumeSandboxParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/sandboxes/${encodeURIComponent(String(id))}/resume?${stringifiedParams}` : `/v1/sandboxes/${encodeURIComponent(String(id))}/resume`
+}
+
+export const sandboxServiceResumeSandbox = async (id: string,
+    params: SandboxServiceResumeSandboxParams, options?: RequestInit): Promise<V1ResumeSandboxResponse> => {
+
+  return hubFetch<V1ResumeSandboxResponse>(getSandboxServiceResumeSandboxUrl(id,params),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getSandboxServiceSuspendSandboxUrl = (id: string,
+    params: SandboxServiceSuspendSandboxParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/sandboxes/${encodeURIComponent(String(id))}/suspend?${stringifiedParams}` : `/v1/sandboxes/${encodeURIComponent(String(id))}/suspend`
+}
+
+/**
+ * @summary SuspendSandbox stops a READY sandbox's pod while retaining its PVC/state
+(CRD spec.operatingMode -> "Suspended" via SSA patch). The sandbox row
+transitions lifecycle READY -> SUSPENDED. ResumeSandbox reverses it.
+ */
+export const sandboxServiceSuspendSandbox = async (id: string,
+    params: SandboxServiceSuspendSandboxParams, options?: RequestInit): Promise<V1SuspendSandboxResponse> => {
+
+  return hubFetch<V1SuspendSandboxResponse>(getSandboxServiceSuspendSandboxUrl(id,params),
+  {
+    ...options,
+    method: 'POST'
 
 
   }

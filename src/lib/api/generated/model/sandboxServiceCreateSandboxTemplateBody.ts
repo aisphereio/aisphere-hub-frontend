@@ -5,6 +5,7 @@
  * OpenAPI spec version: v1
  */
 import type { SandboxServiceCreateSandboxTemplateBodyLabels } from './sandboxServiceCreateSandboxTemplateBodyLabels';
+import type { V1SandboxSkillRef } from './v1SandboxSkillRef';
 
 export interface SandboxServiceCreateSandboxTemplateBody {
   containerCommand?: string;
@@ -15,4 +16,6 @@ export interface SandboxServiceCreateSandboxTemplateBody {
   name: string;
   ownerId?: string;
   ownerType?: string;
+  /** Skills to declare on the template; inherited by sandboxes created from it. */
+  skills?: V1SandboxSkillRef[];
 }
