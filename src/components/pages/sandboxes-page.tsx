@@ -54,6 +54,7 @@ import {
 import {
   V1SandboxLifecycle,
   V1SandboxNetworkMode,
+  V1SandboxTemplateStatus,
 } from '@/lib/api/generated/model';
 import type { V1Sandbox, V1SandboxToolSchema } from '@/lib/api/generated/model';
 
@@ -444,8 +445,19 @@ export function SandboxesPage() {
     (s) => s.networkMode === V1SandboxNetworkMode.SANDBOX_NETWORK_MODE_OFFLINE,
   ).length;
 
+  // A direct Sandbox is created from a SandboxTemplate only. WarmPool-based
+  // allocation must go through CreateSandboxClaim (a separate form below), so
+  // the create button requires a selected READY template — never fall back to
+  // "any warm pool exists". Name must be a DNS-1123 label (the usecase rejects
+  // anything else with a client error; validate up front for clearer feedback).
+  const isDNS1123Label = (v: string) =>
+    /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(v) && v.length <= 63;
+  const nameValid = isDNS1123Label(sandboxForm.name.trim());
+  const selectedTemplateReady = templates.some(
+    (t) => t.id === sandboxForm.templateId && t.status === V1SandboxTemplateStatus.SANDBOX_TEMPLATE_STATUS_READY,
+  );
   const canCreate = Boolean(
-    activeNamespaceId && sandboxForm.name.trim() && (sandboxForm.templateId || warmPools.length),
+    activeNamespaceId && nameValid && selectedTemplateReady,
   );
 
   return (
@@ -645,11 +657,17 @@ export function SandboxesPage() {
                       <SelectValue placeholder="选择模板" />
                     </SelectTrigger>
                     <SelectContent>
-                      {templates.map((t) => (
-                        <SelectItem key={t.id} value={t.id ?? ''}>
-                          {t.displayName || t.name}
-                        </SelectItem>
-                      ))}
+                      {templates
+                        .filter(
+                          (t) =>
+                            t.status ===
+                            V1SandboxTemplateStatus.SANDBOX_TEMPLATE_STATUS_READY,
+                        )
+                        .map((t) => (
+                          <SelectItem key={t.id} value={t.id ?? ''}>
+                            {t.displayName || t.name}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -796,7 +814,15 @@ export function SandboxesPage() {
                       </ScrollArea>
                     </div>
                     <div className="space-y-2">
-                      <Label>调用工具</Label>
+                      <div className="flex items-center justify-between">
+                        <Label>调用工具</Label>
+                        <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-400">
+                          实验性
+                        </Badge>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        工具执行尚未连接 Runtime 执行器，调用已禁用。下方仅可查看工具 Schema。
+                      </p>
                       <Select
                         value={selectedTool}
                         onValueChange={(v) => {
@@ -822,23 +848,11 @@ export function SandboxesPage() {
                       />
                       <Button
                         onClick={runTool}
-                        disabled={!selectedTool || callTool.isPending}
+                        disabled
+                        title="工具执行尚未接入 Runtime，调用已禁用"
                       >
                         <Terminal className="h-3.5 w-3.5 mr-1" /> 调用
                       </Button>
-                      {callTool.data ? (
-                        <pre className="max-h-[260px] overflow-auto rounded-lg border bg-muted p-3 text-xs">
-                          {callTool.data.outputJson
-                            ? (() => {
-                                try {
-                                  return pretty(JSON.parse(callTool.data.outputJson));
-                                } catch {
-                                  return callTool.data.outputJson;
-                                }
-                              })()
-                            : pretty(callTool.data)}
-                        </pre>
-                      ) : null}
                     </div>
                   </div>
                 </CardContent>

@@ -28,6 +28,14 @@ vi.mock('./skill-version-browser-dialog', () => ({
   ),
 }));
 
+vi.mock('@/hooks/use-skill-files', () => ({
+  useFileContent: () => ({
+    data: { content: '# mocked skill content', sha: 'sha-mocked', path: 'SKILL.md' },
+    isLoading: false,
+    isFetching: false,
+  }),
+}));
+
 vi.mock('@/hooks/use-skill-releases', () => ({
   useSkillReleases: () => ({
     data: [
@@ -160,7 +168,12 @@ describe('SkillReleasesPanel', () => {
   it('opens a read-only browser for the selected release', () => {
     render(<SkillReleasesPanel skillName="search" />);
 
-    fireEvent.click(screen.getAllByRole('button', { name: '查看内容' })[0]);
+    // Each version card has a 预览 button that selects it for inline preview;
+    // buildSkillReleaseViews surfaces the prerelease (v2.0.0-beta.1) first,
+    // and selecting it reveals the 全屏浏览 button which opens the browser
+    // dialog seeded with that tag.
+    fireEvent.click(screen.getAllByRole('button', { name: '预览' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: '全屏浏览' }));
     expect(screen.getByText('browser:v2.0.0-beta.1')).toBeDefined();
   });
 });
