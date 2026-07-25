@@ -54,6 +54,7 @@ import {
 import {
   V1SandboxLifecycle,
   V1SandboxNetworkMode,
+  V1SandboxTemplateStatus,
 } from '@/lib/api/generated/model';
 import type { V1Sandbox, V1SandboxToolSchema } from '@/lib/api/generated/model';
 
@@ -444,8 +445,19 @@ export function SandboxesPage() {
     (s) => s.networkMode === V1SandboxNetworkMode.SANDBOX_NETWORK_MODE_OFFLINE,
   ).length;
 
+  // A direct Sandbox is created from a SandboxTemplate only. WarmPool-based
+  // allocation must go through CreateSandboxClaim (a separate form below), so
+  // the create button requires a selected READY template — never fall back to
+  // "any warm pool exists". Name must be a DNS-1123 label (the usecase rejects
+  // anything else with a client error; validate up front for clearer feedback).
+  const isDNS1123Label = (v: string) =>
+    /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(v) && v.length <= 63;
+  const nameValid = isDNS1123Label(sandboxForm.name.trim());
+  const selectedTemplateReady = templates.some(
+    (t) => t.id === sandboxForm.templateId && t.status === V1SandboxTemplateStatus.SANDBOX_TEMPLATE_STATUS_READY,
+  );
   const canCreate = Boolean(
-    activeNamespaceId && sandboxForm.name.trim() && (sandboxForm.templateId || warmPools.length),
+    activeNamespaceId && nameValid && selectedTemplateReady,
   );
 
   return (
@@ -645,11 +657,17 @@ export function SandboxesPage() {
                       <SelectValue placeholder="选择模板" />
                     </SelectTrigger>
                     <SelectContent>
-                      {templates.map((t) => (
-                        <SelectItem key={t.id} value={t.id ?? ''}>
-                          {t.displayName || t.name}
-                        </SelectItem>
-                      ))}
+                      {templates
+                        .filter(
+                          (t) =>
+                            t.status ===
+                            V1SandboxTemplateStatus.SANDBOX_TEMPLATE_STATUS_READY,
+                        )
+                        .map((t) => (
+                          <SelectItem key={t.id} value={t.id ?? ''}>
+                            {t.displayName || t.name}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
