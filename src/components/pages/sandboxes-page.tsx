@@ -814,7 +814,15 @@ export function SandboxesPage() {
                       </ScrollArea>
                     </div>
                     <div className="space-y-2">
-                      <Label>调用工具</Label>
+                      <div className="flex items-center justify-between">
+                        <Label>调用工具</Label>
+                        <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-400">
+                          实验性
+                        </Badge>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        工具执行尚未连接 Runtime 执行器，调用已禁用。下方仅可查看工具 Schema。
+                      </p>
                       <Select
                         value={selectedTool}
                         onValueChange={(v) => {
@@ -840,23 +848,11 @@ export function SandboxesPage() {
                       />
                       <Button
                         onClick={runTool}
-                        disabled={!selectedTool || callTool.isPending}
+                        disabled
+                        title="工具执行尚未接入 Runtime，调用已禁用"
                       >
                         <Terminal className="h-3.5 w-3.5 mr-1" /> 调用
                       </Button>
-                      {callTool.data ? (
-                        <pre className="max-h-[260px] overflow-auto rounded-lg border bg-muted p-3 text-xs">
-                          {callTool.data.outputJson
-                            ? (() => {
-                                try {
-                                  return pretty(JSON.parse(callTool.data.outputJson));
-                                } catch {
-                                  return callTool.data.outputJson;
-                                }
-                              })()
-                            : pretty(callTool.data)}
-                        </pre>
-                      ) : null}
                     </div>
                   </div>
                 </CardContent>
