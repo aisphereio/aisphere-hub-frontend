@@ -190,6 +190,37 @@ export const sandboxServiceCreateSandboxClaim = async (namespaceId: string,
 );}
 
 
+export const getSandboxServiceDeleteSandboxClaimUrl = (namespaceId: string,
+    id: string,
+    params: SandboxServiceDeleteSandboxClaimParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/namespaces/${encodeURIComponent(String(namespaceId))}/sandbox-claims/${encodeURIComponent(String(id))}?${stringifiedParams}` : `/v1/namespaces/${encodeURIComponent(String(namespaceId))}/sandbox-claims/${encodeURIComponent(String(id))}`
+}
+
+export const sandboxServiceDeleteSandboxClaim = async (namespaceId: string,
+    id: string,
+    params: SandboxServiceDeleteSandboxClaimParams, options?: RequestInit): Promise<V1DeleteSandboxClaimResponse> => {
+
+  return hubFetch<V1DeleteSandboxClaimResponse>(getSandboxServiceDeleteSandboxClaimUrl(namespaceId,id,params),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
 export const getSandboxServiceListSandboxesUrl = (namespaceId: string,
     params?: SandboxServiceListSandboxesParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -310,8 +341,9 @@ export const sandboxServiceCreateWarmPool = async (namespaceId: string,
 );}
 
 
-export const getSandboxServiceDeleteSandboxClaimUrl = (id: string,
-    params: SandboxServiceDeleteSandboxClaimParams,) => {
+export const getSandboxServiceDeleteWarmPoolUrl = (namespaceId: string,
+    id: string,
+    params: SandboxServiceDeleteWarmPoolParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -323,13 +355,14 @@ export const getSandboxServiceDeleteSandboxClaimUrl = (id: string,
 
   const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/v1/sandbox-claims/${encodeURIComponent(String(id))}?${stringifiedParams}` : `/v1/sandbox-claims/${encodeURIComponent(String(id))}`
+  return stringifiedParams.length > 0 ? `/v1/namespaces/${encodeURIComponent(String(namespaceId))}/warm-pools/${encodeURIComponent(String(id))}?${stringifiedParams}` : `/v1/namespaces/${encodeURIComponent(String(namespaceId))}/warm-pools/${encodeURIComponent(String(id))}`
 }
 
-export const sandboxServiceDeleteSandboxClaim = async (id: string,
-    params: SandboxServiceDeleteSandboxClaimParams, options?: RequestInit): Promise<V1DeleteSandboxClaimResponse> => {
+export const sandboxServiceDeleteWarmPool = async (namespaceId: string,
+    id: string,
+    params: SandboxServiceDeleteWarmPoolParams, options?: RequestInit): Promise<V1DeleteWarmPoolResponse> => {
 
-  return hubFetch<V1DeleteSandboxClaimResponse>(getSandboxServiceDeleteSandboxClaimUrl(id,params),
+  return hubFetch<V1DeleteWarmPoolResponse>(getSandboxServiceDeleteWarmPoolUrl(namespaceId,id,params),
   {
     ...options,
     method: 'DELETE'
@@ -425,35 +458,6 @@ export const sandboxServiceCallSandboxTool = async (id: string,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(sandboxServiceCallSandboxToolBody)
-  }
-);}
-
-
-export const getSandboxServiceDeleteWarmPoolUrl = (id: string,
-    params: SandboxServiceDeleteWarmPoolParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : String(value))
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/v1/warm-pools/${encodeURIComponent(String(id))}?${stringifiedParams}` : `/v1/warm-pools/${encodeURIComponent(String(id))}`
-}
-
-export const sandboxServiceDeleteWarmPool = async (id: string,
-    params: SandboxServiceDeleteWarmPoolParams, options?: RequestInit): Promise<V1DeleteWarmPoolResponse> => {
-
-  return hubFetch<V1DeleteWarmPoolResponse>(getSandboxServiceDeleteWarmPoolUrl(id,params),
-  {
-    ...options,
-    method: 'DELETE'
-
-
   }
 );}
 
