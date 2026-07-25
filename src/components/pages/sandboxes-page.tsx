@@ -36,6 +36,8 @@ import {
   useCreateSandbox,
   useCreateSandboxClaim,
   useCreateWarmPool,
+  useDeleteSandboxClaim,
+  useDeleteWarmPool,
   useSandboxClaims,
   useSandboxDelete,
   useSandboxToolCall,
@@ -43,6 +45,8 @@ import {
   useSandboxes,
   useSandboxTemplates,
   useSyncSandboxes,
+  useSyncSandboxClaims,
+  useSyncWarmPools,
   useWarmPools,
 } from '@/hooks/use-sandboxes';
 import {
@@ -54,7 +58,9 @@ import {
 import {
   V1SandboxLifecycle,
   V1SandboxNetworkMode,
+  V1SandboxClaimStatus,
   V1SandboxTemplateStatus,
+  V1WarmPoolStatus,
 } from '@/lib/api/generated/model';
 import type { V1Sandbox, V1SandboxToolSchema } from '@/lib/api/generated/model';
 
@@ -86,6 +92,42 @@ function lifecycleVariant(
 function lifecycleLabel(lifecycle?: string): string {
   if (!lifecycle) return 'UNKNOWN';
   return lifecycle.replace(/^SANDBOX_LIFECYCLE_/, '');
+}
+
+/** Map a WarmPool status enum to a Badge variant. */
+function warmPoolStatusVariant(
+  status?: string,
+): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (status === V1WarmPoolStatus.WARM_POOL_STATUS_READY) return 'default';
+  if (status === V1WarmPoolStatus.WARM_POOL_STATUS_DEGRADED)
+    return 'destructive';
+  if (status === V1WarmPoolStatus.WARM_POOL_STATUS_CREATING) return 'secondary';
+  return 'outline';
+}
+
+/** Shorten a WarmPool status enum label (drops WARM_POOL_STATUS_). */
+function warmPoolStatusLabel(status?: string): string {
+  if (!status) return 'UNKNOWN';
+  return status.replace(/^WARM_POOL_STATUS_/, '');
+}
+
+/** Map a SandboxClaim status enum to a Badge variant. */
+function claimStatusVariant(
+  status?: string,
+): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (status === V1SandboxClaimStatus.SANDBOX_CLAIM_STATUS_READY)
+    return 'default';
+  if (status === V1SandboxClaimStatus.SANDBOX_CLAIM_STATUS_FAILED)
+    return 'destructive';
+  if (status === V1SandboxClaimStatus.SANDBOX_CLAIM_STATUS_PENDING)
+    return 'secondary';
+  return 'outline';
+}
+
+/** Shorten a SandboxClaim status enum label (drops SANDBOX_CLAIM_STATUS_). */
+function claimStatusLabel(status?: string): string {
+  if (!status) return 'UNKNOWN';
+  return status.replace(/^SANDBOX_CLAIM_STATUS_/, '');
 }
 
 function SandboxCard({
@@ -292,6 +334,10 @@ export function SandboxesPage() {
 
   const [claimForm, setClaimForm] = useState({ name: '', warmPoolId: '' });
   const createSandboxClaim = useCreateSandboxClaim();
+  const deleteWarmPool = useDeleteWarmPool();
+  const deleteSandboxClaim = useDeleteSandboxClaim();
+  const syncWarmPools = useSyncWarmPools();
+  const syncSandboxClaims = useSyncSandboxClaims();
 
   // ── Handlers ────────────────────────────────────────────────────────────
   const refreshSandboxes = () =>
@@ -407,6 +453,56 @@ export function SandboxesPage() {
           toast.error(error instanceof Error ? error.message : '申领沙箱失败'),
       },
     );
+  };
+
+  const handleDeleteWarmPool = (wp: { id?: string; name?: string }) => {
+    if (!activeNamespaceId || !wp.id) return;
+    deleteWarmPool.mutate(
+      { namespaceId: activeNamespaceId, id: wp.id },
+      {
+        onSuccess: () =>
+          toast.success(`预热池 ${wp.name || wp.id} 已删除`),
+        onError: (error) =>
+          toast.error(error instanceof Error ? error.message : '删除预热池失败'),
+      },
+    );
+  };
+
+  const handleDeleteClaim = (c: { id?: string; name?: string }) => {
+    if (!activeNamespaceId || !c.id) return;
+    deleteSandboxClaim.mutate(
+      { namespaceId: activeNamespaceId, id: c.id },
+      {
+        onSuccess: () =>
+          toast.success(`申领 ${c.name || c.id} 已删除（关联沙箱保留）`),
+        onError: (error) =>
+          toast.error(error instanceof Error ? error.message : '删除申领失败'),
+      },
+    );
+  };
+
+  const handleSyncWarmPools = () => {
+    if (!activeNamespaceId) return;
+    syncWarmPools.mutate(activeNamespaceId, {
+      onSuccess: (res) =>
+        toast.success(
+          `预热池同步完成：更新 ${res.updated ?? 0}，移除 ${res.removed ?? 0}`,
+        ),
+      onError: (error) =>
+        toast.error(error instanceof Error ? error.message : '同步预热池失败'),
+    });
+  };
+
+  const handleSyncClaims = () => {
+    if (!activeNamespaceId) return;
+    syncSandboxClaims.mutate(activeNamespaceId, {
+      onSuccess: (res) =>
+        toast.success(
+          `申领同步完成：更新 ${res.updated ?? 0}，移除 ${res.removed ?? 0}，关联沙箱 ${res.sandboxesLinked ?? 0}`,
+        ),
+      onError: (error) =>
+        toast.error(error instanceof Error ? error.message : '同步申领失败'),
+    });
   };
 
   const runTool = () => {
@@ -869,7 +965,20 @@ export function SandboxesPage() {
             <CardHeader className="py-3">
               <CardTitle className="text-sm flex items-center justify-between">
                 <span>预热池</span>
-                <Badge variant="secondary">{warmPools.length}</Badge>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    disabled={!activeNamespaceId || syncWarmPools.isPending}
+                    onClick={handleSyncWarmPools}
+                    title="从集群同步预热池状态（readyReplicas 驱动 READY）"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                    {syncWarmPools.isPending ? '同步中…' : '同步'}
+                  </Button>
+                  <Badge variant="secondary">{warmPools.length}</Badge>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -925,15 +1034,33 @@ export function SandboxesPage() {
                     key={wp.id}
                     className="flex items-center justify-between rounded-md border px-3 py-2 text-xs"
                   >
-                    <div>
+                    <div className="min-w-0">
                       <span className="font-medium">{wp.name}</span>
                       <span className="text-muted-foreground ml-2">
                         模板 {wp.templateId || '-'}
                       </span>
+                      <Badge
+                        variant={warmPoolStatusVariant(wp.status)}
+                        className="ml-2"
+                      >
+                        {warmPoolStatusLabel(wp.status)}
+                      </Badge>
                     </div>
-                    <Badge variant="outline">
-                      {wp.readyReplicas ?? 0}/{wp.replicas ?? 0}
-                    </Badge>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="outline" title="就绪/期望副本">
+                        {wp.readyReplicas ?? 0}/{wp.replicas ?? 0}
+                      </Badge>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                        disabled={deleteWarmPool.isPending}
+                        onClick={() => handleDeleteWarmPool(wp)}
+                        title="删除预热池"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
                 {!warmPools.length ? (
@@ -949,7 +1076,20 @@ export function SandboxesPage() {
             <CardHeader className="py-3">
               <CardTitle className="text-sm flex items-center justify-between">
                 <span>沙箱申领</span>
-                <Badge variant="secondary">{claims.length}</Badge>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    disabled={!activeNamespaceId || syncSandboxClaims.isPending}
+                    onClick={handleSyncClaims}
+                    title="从集群同步申领状态（Ready 驱动 + 关联 Hub 沙箱）"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                    {syncSandboxClaims.isPending ? '同步中…' : '同步'}
+                  </Button>
+                  <Badge variant="secondary">{claims.length}</Badge>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -996,17 +1136,48 @@ export function SandboxesPage() {
                     key={claim.id}
                     className="flex items-center justify-between rounded-md border px-3 py-2 text-xs"
                   >
-                    <div>
+                    <div className="min-w-0">
                       <span className="font-medium">{claim.name}</span>
-                      <span className="text-muted-foreground ml-2">
-                        沙箱 {claim.sandboxId || '-'}
-                      </span>
+                      <Badge
+                        variant={claimStatusVariant(claim.status)}
+                        className="ml-2"
+                      >
+                        {claimStatusLabel(claim.status)}
+                      </Badge>
+                      {claim.sandboxKubeName ? (
+                        <span className="text-muted-foreground ml-2">
+                          沙箱 {claim.sandboxKubeName}
+                          {claim.sandboxPodIp ? ` (${claim.sandboxPodIp})` : ''}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground ml-2">
+                          未交付
+                        </span>
+                      )}
                     </div>
-                    <Badge variant="outline">
-                      {claim.status
-                        ? claim.status.replace(/^SANDBOX_CLAIM_STATUS_/, '')
-                        : 'UNKNOWN'}
-                    </Badge>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {claim.sandboxId ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => setSelectedId(claim.sandboxId ?? null)}
+                          title="跳转到关联沙箱"
+                        >
+                          <Boxes className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : null}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                        disabled={deleteSandboxClaim.isPending}
+                        onClick={() => handleDeleteClaim(claim)}
+                        title="删除申领（关联沙箱保留）"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
                 {!claims.length ? (
