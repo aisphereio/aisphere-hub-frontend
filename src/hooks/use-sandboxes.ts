@@ -12,6 +12,8 @@ import type {
   DeleteSandboxInput,
   DeleteSandboxTemplateInput,
   DeleteWarmPoolInput,
+  ResumeSandboxInput,
+  SuspendSandboxInput,
 } from '@/lib/api/adapters/sandbox';
 
 /**
@@ -82,6 +84,30 @@ export function useSandboxDelete() {
     mutationFn: (input: DeleteSandboxInput) => sandboxApi.deleteSandbox(input),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['sandboxes', 'list'] });
+    },
+  });
+}
+
+/** Suspend a READY sandbox (operatingMode → Suspended, lifecycle → SUSPENDED). */
+export function useSandboxSuspend() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SuspendSandboxInput) => sandboxApi.suspendSandbox(input),
+    onSuccess: async (_data, input) => {
+      await queryClient.invalidateQueries({ queryKey: ['sandboxes', 'list'] });
+      await queryClient.invalidateQueries({ queryKey: sandboxDetailKey(input.id) });
+    },
+  });
+}
+
+/** Resume a SUSPENDED sandbox (operatingMode → Running, lifecycle → READY). */
+export function useSandboxResume() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ResumeSandboxInput) => sandboxApi.resumeSandbox(input),
+    onSuccess: async (_data, input) => {
+      await queryClient.invalidateQueries({ queryKey: ['sandboxes', 'list'] });
+      await queryClient.invalidateQueries({ queryKey: sandboxDetailKey(input.id) });
     },
   });
 }
