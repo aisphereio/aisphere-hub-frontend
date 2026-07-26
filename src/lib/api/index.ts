@@ -16,7 +16,7 @@
  *   ⏳ skillSetApi → /v3/aihub/skillsets/*  (awaiting backend migration)
  *   ⏳ agentApi    → /v3/aihub/agents/*     (awaiting backend migration)
  *   ✅ sandboxApi  → /v1/clusters|namespaces|sandboxes/*  (migrated, generated+adapter, SandboxService)
- *   ⏳ toolApi     → /v3/aihub/tools/*      (awaiting backend migration)
+ *   ✅ toolApi     → /v1/tools/*      (migrated, generated+adapter, ToolService)
  *   ⏳ proposalApi → /v3/admin/ai/skill-proposals/*  (awaiting backend migration)
  *   ⏳ iamApi      → /v3/admin/iam/*        (awaiting backend migration)
  *   ⏳ namespaceApi→ /v3/admin/namespaces/* (awaiting backend migration)
@@ -400,21 +400,21 @@ export { sandboxApi } from './adapters/sandbox';
 
 export const toolApi = {
   list: (params: Record<string, unknown> = {}) =>
-    request<Page<ToolListItem>>(`/v3/aihub/tools?${toQuery(params)}`),
+    request<Page<ToolListItem>>(`/v1/tools?${toQuery(params)}`),
   detail: (toolId: string) =>
-    request<ToolResponse>(`/v3/aihub/tools/${encodeURIComponent(toolId)}`),
+    request<ToolResponse>(`/v1/tools/${encodeURIComponent(toolId)}`),
   create: (data: ToolUpsertRequest) =>
-    request<ToolResponse>("/v3/aihub/tools", {
+    request<ToolResponse>("/v1/tools", {
       method: "POST",
       body: JSON.stringify(data),
     }),
   update: (toolId: string, data: ToolUpsertRequest) =>
-    request<ToolResponse>(`/v3/aihub/tools/${encodeURIComponent(toolId)}`, {
+    request<ToolResponse>(`/v1/tools/${encodeURIComponent(toolId)}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
   remove: (toolId: string) =>
-    request<unknown>(`/v3/aihub/tools/${encodeURIComponent(toolId)}`, {
+    request<unknown>(`/v1/tools/${encodeURIComponent(toolId)}`, {
       method: "DELETE",
     }),
   resolve: (
@@ -427,15 +427,15 @@ export const toolApi = {
     } = {},
   ) =>
     request<ToolRuntimeSnapshot>(
-      `/v3/aihub/runtime/tools/${encodeURIComponent(toolId)}/resolve`,
+      `/v1/tools/${encodeURIComponent(toolId)}:resolve`,
       {
         method: "POST",
         body: JSON.stringify(body),
       },
     ),
-  failures: (params: Record<string, unknown> = {}) =>
+  failures: (toolId: string, params: Record<string, unknown> = {}) =>
     request<Page<ToolFailureRecord>>(
-      `/v3/aihub/tool-failures?${toQuery(params)}`,
+      `/v1/tools/${encodeURIComponent(toolId)}/failures?${toQuery(params)}`,
     ),
 };
 
@@ -1015,7 +1015,7 @@ function resourcePath(
     case "agent":
       return `/v3/aihub/agents/${encodeURIComponent(resourceId)}/shares`;
     case "tool":
-      return `/v3/aihub/tools/${encodeURIComponent(resourceId)}/shares`;
+      return `/v1/tools/${encodeURIComponent(resourceId)}/shares`;
     case "workflow":
       return `/v3/aihub/workflows/${encodeURIComponent(resourceId)}/shares`;
     default:
