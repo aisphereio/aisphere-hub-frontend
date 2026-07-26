@@ -37,6 +37,7 @@ import {
   sandboxServiceListWarmPools,
   sandboxServiceResumeSandbox,
   sandboxServiceSuspendSandbox,
+  sandboxServiceSetSandboxNetworkMode,
   sandboxServiceSyncSandboxClaims,
   sandboxServiceSyncSandboxes,
   sandboxServiceSyncWarmPools,
@@ -57,6 +58,7 @@ import type {
   SandboxServiceListWarmPoolsParams,
   SandboxServiceResumeSandboxParams,
   SandboxServiceSuspendSandboxParams,
+  SandboxServiceSetSandboxNetworkModeBody,
   V1CallSandboxToolResponse,
   V1DeleteSandboxClaimResponse,
   V1DeleteWarmPoolResponse,
@@ -68,7 +70,9 @@ import type {
   V1ResumeSandboxResponse,
   V1Sandbox,
   V1SandboxClaim,
+  V1SandboxNetworkMode,
   V1SandboxTemplate,
+  V1SetSandboxNetworkModeResponse,
   V1SuspendSandboxResponse,
   V1SyncSandboxClaimsResponse,
   V1SyncSandboxesResponse,
@@ -137,6 +141,12 @@ export interface SuspendSandboxInput {
 export interface ResumeSandboxInput {
   id: string;
   expectedRevision?: string;
+}
+
+export interface SetSandboxNetworkModeInput {
+  id: string;
+  expectedRevision?: string;
+  networkMode: V1SandboxNetworkMode;
 }
 
 export interface CreateWarmPoolInput {
@@ -276,6 +286,19 @@ export const sandboxApi = {
       expectedRevision: expectedRevision ?? DEFAULT_REVISION,
     };
     return sandboxServiceResumeSandbox(id, params);
+  },
+
+  /** Toggle a sandbox's network egress (OFFLINE → CiliumNetworkPolicy egressDeny; ONLINE → remove). */
+  setSandboxNetworkMode: async ({
+    id,
+    expectedRevision,
+    networkMode,
+  }: SetSandboxNetworkModeInput) => {
+    const body: SandboxServiceSetSandboxNetworkModeBody = {
+      expectedRevision: expectedRevision ?? DEFAULT_REVISION,
+      networkMode,
+    };
+    return sandboxServiceSetSandboxNetworkMode(id, body);
   },
 
   /** Sync sandboxes from the remote cluster into the Hub (import/update/remove). */

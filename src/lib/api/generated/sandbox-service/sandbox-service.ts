@@ -19,6 +19,7 @@ import type {
   SandboxServiceListSandboxesParams,
   SandboxServiceListWarmPoolsParams,
   SandboxServiceResumeSandboxParams,
+  SandboxServiceSetSandboxNetworkModeBody,
   SandboxServiceSuspendSandboxParams,
   V1CallSandboxToolResponse,
   V1DeleteSandboxClaimResponse,
@@ -34,6 +35,7 @@ import type {
   V1Sandbox,
   V1SandboxClaim,
   V1SandboxTemplate,
+  V1SetSandboxNetworkModeResponse,
   V1SuspendSandboxResponse,
   V1SyncSandboxClaimsResponse,
   V1SyncSandboxesResponse,
@@ -478,6 +480,33 @@ export const sandboxServiceGetSandbox = async (id: string, options?: RequestInit
     method: 'GET'
 
 
+  }
+);}
+
+
+export const getSandboxServiceSetSandboxNetworkModeUrl = (id: string,) => {
+
+
+
+
+  return `/v1/sandboxes/${encodeURIComponent(String(id))}/network-mode`
+}
+
+/**
+ * @summary SetSandboxNetworkMode toggles a sandbox's network egress. OFFLINE applies a
+CiliumNetworkPolicy egressDeny (overrides the operator's per-template allow
+policy, which standard NetworkPolicy cannot — Cilium unions allow rules);
+ONLINE removes it. The Hub row's network_mode is stamped to match.
+ */
+export const sandboxServiceSetSandboxNetworkMode = async (id: string,
+    sandboxServiceSetSandboxNetworkModeBody: SandboxServiceSetSandboxNetworkModeBody, options?: RequestInit): Promise<V1SetSandboxNetworkModeResponse> => {
+
+  return hubFetch<V1SetSandboxNetworkModeResponse>(getSandboxServiceSetSandboxNetworkModeUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(sandboxServiceSetSandboxNetworkModeBody)
   }
 );}
 

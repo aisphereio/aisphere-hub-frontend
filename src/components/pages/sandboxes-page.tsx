@@ -44,6 +44,7 @@ import {
   useSandboxResume,
   useSandboxSuspend,
   useSandboxToolCall,
+  useSetSandboxNetworkMode,
   useSandboxTools,
   useSandboxes,
   useSandboxTemplates,
@@ -305,6 +306,7 @@ export function SandboxesPage() {
   const removeSandbox = useSandboxDelete();
   const suspendSandbox = useSandboxSuspend();
   const resumeSandbox = useSandboxResume();
+  const setNetworkMode = useSetSandboxNetworkMode();
   const syncSandboxes = useSyncSandboxes();
   const callTool = useSandboxToolCall();
 
@@ -428,6 +430,29 @@ export function SandboxesPage() {
           toast.success(`沙箱 ${selected.name || selected.id} 已恢复`),
         onError: (error) =>
           toast.error(error instanceof Error ? error.message : '恢复沙箱失败'),
+      },
+    );
+  };
+
+  const handleToggleNetwork = () => {
+    if (!selected?.id) return;
+    const next =
+      selected.networkMode === V1SandboxNetworkMode.SANDBOX_NETWORK_MODE_ONLINE
+        ? V1SandboxNetworkMode.SANDBOX_NETWORK_MODE_OFFLINE
+        : V1SandboxNetworkMode.SANDBOX_NETWORK_MODE_ONLINE;
+    setNetworkMode.mutate(
+      { id: selected.id, expectedRevision: selected.revision, networkMode: next },
+      {
+        onSuccess: () =>
+          toast.success(
+            `沙箱 ${selected.name || selected.id} 网络已切换为 ${
+              next === V1SandboxNetworkMode.SANDBOX_NETWORK_MODE_ONLINE
+                ? '在线'
+                : '离线'
+            }`,
+          ),
+        onError: (error) =>
+          toast.error(error instanceof Error ? error.message : '切换网络模式失败'),
       },
     );
   };
@@ -840,6 +865,37 @@ export function SandboxesPage() {
                           disabled={resumeSandbox.isPending}
                         >
                           <Play className="h-3.5 w-3.5 mr-1" /> 恢复
+                        </Button>
+                      ) : null}
+                      {selected.permissions?.canDelete ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleToggleNetwork}
+                          disabled={
+                            setNetworkMode.isPending ||
+                            selected.lifecycle ===
+                              V1SandboxLifecycle.SANDBOX_LIFECYCLE_DELETED ||
+                            selected.lifecycle ===
+                              V1SandboxLifecycle.SANDBOX_LIFECYCLE_TERMINATING
+                          }
+                          title={
+                            selected.networkMode ===
+                            V1SandboxNetworkMode.SANDBOX_NETWORK_MODE_ONLINE
+                              ? '切为离线（阻断 egress）'
+                              : '切为在线（恢复 egress）'
+                          }
+                        >
+                          {selected.networkMode ===
+                          V1SandboxNetworkMode.SANDBOX_NETWORK_MODE_ONLINE ? (
+                            <WifiOff className="h-3.5 w-3.5 mr-1" />
+                          ) : (
+                            <Wifi className="h-3.5 w-3.5 mr-1" />
+                          )}
+                          {selected.networkMode ===
+                          V1SandboxNetworkMode.SANDBOX_NETWORK_MODE_ONLINE
+                            ? '离线'
+                            : '在线'}
                         </Button>
                       ) : null}
                       {selected.permissions?.canDelete ? (
