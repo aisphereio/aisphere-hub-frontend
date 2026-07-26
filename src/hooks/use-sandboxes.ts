@@ -13,6 +13,7 @@ import type {
   DeleteSandboxTemplateInput,
   DeleteWarmPoolInput,
   ResumeSandboxInput,
+  SetSandboxNetworkModeInput,
   SuspendSandboxInput,
 } from '@/lib/api/adapters/sandbox';
 
@@ -105,6 +106,19 @@ export function useSandboxResume() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: ResumeSandboxInput) => sandboxApi.resumeSandbox(input),
+    onSuccess: async (_data, input) => {
+      await queryClient.invalidateQueries({ queryKey: ['sandboxes', 'list'] });
+      await queryClient.invalidateQueries({ queryKey: sandboxDetailKey(input.id) });
+    },
+  });
+}
+
+/** Toggle a sandbox's network egress (OFFLINE → egressDeny; ONLINE → remove). */
+export function useSetSandboxNetworkMode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SetSandboxNetworkModeInput) =>
+      sandboxApi.setSandboxNetworkMode(input),
     onSuccess: async (_data, input) => {
       await queryClient.invalidateQueries({ queryKey: ['sandboxes', 'list'] });
       await queryClient.invalidateQueries({ queryKey: sandboxDetailKey(input.id) });
