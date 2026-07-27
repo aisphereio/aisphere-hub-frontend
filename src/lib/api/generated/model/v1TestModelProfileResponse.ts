@@ -7,6 +7,13 @@
 
 export interface V1TestModelProfileResponse {
   error?: string;
+  /**
+     * http_status is the upstream HTTP status when a response was received
+     * (0 when the probe failed before any response, e.g. DNS/TLS/timeout).
+     * 401/403 means the endpoint is reachable but the credential was missing
+     * or rejected — Hub holds no plain-text key for secret:// refs.
+     */
+  httpStatus?: number;
   latencyMillis?: number;
   ok?: boolean;
 }

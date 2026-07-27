@@ -16,6 +16,12 @@ export interface V1ModelProfile {
   allowedTools?: string[];
   apiFormat?: string;
   createTime?: string;
+  /**
+     * default_parameters carries arbitrary JSON (string) merged into every
+     * upstream request by the Runtime (e.g. {"temperature":0.2,"top_p":0.9}).
+     * Together with limits it forms the profile's context configuration.
+     */
+  defaultParameters?: string;
   description?: string;
   displayName?: string;
   endpoint?: string;

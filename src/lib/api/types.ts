@@ -1278,4 +1278,8 @@ export interface ModelProfile {
   reasoning?: string;
   labels?: Record<string, string>;
   metadata?: string;
+  // default_parameters: arbitrary JSON merged into every upstream request by
+  // the Runtime (temperature/top_p/...). Together with limits it forms the
+  // profile's context configuration.
+  defaultParameters?: string;
 }

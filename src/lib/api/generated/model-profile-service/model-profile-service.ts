@@ -179,10 +179,12 @@ export const getModelProfileServiceTestModelProfileUrl = (id: string,) => {
 }
 
 /**
- * @summary TestModelProfile probes a model endpoint with a minimal request. Not yet
-implemented (depends on a model gateway / Runtime dialer); returns
-UNAVAILABLE. The audit event is recorded even on the stub so test attempts
-are traceable.
+ * @summary TestModelProfile probes the upstream model endpoint with a minimal
+request built from api_format. Hub never holds plain-text credentials:
+only env:// secret refs are resolved locally (from the hub process
+environment); other refs probe without auth, so a 401/403 still proves
+reachability and is reported via http_status. The audit event is recorded
+so test attempts are traceable.
  */
 export const modelProfileServiceTestModelProfile = async (id: string,
     modelProfileServiceTestModelProfileBody: ModelProfileServiceTestModelProfileBody, options?: RequestInit): Promise<V1TestModelProfileResponse> => {

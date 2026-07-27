@@ -10,6 +10,7 @@ import type { V1ModelProfileLimits } from './v1ModelProfileLimits';
 export interface ModelProfileServiceUpdateModelProfileBody {
   allowedTools?: string[];
   apiFormat: string;
+  defaultParameters?: string;
   description?: string;
   displayName?: string;
   endpoint: string;

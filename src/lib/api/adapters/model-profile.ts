@@ -15,8 +15,9 @@
  *    resolves to void — callers only need success/failure.
  *  - CreateModelProfile is AUTHENTICATED at the gateway; the biz layer does
  *    the explicit edit-on-project check (no authz interpolation in proto).
- *  - TestModelProfile returns UNAVAILABLE (stub); the adapter surfaces the
- *    error but the page does not expose a test button in v1.
+ *  - TestModelProfile probes the upstream endpoint with a minimal request
+ *    built from api_format; Hub resolves only env:// secret refs locally, so
+ *    a 401/403 still proves reachability and is reported via httpStatus.
  *  - Enum values are snake_case (openai_responses / openai_chat_completions /
  *    gemini; active / disabled) matching the backend DB.
  *
@@ -69,6 +70,7 @@ function toModelProfile(p: V1ModelProfile): ModelProfile {
     reasoning: p.reasoning,
     labels: p.labels as Record<string, string> | undefined,
     metadata: p.metadata,
+    defaultParameters: p.defaultParameters,
   };
 }
 
@@ -95,6 +97,7 @@ function toCreateRequest(p: ModelProfile): V1CreateModelProfileRequest {
     reasoning: p.reasoning,
     labels: p.labels,
     metadata: p.metadata,
+    defaultParameters: p.defaultParameters,
     version: p.version,
     projectId: (p as ModelProfile & { projectId?: string }).projectId,
   };
@@ -147,6 +150,7 @@ export const modelProfileApi = {
       reasoning: profile.reasoning,
       labels: profile.labels,
       metadata: profile.metadata,
+      defaultParameters: profile.defaultParameters,
       version: profile.version,
     });
     return toModelProfile(updated);
@@ -171,9 +175,10 @@ export const modelProfileApi = {
     id: string,
     body: { prompt?: string } = {},
   ): Promise<V1TestModelProfileResponse> => {
-    // v1 stub: the backend returns UNAVAILABLE. The adapter surfaces the
-    // rejection so callers can show "未接入"; the page does not expose a test
-    // button yet.
+    // Probes the upstream endpoint. ok+httpStatus 2xx = healthy;
+    // !ok + httpStatus 401/403 = reachable but credential not verified
+    // (hub holds no plain-text key for secret:// refs); httpStatus 0 =
+    // network/TLS/timeout failure.
     return modelProfileServiceTestModelProfile(id, { prompt: body.prompt });
   },
 };
