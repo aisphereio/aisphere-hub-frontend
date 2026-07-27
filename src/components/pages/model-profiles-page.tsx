@@ -200,8 +200,9 @@ export function ModelProfilesPage() {
           </div>
         )}
 
-        {/* Create / Edit dialog */}
+        {/* Create / Edit dialog — key remounts it when switching profiles */}
         <ModelProfileFormDialog
+          key={editing?.id ?? '__new__'}
           open={createOpen || editing !== null}
           onOpenChange={(o) => {
             if (!o) {

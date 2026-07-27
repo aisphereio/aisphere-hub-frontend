@@ -1,8 +1,8 @@
 {
   "repository": "https://github.com/aisphereio/aisphere-hub.git",
-  "git_sha": "59f1f7ffd1055e4a816506f6c1beb5eb156e9114",
+  "git_sha": "f53d1d1",
   "ref": "feat/agent-identity-delegation",
-  "sha256": "c29cd06d2065e7bfe66d636ac8c1edd8a6e789235ca9549bb8c9c0b86d1046e3",
+  "sha256": "8020e6b3a8b6f39c58f009522b9940d726b35ffba82ca74ca8205614c063986f",
   "kernel_version": "v0.4.19",
   "generator": "protoc-gen-openapiv2@v2.29.0"
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,18 +66,16 @@ export function ModelProfileFormDialog({
     return v === key ? fallback : v;
   };
   const isEdit = Boolean(editing);
-  const [form, setForm] = useState<ModelProfile>(emptyForm());
+  // Form is initialized from the editing prop via a lazy initializer; the
+  // parent supplies a key derived from editing.id so switching profiles or
+  // reopening remounts the dialog and resets state (no effect-setState).
+  const [form, setForm] = useState<ModelProfile>(() =>
+    editing ? { ...emptyForm(), ...editing } : emptyForm(),
+  );
   const [jsonError, setJsonError] = useState('');
   const createMut = useCreateModelProfile();
   const updateMut = useUpdateModelProfile();
   const isPending = createMut.isPending || updateMut.isPending;
-
-  useEffect(() => {
-    if (open) {
-      setForm(editing ? { ...emptyForm(), ...editing } : emptyForm());
-      setJsonError('');
-    }
-  }, [open, editing]);
 
   const set = <K extends keyof ModelProfile>(key: K, value: ModelProfile[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
