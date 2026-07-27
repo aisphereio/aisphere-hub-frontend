@@ -148,7 +148,7 @@ export function ToolsPage() {
   const { data: tools = [], isLoading, error, refetch } = useTools({ q: search || undefined, pageSize: 80 });
   const filtered = useMemo(() => tools.filter((t) => !search || `${t.id} ${t.displayName || ''} ${t.description || ''}`.toLowerCase().includes(search.toLowerCase())), [tools, search]);
   const { data: detail, refetch: refetchDetail } = useToolDetail(selectedId);
-  const { data: failures = [], refetch: refetchFailures } = useToolFailures(selectedId ? { toolId: selectedId, limit: 50 } : { limit: 50 });
+  const { data: failures = [], refetch: refetchFailures } = useToolFailures(selectedId, { limit: 50 });
   const update = useToolUpdate();
   const remove = useToolDelete();
   const resolve = useToolResolve();

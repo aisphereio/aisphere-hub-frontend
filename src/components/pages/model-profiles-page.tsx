@@ -8,18 +8,18 @@ import { useModelProfiles, useSaveModelProfile, useDeleteModelProfile } from '@/
 
 const defaultProfile = {
   id: 'deepseek-v4-agent',
-  version: '1.0.0',
-  status: 'enable',
+  version: 'v1',
+  status: 'active',
   displayName: 'DeepSeek V4 Agent',
   provider: 'vllm',
-  apiFormat: 'openai-chat-completions',
+  apiFormat: 'openai_chat_completions',
   endpoint: 'vllm-ascend',
   model: 'deepseek-v4-agent',
   upstreamModel: 'deepseek-v4',
   upstreamPath: '/v1/chat/completions',
   secretRef: 'env://VLLM_API_KEY',
   limits: { maxInputTokens: 131072, maxOutputTokens: 8192 },
-  reasoning: { enabled: true, effort: 'high' },
+  reasoning: JSON.stringify({ enabled: true, effort: 'high' }),
 };
 
 export function ModelProfilesPage() {

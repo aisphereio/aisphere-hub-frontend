@@ -55,10 +55,11 @@ export function useToolResolve() {
   });
 }
 
-export function useToolFailures(params: Record<string, unknown> = {}) {
+export function useToolFailures(toolId: string | null, params: Record<string, unknown> = {}) {
   return useQuery({
-    queryKey: ['tools', 'failures', params],
-    queryFn: async () => asItems<ToolFailureRecord>(await toolApi.failures(params)),
+    queryKey: ['tools', 'failures', toolId, params],
+    queryFn: async () => asItems<ToolFailureRecord>(await toolApi.failures(toolId!, params)),
+    enabled: Boolean(toolId),
     staleTime: 10_000,
   });
 }
