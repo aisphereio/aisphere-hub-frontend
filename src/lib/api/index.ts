@@ -25,7 +25,7 @@
  *   ⏳ metricsApi  → /v3/admin/metrics      (awaiting backend migration)
  *   ⏳ notificationApi → /v3/admin/notifications/*  (awaiting backend migration)
  *   ✅ sandboxProfileApi → /v1/clusters/{id}/sandbox-templates  (migrated into sandboxApi, generated+adapter)
- *   ⏳ modelProfileApi → /v3/aihub/model-profiles/*  (awaiting backend migration)
+ *   ✅ modelProfileApi → /v1/model-profiles/*  (ModelProfileService, generated+adapter)
  *
  * The ⏳ modules will 404 against the new hub until their backends are
  * migrated. The frontend code structure is correct; only the path prefix
@@ -1194,22 +1194,7 @@ export { sharesApi } from './adapters/shares';
 //   remove: (id: string) => request<string>(`/v3/aihub/sandbox-profiles/${encodeURIComponent(id)}`, { method: "DELETE" }),
 // };
 
-export const modelProfileApi = {
-  list: () => request<ModelProfile[]>("/v3/aihub/model-profiles"),
-  get: (id: string) =>
-    request<ModelProfile>(`/v3/aihub/model-profiles/${encodeURIComponent(id)}`),
-  save: (profile: ModelProfile) =>
-    request<ModelProfile>("/v3/aihub/model-profiles", {
-      method: "POST",
-      body: JSON.stringify(profile),
-    }),
-  update: (id: string, profile: ModelProfile) =>
-    request<ModelProfile>(
-      `/v3/aihub/model-profiles/${encodeURIComponent(id)}`,
-      { method: "PUT", body: JSON.stringify(profile) },
-    ),
-  remove: (id: string) =>
-    request<string>(`/v3/aihub/model-profiles/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    }),
-};
+// ✅ modelProfileApi: backed by Hub ModelProfileService (/v1/model-profiles/*),
+// generated+adapter (see adapters/model-profile.ts). list returns a
+// Page<ModelProfile> (use asItems to unwrap); remove resolves to void.
+export { modelProfileApi } from './adapters/model-profile';

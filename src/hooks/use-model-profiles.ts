@@ -1,9 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { modelProfileApi } from '@/lib/api';
+import { asItems } from '@/lib/api/client';
 import type { ModelProfile } from '@/lib/api/types';
 
 export function useModelProfiles() {
-  return useQuery({ queryKey: ['model-profiles'], queryFn: modelProfileApi.list });
+  return useQuery({
+    queryKey: ['model-profiles'],
+    queryFn: async () => asItems<ModelProfile>(await modelProfileApi.list()),
+  });
 }
 export function useSaveModelProfile() {
   const qc = useQueryClient();

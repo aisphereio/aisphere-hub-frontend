@@ -170,6 +170,7 @@ export function asItems<T>(page: unknown): T[] {
     (p.versions as T[]) ||
     (p.files as T[]) ||
     (p.shares as T[]) ||
+    (p.modelProfiles as T[]) ||
     (p.records as T[]) ||
     (p.relationships as T[]) ||
     (p.resources as T[]) ||

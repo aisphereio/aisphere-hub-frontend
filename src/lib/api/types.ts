@@ -4,6 +4,7 @@ export type Page<T> = {
   versions?: T[];
   files?: T[];
   shares?: T[];
+  modelProfiles?: T[];
   total?: number;
   pageNo?: number;
   pageSize?: number;
@@ -1271,7 +1272,10 @@ export interface ModelProfile {
   secretRef?: string;
   allowedTools?: string[];
   limits?: { maxInputTokens?: number; maxOutputTokens?: number };
-  reasoning?: Record<string, unknown>;
+  // reasoning/metadata carry arbitrary JSON as a string (proto field type is
+  // string). Encode with JSON.stringify before sending; the adapter converts
+  // to/from the generated V1ModelProfile (which also uses string).
+  reasoning?: string;
   labels?: Record<string, string>;
-  metadata?: Record<string, unknown>;
+  metadata?: string;
 }
