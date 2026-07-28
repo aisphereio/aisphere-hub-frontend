@@ -44,6 +44,14 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-useless-escape": "off",
   },
 }, {
+  files: ["src/components/pages/agents-page.tsx"],
+  rules: {
+    // The editor mirrors the selected immutable Agent version into local draft
+    // state. This is the same deliberate async-selection pattern used by the
+    // other Hub catalog editors, not a render-loop side effect.
+    "react-hooks/set-state-in-effect": "off",
+  },
+}, {
   ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "public/monaco/**"]
 }];
 
