@@ -1,11 +1,15 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Bot, PlayCircle, RefreshCw, Save, Share2, Trash2, Plus, AlertTriangle, FileCode2 } from 'lucide-react';
+import { AlertTriangle, Bot, FileCode2, PlayCircle, Plus, RefreshCw, Save, Share2, ShieldCheck, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { AgentToolPolicyEditor } from '@/components/aihub/agent-tool-policy-editor';
+import { ResourceSharePanel } from '@/components/aihub/resource-share-panel';
+import { ConfirmDialog, EmptyState, ListSkeleton, StatCard } from '@/components/shared';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,24 +17,32 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { ConfirmDialog, EmptyState, ListSkeleton, StatCard } from '@/components/shared';
-import { ResourceSharePanel } from '@/components/aihub/resource-share-panel';
-import { useAgentDelete, useAgentDetail, useAgentResolve, useAgentSave, useAgentUpdate, useAgents } from '@/hooks/use-agents';
-import { fmtTime } from '@/lib/utils';
+import {
+  useAgentDelete,
+  useAgentDetail,
+  useAgentResolve,
+  useAgentRunPlan,
+  useAgentSave,
+  useAgentUpdate,
+  useAgents,
+} from '@/hooks/use-agents';
+import type { AgentRunPlan } from '@/lib/api/agents';
 import type { Agent, AgentDefinition, AgentListItem, AgentUpsertRequest } from '@/lib/api/types';
+import { fmtTime } from '@/lib/utils';
 
-const DEFAULT_DEFINITION: AgentDefinition = {
+const DEFAULT_DEFINITION = {
   entryPoint: 'root_agent.yaml',
   files: {
     'root_agent.yaml': 'name: demo-agent\ndescription: Managed by AIHub\n',
   },
-  services: [
-    { kind: 'mcp', name: 'filesystem', provider: 'external', required: false, reload: 'live', runtime: { transport: 'stdio' } },
-  ],
+  services: [],
   skills: [],
   skillSets: [],
-  tools: [],
-};
+  tools: [
+    { name: 'workspace.read', required: true, approvalMode: 'always' },
+    { name: 'skill.publish', required: false, approvalMode: 'per_run' },
+  ],
+} as AgentDefinition;
 
 function pretty(value: unknown): string {
   return JSON.stringify(value, null, 2);
@@ -54,7 +66,7 @@ function AgentCreateDialog({ onCreated }: { onCreated: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const [id, setId] = useState('demo-agent');
   const [displayName, setDisplayName] = useState('Demo Agent');
-  const [description, setDescription] = useState('AgentKit agent definition stored in AIHub');
+  const [description, setDescription] = useState('Hub-managed Agent with human Tool consent');
   const [definitionText, setDefinitionText] = useState(pretty(DEFAULT_DEFINITION));
 
   const submit = async () => {
@@ -63,7 +75,7 @@ function AgentCreateDialog({ onCreated }: { onCreated: (id: string) => void }) {
         id: id.trim(),
         displayName: displayName.trim(),
         description: description.trim(),
-        status: 'enable',
+        status: 'active',
         definition: parseDefinition(definitionText),
       };
       const out = await save.mutateAsync(body);
@@ -80,23 +92,24 @@ function AgentCreateDialog({ onCreated }: { onCreated: (id: string) => void }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" className="bg-gradient-to-r from-violet-600 to-fuchsia-500">
-          <Plus className="h-3.5 w-3.5 mr-1" /> New Agent
+          <Plus className="mr-1 h-3.5 w-3.5" /> New Agent
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
         <DialogHeader><DialogTitle>Create Agent</DialogTitle></DialogHeader>
-        <div className="grid md:grid-cols-2 gap-3">
+        <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-1.5"><Label className="text-xs">Agent ID</Label><Input value={id} onChange={(e) => setId(e.target.value)} /></div>
           <div className="space-y-1.5"><Label className="text-xs">Display Name</Label><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} /></div>
           <div className="space-y-1.5 md:col-span-2"><Label className="text-xs">Description</Label><Input value={description} onChange={(e) => setDescription(e.target.value)} /></div>
         </div>
+        <AgentToolPolicyEditor value={definitionText} onChange={setDefinitionText} />
         <div className="space-y-1.5">
           <Label className="text-xs">Definition JSON</Label>
-          <Textarea className="font-mono text-xs min-h-[320px]" value={definitionText} onChange={(e) => setDefinitionText(e.target.value)} />
+          <Textarea className="min-h-[300px] font-mono text-xs" value={definitionText} onChange={(e) => setDefinitionText(e.target.value)} />
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={submit} disabled={save.isPending}><Save className="h-3.5 w-3.5 mr-1" /> Create</Button>
+          <Button onClick={submit} disabled={save.isPending}><Save className="mr-1 h-3.5 w-3.5" /> Create</Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -105,16 +118,16 @@ function AgentCreateDialog({ onCreated }: { onCreated: (id: string) => void }) {
 
 function AgentListCard({ item, active, onClick }: { item: AgentListItem; active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={`w-full text-left rounded-lg border p-3 transition-colors ${active ? 'border-violet-500 bg-violet-500/5' : 'hover:bg-accent/50'}`}>
+    <button onClick={onClick} className={`w-full rounded-lg border p-3 text-left transition-colors ${active ? 'border-violet-500 bg-violet-500/5' : 'hover:bg-accent/50'}`}>
       <div className="flex items-start gap-2">
-        <Bot className="h-4 w-4 mt-0.5 text-violet-500" />
+        <Bot className="mt-0.5 h-4 w-4 text-violet-500" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-sm truncate">{item.displayName || item.id}</span>
+            <span className="truncate text-sm font-medium">{item.displayName || item.id}</span>
             <Badge variant="secondary" className="text-[10px]">{item.latestVersion || '-'}</Badge>
           </div>
-          <p className="text-xs text-muted-foreground truncate mt-0.5">{item.id}</p>
-          {item.description && <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{item.description}</p>}
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.id}</p>
+          {item.description && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.description}</p>}
         </div>
       </div>
     </button>
@@ -128,45 +141,45 @@ export function AgentsPage() {
   const [definitionText, setDefinitionText] = useState(pretty(DEFAULT_DEFINITION));
   const [version, setVersion] = useState('');
   const [commitMsg, setCommitMsg] = useState('update agent definition');
+  const [approvalOpen, setApprovalOpen] = useState(false);
+  const [pendingPlan, setPendingPlan] = useState<AgentRunPlan | null>(null);
+  const [approvedTools, setApprovedTools] = useState<string[]>([]);
 
   const { data: agents = [], isLoading, error, refetch } = useAgents({ q: search || undefined, pageSize: 80 });
-  const filtered = useMemo(() => agents.filter((a) => !search || `${a.id} ${a.displayName || ''} ${a.description || ''}`.toLowerCase().includes(search.toLowerCase())), [agents, search]);
+  const filtered = useMemo(
+    () => agents.filter((a) => !search || `${a.id} ${a.displayName || ''} ${a.description || ''}`.toLowerCase().includes(search.toLowerCase())),
+    [agents, search],
+  );
   const { data: detail, refetch: refetchDetail } = useAgentDetail(selectedId);
   const update = useAgentUpdate();
   const remove = useAgentDelete();
+  const planRun = useAgentRunPlan();
   const resolve = useAgentResolve();
   const agent = detail?.agent;
   const v = latestVersion(agent);
 
   useEffect(() => {
-    if (!selectedId && filtered.length > 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- selects the first result after async data arrives.
-      setSelectedId(filtered[0].id);
-    }
+    if (!selectedId && filtered.length > 0) setSelectedId(filtered[0].id);
   }, [filtered, selectedId]);
 
   useEffect(() => {
-    if (v?.definition) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- resets the editor when the selected version changes.
-      setDefinitionText(pretty(v.definition));
-    }
+    if (v?.definition) setDefinitionText(pretty(v.definition));
     if (agent?.latestVersion) setVersion('');
   }, [agent?.latestVersion, v?.definition]);
 
   const saveUpdate = async () => {
     if (!agent) return;
     try {
-      const nextVersion = version.trim();
       await update.mutateAsync({
         agentId: agent.id,
         data: {
           id: agent.id,
           displayName: agent.displayName,
           description: agent.description,
-          status: agent.status || 'enable',
+          status: agent.status || 'active',
           scope: agent.scope,
           labels: agent.labels,
-          version: nextVersion || undefined,
+          version: version.trim() || undefined,
           commitMsg,
           definition: parseDefinition(definitionText),
         },
@@ -179,11 +192,42 @@ export function AgentsPage() {
     }
   };
 
-  const runResolve = async () => {
+  const resolveRun = async (tools: string[]) => {
+    if (!agent) return;
+    const out = await resolve.mutateAsync({
+      agentId: agent.id,
+      request: {
+        runtimeId: 'agentkit-console',
+        sessionId: `console-${Date.now()}`,
+        approvalConfirmed: true,
+        approvedTools: tools,
+      },
+    });
+    toast.success(`Snapshot ${out.snapshotId} resolved with ${out.tools?.length || 0} Tools`);
+  };
+
+  const runAgent = async () => {
     if (!agent) return;
     try {
-      const out = await resolve.mutateAsync({ agentId: agent.id, runtimeId: 'agentkit-console', sessionId: `console-${Date.now()}` });
-      toast.success(`Snapshot ${out.snapshotId} resolved, ${out.services?.length || 0} services`);
+      const plan = await planRun.mutateAsync({ agentId: agent.id });
+      const perRun = plan.tools.filter((tool) => tool.approvalMode === 'per_run');
+      if (perRun.length === 0) {
+        await resolveRun([]);
+        return;
+      }
+      setPendingPlan(plan);
+      setApprovedTools(perRun.filter((tool) => tool.required).map((tool) => tool.tool));
+      setApprovalOpen(true);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Plan Agent run failed');
+    }
+  };
+
+  const confirmRun = async () => {
+    try {
+      await resolveRun(approvedTools);
+      setApprovalOpen(false);
+      setPendingPlan(null);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Resolve runtime snapshot failed');
     }
@@ -202,29 +246,39 @@ export function AgentsPage() {
     setDeleteId(null);
   };
 
+  const perRunTools = pendingPlan?.tools.filter((tool) => tool.approvalMode === 'per_run') || [];
+
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="space-y-4 p-4 md:p-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard icon={<Bot className="h-4 w-4" />} label="Agents" value={agents.length} />
-        <StatCard icon={<FileCode2 className="h-4 w-4" />} label="Versioned" value={agents.filter(a => a.latestVersion).length} />
-        <StatCard icon={<PlayCircle className="h-4 w-4" />} label="Runnable" value={agents.filter(a => a.status !== 'disable').length} />
+        <StatCard icon={<FileCode2 className="h-4 w-4" />} label="Versioned" value={agents.filter((a) => a.latestVersion).length} />
+        <StatCard icon={<PlayCircle className="h-4 w-4" />} label="Runnable" value={agents.filter((a) => a.status !== 'disabled').length} />
         <StatCard icon={<Share2 className="h-4 w-4" />} label="AIHub Objects" value="agent" />
       </div>
 
       <div className="flex items-center gap-2">
         <Input className="max-w-md" placeholder="Search agents..." value={search} onChange={(e) => setSearch(e.target.value)} />
-        <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="h-3.5 w-3.5 mr-1" /> Refresh</Button>
+        <Button variant="outline" size="sm" onClick={() => refetch()}><RefreshCw className="mr-1 h-3.5 w-3.5" /> Refresh</Button>
         <AgentCreateDialog onCreated={(id) => { setSelectedId(id); refetch(); }} />
       </div>
 
-      {error && <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm"><AlertTriangle className="h-4 w-4" />{error.message}</div>}
+      <div className="flex items-start gap-2 rounded-md border border-violet-500/30 bg-violet-500/5 p-3 text-xs">
+        <ShieldCheck className="mt-0.5 h-4 w-4 text-violet-500" />
+        <div>
+          <div className="font-medium">Human consent is not an IAM grant</div>
+          <p className="mt-0.5 text-muted-foreground">Hub controls which Tools enter the immutable run snapshot. Runtime propagates the Principal. The target service still calls IAM for the actual resource and action.</p>
+        </div>
+      </div>
 
-      <div className="grid lg:grid-cols-[360px_1fr] gap-4">
+      {error && <div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive"><AlertTriangle className="h-4 w-4" />{error.message}</div>}
+
+      <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
         <Card>
           <CardHeader className="py-3"><CardTitle className="text-sm">Agent Registry</CardTitle></CardHeader>
           <CardContent className="p-3 pt-0">
             {isLoading ? <ListSkeleton count={4} /> : filtered.length === 0 ? (
-              <EmptyState icon={<Bot className="h-10 w-10" />} title="No agents" description="Create an AgentKit definition and store it in AIHub." />
+              <EmptyState icon={<Bot className="h-10 w-10" />} title="No agents" description="Create an Agent definition and configure Tool consent." />
             ) : (
               <ScrollArea className="h-[620px] pr-2">
                 <div className="space-y-2">
@@ -240,47 +294,99 @@ export function AgentsPage() {
             <div className="flex items-center justify-between gap-2">
               <div>
                 <CardTitle className="text-sm">{agent?.displayName || agent?.id || 'Agent Detail'}</CardTitle>
-                {detail?.object && <p className="text-xs text-muted-foreground mt-1">{detail.object}</p>}
+                {detail?.object && <p className="mt-1 text-xs text-muted-foreground">{detail.object}</p>}
               </div>
-              {agent && <div className="flex gap-2"><Button size="sm" variant="outline" onClick={runResolve}><PlayCircle className="h-3.5 w-3.5 mr-1" /> Resolve</Button><Button size="sm" variant="destructive" onClick={() => setDeleteId(agent.id)}><Trash2 className="h-3.5 w-3.5 mr-1" /> Delete</Button></div>}
+              {agent && (
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={runAgent} disabled={planRun.isPending || resolve.isPending}>
+                    <PlayCircle className="mr-1 h-3.5 w-3.5" /> Plan & Run
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={() => setDeleteId(agent.id)}><Trash2 className="mr-1 h-3.5 w-3.5" /> Delete</Button>
+                </div>
+              )}
             </div>
           </CardHeader>
           <CardContent>
             {!agent ? (
-              <EmptyState icon={<Bot className="h-10 w-10" />} title="Select an agent" description="Choose an agent from the registry to view and edit its versioned definition." />
+              <EmptyState icon={<Bot className="h-10 w-10" />} title="Select an agent" description="Choose an Agent to edit its versioned definition and Tool consent policy." />
             ) : (
               <Tabs defaultValue="definition" className="space-y-4">
                 <TabsList><TabsTrigger value="definition">Definition</TabsTrigger><TabsTrigger value="runtime">Runtime</TabsTrigger><TabsTrigger value="shares">Shares</TabsTrigger></TabsList>
                 <TabsContent value="definition" className="space-y-3">
-                  <div className="grid md:grid-cols-4 gap-3 text-xs">
-                    <div><Label className="text-muted-foreground">Latest</Label><div className="font-medium mt-1">{agent.latestVersion || '-'}</div></div>
-                    <div><Label className="text-muted-foreground">Revision</Label><div className="font-mono mt-1">{v?.revision || '-'}</div></div>
+                  <div className="grid gap-3 text-xs md:grid-cols-4">
+                    <div><Label className="text-muted-foreground">Latest</Label><div className="mt-1 font-medium">{agent.latestVersion || '-'}</div></div>
+                    <div><Label className="text-muted-foreground">Revision</Label><div className="mt-1 font-mono">{v?.revision || '-'}</div></div>
                     <div><Label className="text-muted-foreground">Updated</Label><div className="mt-1">{agent.updateTime ? fmtTime(agent.updateTime) : '-'}</div></div>
-                    <div><Label className="text-muted-foreground">Services</Label><div className="mt-1">{v?.definition?.services?.length || 0} canonical</div></div>
+                    <div><Label className="text-muted-foreground">Tools</Label><div className="mt-1">{v?.definition?.tools?.length || 0} bound</div></div>
                   </div>
                   <Separator />
-                  <div className="grid md:grid-cols-2 gap-3">
+                  <div className="grid gap-3 md:grid-cols-2">
                     <div className="space-y-1.5"><Label className="text-xs">New Version</Label><Input placeholder="blank = next patch" value={version} onChange={(e) => setVersion(e.target.value)} /></div>
                     <div className="space-y-1.5"><Label className="text-xs">Commit Message</Label><Input value={commitMsg} onChange={(e) => setCommitMsg(e.target.value)} /></div>
                   </div>
+                  <AgentToolPolicyEditor value={definitionText} onChange={setDefinitionText} />
                   <div className="space-y-1.5">
                     <Label className="text-xs">Definition JSON</Label>
-                    <Textarea className="font-mono text-xs min-h-[420px]" value={definitionText} onChange={(e) => setDefinitionText(e.target.value)} />
+                    <Textarea className="min-h-[380px] font-mono text-xs" value={definitionText} onChange={(e) => setDefinitionText(e.target.value)} />
                   </div>
-                  <div className="flex justify-end"><Button onClick={saveUpdate} disabled={update.isPending}><Save className="h-3.5 w-3.5 mr-1" /> Save new version</Button></div>
+                  <div className="flex justify-end"><Button onClick={saveUpdate} disabled={update.isPending}><Save className="mr-1 h-3.5 w-3.5" /> Save new version</Button></div>
                 </TabsContent>
                 <TabsContent value="runtime" className="space-y-3">
-                  <p className="text-xs text-muted-foreground">AgentKit should call the runtime resolve endpoint, mount only this immutable service snapshot, and never read Hub management APIs directly.</p>
-                  <Textarea readOnly className="font-mono text-xs min-h-[420px]" value={resolve.data ? pretty(resolve.data) : 'Click Resolve to preview the AgentKit snapshot.'} />
+                  <p className="text-xs text-muted-foreground">The snapshot contains only approved Tool versions and marks authorization as principal passthrough with IAM enforcement at the resource service.</p>
+                  <Textarea readOnly className="min-h-[420px] font-mono text-xs" value={resolve.data ? pretty(resolve.data) : (planRun.data ? pretty(planRun.data) : 'Click Plan & Run to preview consent and resolve the Runtime snapshot.')} />
                 </TabsContent>
                 <TabsContent value="shares">
-                  <ResourceSharePanel resourceType="agent" resourceId={agent.id} object={`aihub:agent:${agent.id}`} owner={agent.ownerSubject} />
+                  <ResourceSharePanel resourceType="agent" resourceId={agent.id} object={`agent:${agent.id}`} owner={agent.ownerSubject} />
                 </TabsContent>
               </Tabs>
             )}
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={approvalOpen} onOpenChange={setApprovalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Approve Tools for this run</DialogTitle></DialogHeader>
+          <div className="rounded-md border bg-muted/30 p-3 text-xs">
+            <p>Approval only exposes the selected Tools to the model for this run.</p>
+            <p className="mt-1 text-muted-foreground">IAM still validates the Principal against each concrete Skill, Tool, cluster, namespace, or other resource when the operation is executed.</p>
+          </div>
+          <div className="max-h-[420px] space-y-2 overflow-y-auto">
+            {perRunTools.map((tool) => {
+              const checked = approvedTools.includes(tool.tool);
+              return (
+                <label key={tool.tool} className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={checked}
+                    disabled={Boolean(tool.required)}
+                    onCheckedChange={(next) => {
+                      setApprovedTools((current) => next === true ? [...new Set([...current, tool.tool])] : current.filter((name) => name !== tool.tool));
+                    }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-sm">{tool.tool}</span>
+                      {tool.required && <Badge>Required</Badge>}
+                      <Badge variant="secondary">Ask every run</Badge>
+                    </div>
+                    {tool.capabilities?.length ? <p className="mt-1 text-xs text-muted-foreground">Capabilities: {tool.capabilities.join(', ')}</p> : null}
+                    {tool.permissions?.map((permission) => (
+                      <p key={`${permission.resourceType}:${permission.permission}`} className="mt-1 text-xs text-muted-foreground">
+                        IAM at resource service: {permission.resourceType}.{permission.permission}
+                      </p>
+                    ))}
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setApprovalOpen(false)}>Cancel</Button>
+            <Button onClick={confirmRun} disabled={resolve.isPending}><ShieldCheck className="mr-1 h-4 w-4" /> Approve and resolve</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={Boolean(deleteId)}
