@@ -1,10 +1,13 @@
 import { request, toQuery } from './client';
 import type {
+  AgentDefinition,
   AgentListItem,
   AgentResponse,
-  AgentRuntimeSnapshot,
+  AgentRuntimeSkillSnapshot,
   AgentUpsertRequest,
   Page,
+  RuntimeServiceManifest,
+  ToolRuntimeSnapshotItem,
 } from './types';
 
 export type AgentApprovalMode = 'always' | 'per_run' | 'disabled';
@@ -45,10 +48,20 @@ export interface AgentRunRequest {
   approvedTools?: string[];
 }
 
-export interface AgentRuntimeSnapshotV1 extends AgentRuntimeSnapshot {
-  policy?: string;
+export interface AgentRuntimeSnapshotV1 {
+  snapshotId: string;
+  runtimeId: string;
+  sessionId: string;
+  agentId: string;
+  agentVersion: string;
+  agentRevision?: string;
+  generatedAt: string;
+  policy: string;
+  definition: AgentDefinition;
   authorization?: AgentRunPlan;
-  tools?: Record<string, unknown>[];
+  tools?: ToolRuntimeSnapshotItem[];
+  services?: RuntimeServiceManifest[];
+  skills?: AgentRuntimeSkillSnapshot[];
 }
 
 export const agentApiV1 = {
