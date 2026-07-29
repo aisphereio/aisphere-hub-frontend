@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -86,13 +86,8 @@ function initialForm(editing?: ModelConnection | null): FormState {
     streaming: editing?.model.capabilities.streaming ?? preset.capabilities.streaming,
     reasoning: editing?.model.reasoning.supported ?? preset.reasoning.supported,
     toolCalling: editing?.model.capabilities.toolCalling ?? preset.capabilities.toolCalling,
-    structuredOutput:
-      editing?.model.capabilities.structuredOutput ?? preset.capabilities.structuredOutput,
-    defaultParameters: JSON.stringify(
-      profile?.defaultParameters ?? endpoint?.requestDefaults ?? {},
-      null,
-      2,
-    ),
+    structuredOutput: editing?.model.capabilities.structuredOutput ?? preset.capabilities.structuredOutput,
+    defaultParameters: JSON.stringify(profile?.defaultParameters ?? endpoint?.requestDefaults ?? {}, null, 2),
   };
 }
 
@@ -124,12 +119,27 @@ export function ModelConnectionDialog({
   onOpenChange: (open: boolean) => void;
   editing?: ModelConnection | null;
 }) {
+  const key = editing?.key ?? (open ? 'new-open' : 'closed');
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <ModelConnectionDialogBody
+        key={key}
+        editing={editing}
+        onOpenChange={onOpenChange}
+      />
+    </Dialog>
+  );
+}
+
+function ModelConnectionDialogBody({
+  editing,
+  onOpenChange,
+}: {
+  editing?: ModelConnection | null;
+  onOpenChange: (open: boolean) => void;
+}) {
   const [form, setForm] = useState<FormState>(() => initialForm(editing));
   const mutation = useSaveModelConnection();
-
-  useEffect(() => {
-    if (open) setForm(initialForm(editing));
-  }, [editing, open]);
 
   const applyPreset = (presetKey: ModelPresetKey) => {
     const preset = MODEL_CATALOG_PRESETS[presetKey];
@@ -159,7 +169,11 @@ export function ModelConnectionDialog({
     try {
       const preset = MODEL_CATALOG_PRESETS[form.presetKey];
       const protocol = API_FORMAT_OPTIONS.find((item) => item.value === form.apiFormat);
-      const code = form.code.trim() || slugify(form.providerModelId) || slugify(form.name) || `model-${Date.now()}`;
+      const code =
+        form.code.trim() ||
+        slugify(form.providerModelId) ||
+        slugify(form.name) ||
+        `model-${Date.now()}`;
       const contextWindow = Number(form.contextWindow);
       const maxOutputTokens = Number(form.maxOutputTokens);
       if (!Number.isInteger(contextWindow) || contextWindow <= 0) {
@@ -207,14 +221,9 @@ export function ModelConnectionDialog({
         baseUrl: form.baseUrl.trim().replace(/\/$/, ''),
         providerModelId: form.providerModelId.trim(),
         apiPath: form.apiPath.trim(),
-        // V1 intentionally stores this value directly in PostgreSQL. The field
-        // name stays credentialRef so Runtime can later switch to a secret ref
-        // without changing the model-management contract.
         credentialRef: form.apiKey.trim(),
         limits: { contextWindow, maxOutputTokens },
-        reasoningMapping: form.reasoning
-          ? preset.endpoint.reasoningMapping
-          : { strategy: 'none' },
+        reasoningMapping: form.reasoning ? preset.endpoint.reasoningMapping : { strategy: 'none' },
         requestDefaults: defaults,
         providerConfig: {},
       };
@@ -249,138 +258,139 @@ export function ModelConnectionDialog({
     !mutation.isPending;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{editing ? '编辑模型接入' : '添加模型接入'}</DialogTitle>
-          <DialogDescription>
-            一次配置模型名称、协议、API 地址、API Key、模型 ID 和能力。系统会自动维护底层 Model、Endpoint 与默认 Profile。
-          </DialogDescription>
-        </DialogHeader>
+    <DialogContent
+      className="max-h-[92vh] overflow-y-auto sm:max-w-3xl"
+      onInteractOutside={(event) => mutation.isPending && event.preventDefault()}
+    >
+      <DialogHeader>
+        <DialogTitle>{editing ? '编辑模型接入' : '添加模型接入'}</DialogTitle>
+        <DialogDescription>
+          一次配置模型名称、协议、API 地址、API Key、模型 ID 和能力。系统会自动维护底层 Model、Endpoint 与默认 Profile。
+        </DialogDescription>
+      </DialogHeader>
 
-        <div className="space-y-5">
-          <section className="grid gap-4 sm:grid-cols-2">
-            <Field label="模型类型" required>
-              <Select value={form.presetKey} onValueChange={(value) => applyPreset(value as ModelPresetKey)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {MODEL_PRESET_OPTIONS.map((preset) => (
-                    <SelectItem key={preset.key} value={preset.key}>{preset.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="显示名称" required hint="例如：生产 GLM-5.2、内网 Qwen3">
-              <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-            </Field>
-            <Field label="API 协议" required>
-              <Select value={form.apiFormat} onValueChange={(value) => applyProtocol(value as ModelApiFormat)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {API_FORMAT_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="服务端模型 ID" required hint="实际发送到上游请求 model 字段的值">
-              <Input
-                className="font-mono"
-                placeholder="glm-5.2 / qwen3-235b-a22b"
-                value={form.providerModelId}
-                onChange={(event) => setForm({ ...form, providerModelId: event.target.value })}
-              />
-            </Field>
-            <Field label="API 地址" required hint="填写服务根地址，路径单独配置">
-              <Input
-                className="font-mono"
-                placeholder="https://api.example.com"
-                value={form.baseUrl}
-                onChange={(event) => setForm({ ...form, baseUrl: event.target.value })}
-              />
-            </Field>
-            <Field label="API Key" hint="当前版本会明文保存到 PostgreSQL；卡片列表不会展示完整 Key。">
-              <Input
-                type="password"
-                autoComplete="new-password"
-                className="font-mono"
-                placeholder="sk-...（无鉴权服务可留空）"
-                value={form.apiKey}
-                onChange={(event) => setForm({ ...form, apiKey: event.target.value })}
-              />
-            </Field>
-            <Field label="状态">
-              <Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value as ResourceStatus })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">启用</SelectItem>
-                  <SelectItem value="disabled">停用</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="配置标识" hint="留空时根据模型 ID 自动生成；创建后不建议修改。">
-              <Input
-                className="font-mono"
-                placeholder="自动生成"
-                value={form.code}
-                disabled={Boolean(editing?.profile)}
-                onChange={(event) => setForm({ ...form, code: event.target.value })}
-              />
-            </Field>
-          </section>
-
-          <Field label="描述">
-            <Textarea rows={2} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+      <div className="space-y-5">
+        <section className="grid gap-4 sm:grid-cols-2">
+          <Field label="模型类型" required>
+            <Select value={form.presetKey} onValueChange={(value) => applyPreset(value as ModelPresetKey)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {MODEL_PRESET_OPTIONS.map((preset) => (
+                  <SelectItem key={preset.key} value={preset.key}>{preset.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
+          <Field label="显示名称" required hint="例如：生产 GLM-5.2、内网 Qwen3">
+            <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+          </Field>
+          <Field label="API 协议" required>
+            <Select value={form.apiFormat} onValueChange={(value) => applyProtocol(value as ModelApiFormat)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {API_FORMAT_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="服务端模型 ID" required hint="实际发送到上游请求 model 字段的值">
+            <Input
+              className="font-mono"
+              placeholder="glm-5.2 / qwen3-235b-a22b"
+              value={form.providerModelId}
+              onChange={(event) => setForm({ ...form, providerModelId: event.target.value })}
+            />
+          </Field>
+          <Field label="API 地址" required hint="填写服务根地址，路径单独配置">
+            <Input
+              className="font-mono"
+              placeholder="https://api.example.com"
+              value={form.baseUrl}
+              onChange={(event) => setForm({ ...form, baseUrl: event.target.value })}
+            />
+          </Field>
+          <Field label="API Key" hint="当前版本会明文保存到 PostgreSQL；卡片列表不会展示完整 Key。">
+            <Input
+              type="password"
+              autoComplete="new-password"
+              className="font-mono"
+              placeholder="sk-...（无鉴权服务可留空）"
+              value={form.apiKey}
+              onChange={(event) => setForm({ ...form, apiKey: event.target.value })}
+            />
+          </Field>
+          <Field label="状态">
+            <Select value={form.status} onValueChange={(value) => setForm({ ...form, status: value as ResourceStatus })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">启用</SelectItem>
+                <SelectItem value="disabled">停用</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="配置标识" hint="留空时根据模型 ID 自动生成；创建后不建议修改。">
+            <Input
+              className="font-mono"
+              placeholder="自动生成"
+              value={form.code}
+              disabled={Boolean(editing?.profile)}
+              onChange={(event) => setForm({ ...form, code: event.target.value })}
+            />
+          </Field>
+        </section>
 
-          <section className="space-y-3 rounded-lg border p-4">
-            <div>
-              <h4 className="font-medium">模型能力</h4>
-              <p className="text-xs text-muted-foreground">这些开关会进入 Agent 可选择的稳定模型配置。</p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Toggle label="流式推理" checked={form.streaming} onCheckedChange={(streaming) => setForm({ ...form, streaming })} />
-              <Toggle label="深度思考" checked={form.reasoning} onCheckedChange={(reasoning) => setForm({ ...form, reasoning })} />
-              <Toggle label="Tool Calling" checked={form.toolCalling} onCheckedChange={(toolCalling) => setForm({ ...form, toolCalling })} />
-              <Toggle label="结构化输出" checked={form.structuredOutput} onCheckedChange={(structuredOutput) => setForm({ ...form, structuredOutput })} />
-            </div>
-          </section>
+        <Field label="描述">
+          <Textarea rows={2} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+        </Field>
 
-          <section className="space-y-4 rounded-lg border p-4">
-            <div>
-              <h4 className="font-medium">运行参数</h4>
-              <p className="text-xs text-muted-foreground">常用限制直接配置，厂商差异放到默认请求参数。</p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="上下文长度">
-                <Input type="number" min={1} value={form.contextWindow} onChange={(event) => setForm({ ...form, contextWindow: event.target.value })} />
-              </Field>
-              <Field label="最大输出 Tokens">
-                <Input type="number" min={1} value={form.maxOutputTokens} onChange={(event) => setForm({ ...form, maxOutputTokens: event.target.value })} />
-              </Field>
-              <Field label="API 路径" hint="通常由协议自动填充">
-                <Input className="font-mono" value={form.apiPath} onChange={(event) => setForm({ ...form, apiPath: event.target.value })} />
-              </Field>
-            </div>
-            <Field label="默认请求参数" hint="JSON 对象，例如 temperature、top_p；不会覆盖模型 ID、流式和推理映射。">
-              <Textarea
-                className="min-h-28 font-mono text-xs"
-                value={form.defaultParameters}
-                onChange={(event) => setForm({ ...form, defaultParameters: event.target.value })}
-              />
+        <section className="space-y-3 rounded-lg border p-4">
+          <div>
+            <h4 className="font-medium">模型能力</h4>
+            <p className="text-xs text-muted-foreground">这些开关会进入 Agent 可选择的稳定模型配置。</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Toggle label="流式推理" checked={form.streaming} onCheckedChange={(streaming) => setForm({ ...form, streaming })} />
+            <Toggle label="深度思考" checked={form.reasoning} onCheckedChange={(reasoning) => setForm({ ...form, reasoning })} />
+            <Toggle label="Tool Calling" checked={form.toolCalling} onCheckedChange={(toolCalling) => setForm({ ...form, toolCalling })} />
+            <Toggle label="结构化输出" checked={form.structuredOutput} onCheckedChange={(structuredOutput) => setForm({ ...form, structuredOutput })} />
+          </div>
+        </section>
+
+        <section className="space-y-4 rounded-lg border p-4">
+          <div>
+            <h4 className="font-medium">运行参数</h4>
+            <p className="text-xs text-muted-foreground">常用限制直接配置，厂商差异放到默认请求参数。</p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="上下文长度">
+              <Input type="number" min={1} value={form.contextWindow} onChange={(event) => setForm({ ...form, contextWindow: event.target.value })} />
             </Field>
-          </section>
-        </div>
+            <Field label="最大输出 Tokens">
+              <Input type="number" min={1} value={form.maxOutputTokens} onChange={(event) => setForm({ ...form, maxOutputTokens: event.target.value })} />
+            </Field>
+            <Field label="API 路径" hint="通常由协议自动填充">
+              <Input className="font-mono" value={form.apiPath} onChange={(event) => setForm({ ...form, apiPath: event.target.value })} />
+            </Field>
+          </div>
+          <Field label="默认请求参数" hint="JSON 对象，例如 temperature、top_p；不会覆盖模型 ID、流式和推理映射。">
+            <Textarea
+              className="min-h-28 font-mono text-xs"
+              value={form.defaultParameters}
+              onChange={(event) => setForm({ ...form, defaultParameters: event.target.value })}
+            />
+          </Field>
+        </section>
+      </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>取消</Button>
-          <Button onClick={submit} disabled={!canSubmit}>
-            {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {editing ? '保存修改' : '添加模型'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <DialogFooter>
+        <Button variant="outline" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>取消</Button>
+        <Button onClick={submit} disabled={!canSubmit}>
+          {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          {editing ? '保存修改' : '添加模型'}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
   );
 }
 
