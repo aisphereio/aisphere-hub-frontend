@@ -148,21 +148,28 @@ export function useSaveModelConnection() {
     mutationFn: async ({ current, model: modelBody, endpoint: endpointBody, profile: profileBody }: SaveModelConnectionInput) => {
       let createdModelId = '';
       let createdEndpointId = '';
+      let createdProfileId = '';
+      const targetDisabled = profileBody.status === 'disabled';
+
       try {
-        const modelResponse = current?.model
-          ? await modelManagementApi.updateModel(current.model.id, modelBody)
-          : await modelManagementApi.createModel(modelBody);
-        const model = modelResponse.model;
+        const stagedModelBody: ModelWriteRequest = targetDisabled
+          ? { ...modelBody, status: 'active' }
+          : modelBody;
+        let modelResponse = current?.model
+          ? await modelManagementApi.updateModel(current.model.id, stagedModelBody)
+          : await modelManagementApi.createModel(stagedModelBody);
+        let model = modelResponse.model;
         if (!current?.model) createdModelId = model.id;
 
-        const endpointRequest: ModelEndpointWriteRequest = {
+        const stagedEndpointRequest: ModelEndpointWriteRequest = {
           ...endpointBody,
+          status: targetDisabled ? 'active' : endpointBody.status,
           modelId: model.id,
         };
-        const endpointResponse = current?.endpoint
-          ? await modelManagementApi.updateEndpoint(current.endpoint.id, endpointRequest)
-          : await modelManagementApi.createEndpoint(endpointRequest);
-        const endpoint = endpointResponse.endpoint;
+        let endpointResponse = current?.endpoint
+          ? await modelManagementApi.updateEndpoint(current.endpoint.id, stagedEndpointRequest)
+          : await modelManagementApi.createEndpoint(stagedEndpointRequest);
+        let endpoint = endpointResponse.endpoint;
         if (!current?.endpoint) createdEndpointId = endpoint.id;
 
         const profileRequest: ModelProfileWriteRequest = {
@@ -172,6 +179,21 @@ export function useSaveModelConnection() {
         const profileResponse = current?.profile
           ? await modelManagementApi.updateProfile(current.profile.id, profileRequest)
           : await modelManagementApi.createProfile(profileRequest);
+        if (!current?.profile) createdProfileId = profileResponse.profile.id;
+
+        if (targetDisabled) {
+          endpointResponse = await modelManagementApi.updateEndpoint(endpoint.id, {
+            ...endpointBody,
+            status: 'disabled',
+            modelId: model.id,
+          });
+          endpoint = endpointResponse.endpoint;
+          modelResponse = await modelManagementApi.updateModel(model.id, {
+            ...modelBody,
+            status: 'disabled',
+          });
+          model = modelResponse.model;
+        }
 
         return {
           key: profileResponse.profile.id,
@@ -180,6 +202,9 @@ export function useSaveModelConnection() {
           profile: profileResponse.profile,
         } satisfies ModelConnection;
       } catch (error) {
+        if (createdProfileId) {
+          await modelManagementApi.deleteProfile(createdProfileId).catch(() => undefined);
+        }
         if (createdEndpointId) {
           await modelManagementApi.deleteEndpoint(createdEndpointId).catch(() => undefined);
         }
