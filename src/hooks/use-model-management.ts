@@ -4,12 +4,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   modelManagementApi,
   type ModelEndpointWriteRequest,
+  type ModelEndpoint,
+  type ModelProfileV2,
   type ModelProfileWriteRequest,
+  type ModelResource,
   type ModelWriteRequest,
 } from '@/lib/api/model-management';
 
 export function useModels(params: Record<string, unknown> = {}) {
-  return useQuery({
+  return useQuery<ModelResource[]>({
     queryKey: ['model-management', 'models', params],
     queryFn: async () => (await modelManagementApi.listModels(params)).items ?? [],
     staleTime: 15_000,
@@ -17,7 +20,7 @@ export function useModels(params: Record<string, unknown> = {}) {
 }
 
 export function useModelEndpoints(params: Record<string, unknown> = {}) {
-  return useQuery({
+  return useQuery<ModelEndpoint[]>({
     queryKey: ['model-management', 'endpoints', params],
     queryFn: async () =>
       (await modelManagementApi.listEndpoints(params)).items ?? [],
@@ -26,7 +29,7 @@ export function useModelEndpoints(params: Record<string, unknown> = {}) {
 }
 
 export function useModelProfilesV2(params: Record<string, unknown> = {}) {
-  return useQuery({
+  return useQuery<ModelProfileV2[]>({
     queryKey: ['model-management', 'profiles', params],
     queryFn: async () =>
       (await modelManagementApi.listProfiles(params)).items ?? [],

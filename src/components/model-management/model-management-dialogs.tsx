@@ -28,13 +28,22 @@ import {
   useSaveModelEndpoint,
   useSaveModelProfileV2,
 } from '@/hooks/use-model-management';
+import {
+  API_FORMAT_OPTIONS,
+  findModelPreset,
+  MODEL_CATALOG_PRESETS,
+  MODEL_PRESET_OPTIONS,
+  type ModelPresetKey,
+} from './model-catalog';
 import type {
   ModelEndpoint,
   ModelEndpointWriteRequest,
   ModelProfileV2,
   ModelProfileWriteRequest,
   ModelResource,
+  ModelApiFormat,
   ModelWriteRequest,
+  ResourceStatus,
   ReasoningMapping,
 } from '@/lib/api/model-management';
 
@@ -101,13 +110,13 @@ export function ModelFormDialog({
   onOpenChange: (open: boolean) => void;
   editing?: ModelResource | null;
 }) {
-  const initial = editing
+  const initial: ModelWriteRequest = editing
     ? {
         ...modelDefaults(),
         code: editing.code,
         displayName: editing.displayName,
         description: editing.description ?? '',
-        status: editing.status === 'disabled' ? 'disabled' : 'active',
+        status: (editing.status === 'disabled' ? 'disabled' : 'active') as ResourceStatus,
         vendor: editing.vendor,
         family: editing.family ?? '',
         modelType: editing.modelType,
@@ -117,9 +126,29 @@ export function ModelFormDialog({
       }
     : modelDefaults();
   const [form, setForm] = useState<ModelWriteRequest>(initial);
+  const [presetKey, setPresetKey] = useState<ModelPresetKey>(() =>
+    findModelPreset(initial.vendor, initial.family),
+  );
   const [providerJSON, setProviderJSON] = useState(prettyJSON(initial.providerConfig));
   const [efforts, setEfforts] = useState(initial.reasoning.effortLevels.join(', '));
   const mutation = useSaveModel();
+  const reasoningModes = form.reasoning.modes.length > 0 ? form.reasoning.modes : REASONING_MODES;
+  const reasoningEfforts = form.reasoning.effortLevels.length > 0 ? form.reasoning.effortLevels : REASONING_EFFORTS;
+
+  const applyModelPreset = (key: ModelPresetKey) => {
+    const preset = MODEL_CATALOG_PRESETS[key];
+    setPresetKey(key);
+    setEfforts(preset.reasoning.effortLevels.join(', '));
+    setForm((current) => ({
+      ...current,
+      vendor: preset.vendor,
+      family: preset.family,
+      modelType: preset.modelType,
+      capabilities: preset.capabilities,
+      reasoning: preset.reasoning,
+      displayName: current.displayName.trim() ? current.displayName : preset.label,
+    }));
+  };
 
   const setCapability = (key: keyof ModelWriteRequest['capabilities'], value: boolean) =>
     setForm((current) => ({
@@ -138,7 +167,7 @@ export function ModelFormDialog({
         reasoning: {
           ...form.reasoning,
           modes: form.reasoning.supported
-            ? ['auto', 'enabled', 'disabled']
+            ? (form.reasoning.modes.length > 0 ? form.reasoning.modes : ['auto', 'enabled', 'disabled'])
             : ['disabled'],
           effortLevels: efforts
             .split(',')
@@ -171,6 +200,16 @@ export function ModelFormDialog({
 
         <div className="space-y-5">
           <section className="grid gap-3 sm:grid-cols-2">
+            <Field label="模型预设" required hint="预设填充模型能力；模型 ID、地址和协议在服务接入中配置。">
+              <Select value={presetKey} onValueChange={(value) => applyModelPreset(value as ModelPresetKey)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MODEL_PRESET_OPTIONS.map((preset) => (
+                    <SelectItem key={preset.key} value={preset.key}>{preset.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
             <Field label="模型编码" required hint="组织内唯一，例如 glm-5-2、qwen-3-6">
               <Input
                 value={form.code}
@@ -269,7 +308,7 @@ export function ModelFormDialog({
                     onValueChange={(defaultMode) => setForm({ ...form, reasoning: { ...form.reasoning, defaultMode } })}
                   >
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{REASONING_MODES.map((mode) => <SelectItem key={mode} value={mode}>{mode}</SelectItem>)}</SelectContent>
+                    <SelectContent>{reasoningModes.map((mode) => <SelectItem key={mode} value={mode}>{mode}</SelectItem>)}</SelectContent>
                   </Select>
                 </Field>
                 <Field label="默认推理强度">
@@ -278,7 +317,7 @@ export function ModelFormDialog({
                     onValueChange={(defaultEffort) => setForm({ ...form, reasoning: { ...form.reasoning, defaultEffort } })}
                   >
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{REASONING_EFFORTS.map((effort) => <SelectItem key={effort} value={effort}>{effort}</SelectItem>)}</SelectContent>
+                    <SelectContent>{reasoningEfforts.map((effort) => <SelectItem key={effort} value={effort}>{effort}</SelectItem>)}</SelectContent>
                   </Select>
                 </Field>
                 <Field label="支持的强度" hint="逗号分隔；用于 Profile 表单校验">
@@ -395,11 +434,11 @@ export function EndpointFormDialog({
   models: ModelResource[];
   editing?: ModelEndpoint | null;
 }) {
-  const initial = editing
+  const initial: ModelEndpointWriteRequest = editing
     ? {
         ...endpointDefaults(models),
         ...editing,
-        status: editing.status === 'disabled' ? 'disabled' : 'active',
+        status: (editing.status === 'disabled' ? 'disabled' : 'active') as ResourceStatus,
       }
     : endpointDefaults(models);
   const [form, setForm] = useState<ModelEndpointWriteRequest>(initial);
@@ -408,11 +447,43 @@ export function EndpointFormDialog({
   const [defaultsJSON, setDefaultsJSON] = useState(prettyJSON(initial.requestDefaults));
   const mutation = useSaveModelEndpoint();
 
+  const applyAPIFormat = (value: string) => {
+    const format = API_FORMAT_OPTIONS.find((item) => item.value === value);
+    setForm((current) => ({
+      ...current,
+      apiFormat: value as ModelApiFormat,
+      adapter: format?.adapter ?? current.adapter,
+      apiPath: format?.apiPath ?? current.apiPath,
+    }));
+  };
+
   const applyPreset = (value: EndpointPreset) => {
     setPreset(value);
     const mapping = ENDPOINT_PRESETS[value].mapping;
     setForm((current) => ({ ...current, reasoningMapping: mapping }));
     setMappingJSON(prettyJSON(mapping));
+  };
+
+  const applyModelSelection = (modelId: string) => {
+    const model = models.find((item) => item.id === modelId);
+    const modelPreset = model
+      ? MODEL_CATALOG_PRESETS[findModelPreset(model.vendor, model.family)]
+      : undefined;
+    setForm((current) => ({
+      ...current,
+      modelId,
+      ...(modelPreset
+        ? {
+            adapter: modelPreset.endpoint.adapter,
+            apiFormat: modelPreset.endpoint.apiFormat as ModelApiFormat,
+            apiPath: modelPreset.endpoint.apiPath,
+            reasoningMapping: modelPreset.endpoint.reasoningMapping,
+          }
+        : {}),
+    }));
+    if (modelPreset) {
+      setMappingJSON(prettyJSON(modelPreset.endpoint.reasoningMapping));
+    }
   };
 
   const submit = async () => {
@@ -446,7 +517,7 @@ export function EndpointFormDialog({
         <div className="space-y-5">
           <section className="grid gap-3 sm:grid-cols-2">
             <Field label="模型" required>
-              <Select value={form.modelId} onValueChange={(modelId) => setForm({ ...form, modelId })}>
+              <Select value={form.modelId} onValueChange={applyModelSelection}>
                 <SelectTrigger><SelectValue placeholder="选择模型" /></SelectTrigger>
                 <SelectContent>{models.map((model) => <SelectItem key={model.id} value={model.id}>{model.displayName} · {model.vendor}</SelectItem>)}</SelectContent>
               </Select>
@@ -466,12 +537,12 @@ export function EndpointFormDialog({
               </Select>
             </Field>
             <Field label="API 格式">
-              <Select value={form.apiFormat} onValueChange={(apiFormat) => setForm({ ...form, apiFormat })}>
+              <Select value={form.apiFormat} onValueChange={applyAPIFormat}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="chat_completions">Chat Completions</SelectItem>
-                  <SelectItem value="responses">Responses</SelectItem>
-                  <SelectItem value="gemini">Gemini</SelectItem>
+                  {API_FORMAT_OPTIONS.map((format) => (
+                    <SelectItem key={format.value} value={format.value}>{format.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </Field>
@@ -557,8 +628,8 @@ export function ProfileFormDialog({
   models: ModelResource[];
   editing?: ModelProfileV2 | null;
 }) {
-  const initial = editing
-    ? { ...profileDefaults(endpoints), ...editing, status: editing.status === 'disabled' ? 'disabled' : 'active' }
+  const initial: ModelProfileWriteRequest = editing
+    ? { ...profileDefaults(endpoints), ...editing, status: (editing.status === 'disabled' ? 'disabled' : 'active') as ResourceStatus }
     : profileDefaults(endpoints);
   const [form, setForm] = useState<ModelProfileWriteRequest>(initial);
   const [defaultsJSON, setDefaultsJSON] = useState(prettyJSON(initial.defaultParameters));

@@ -1,6 +1,12 @@
 import { request, toQuery } from './client';
 
 export type ResourceStatus = 'active' | 'disabled';
+export type ModelApiFormat =
+  | 'chat_completions'
+  | 'responses'
+  | 'claude_code'
+  | 'gemini'
+  | 'custom';
 export type ReasoningMode = 'inherit' | 'auto' | 'enabled' | 'disabled';
 export type ReasoningEffort =
   | 'inherit'
@@ -91,7 +97,7 @@ export interface ModelEndpoint {
   description?: string;
   status: ResourceStatus | string;
   adapter: string;
-  apiFormat: string;
+  apiFormat: ModelApiFormat;
   baseUrl: string;
   providerModelId: string;
   apiPath?: string;
@@ -114,7 +120,7 @@ export interface ModelEndpointWriteRequest {
   description?: string;
   status: ResourceStatus;
   adapter: string;
-  apiFormat: string;
+  apiFormat: ModelApiFormat;
   baseUrl: string;
   providerModelId: string;
   apiPath?: string;

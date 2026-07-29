@@ -79,11 +79,11 @@ export function ModelProfilesPage() {
   }, [endpoints, query]);
 
   const modelById = useMemo(
-    () => new Map(models.map((item) => [item.id, item])),
+    () => new Map<string, ModelResource>(models.map((item) => [item.id, item])),
     [models],
   );
   const endpointById = useMemo(
-    () => new Map(endpoints.map((item) => [item.id, item])),
+    () => new Map<string, ModelEndpoint>(endpoints.map((item) => [item.id, item])),
     [endpoints],
   );
 

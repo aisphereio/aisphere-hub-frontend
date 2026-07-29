@@ -188,6 +188,7 @@ export type AgentToolRef = {
   version?: string;
   label?: string;
   required?: boolean;
+  approvalMode?: 'always' | 'per_run' | 'disabled' | string;
 };
 
 export type AgentServiceRef = {
