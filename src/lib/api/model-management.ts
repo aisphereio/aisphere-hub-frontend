@@ -132,6 +132,16 @@ export interface ModelEndpointWriteRequest {
   projectId?: string;
 }
 
+export interface ModelEndpointTestResult {
+  healthy: boolean;
+  reachable: boolean;
+  httpStatus: number;
+  latencyMs: number;
+  healthStatus: 'healthy' | 'degraded' | 'unhealthy' | string;
+  message: string;
+  checkedAt: string;
+}
+
 export interface ReasoningPolicy {
   mode: ReasoningMode;
   effort: ReasoningEffort;
@@ -258,6 +268,11 @@ export const modelManagementApi = {
     request<{ endpointId: string }>(
       `/v1/model-endpoints/${encodeURIComponent(id)}`,
       { method: 'DELETE' },
+    ),
+  testEndpoint: (id: string) =>
+    request<ModelEndpointTestResult>(
+      `/v1/model-endpoints/${encodeURIComponent(id)}/test`,
+      { method: 'POST' },
     ),
 
   listProfiles: (params: Record<string, unknown> = {}) =>
