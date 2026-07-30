@@ -68,9 +68,9 @@ function latestVersion(tool?: Tool) {
 function ToolCreateDialog({ onCreated }: { onCreated: (id: string) => void }) {
   const save = useToolSave();
   const [open, setOpen] = useState(false);
-  const [id, setId] = useState('github.issue.create');
-  const [displayName, setDisplayName] = useState('GitHub Create Issue');
-  const [description, setDescription] = useState('MCP tool managed by AIHub');
+  const [id, setId] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [description, setDescription] = useState('');
   const [definitionText, setDefinitionText] = useState(pretty(DEFAULT_TOOL));
 
   const submit = async () => {
@@ -79,7 +79,7 @@ function ToolCreateDialog({ onCreated }: { onCreated: (id: string) => void }) {
         id: id.trim(),
         displayName: displayName.trim(),
         description: description.trim(),
-        status: 'enable',
+        status: 'active',
         definition: parseDefinition(definitionText),
       };
       const out = await save.mutateAsync(body);
@@ -125,9 +125,11 @@ function ToolListCard({ item, active, onClick }: { item: ToolListItem; active: b
       <div className="flex items-start gap-2">
         <Hammer className="h-4 w-4 mt-0.5 text-violet-500" />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-sm truncate">{item.displayName || item.id}</span>
             <Badge variant="secondary" className="text-[10px]">{item.runtimeType || '-'}</Badge>
+            {item.status === 'builtin' && <Badge variant="outline" className="text-[10px] border-violet-500/40 text-violet-500">builtin</Badge>}
+            {item.status === 'disabled' && <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-600 dark:text-amber-300">disabled</Badge>}
           </div>
           <p className="text-xs text-muted-foreground truncate mt-0.5">{item.id}</p>
           {item.description && <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{item.description}</p>}
@@ -179,7 +181,7 @@ export function ToolsPage() {
           id: tool.id,
           displayName: tool.displayName,
           description: tool.description,
-          status: tool.status || 'enable',
+          status: tool.status || 'active',
           scope: tool.scope,
           labels: tool.labels,
           version: version.trim() || undefined,
@@ -222,7 +224,7 @@ export function ToolsPage() {
     <div className="p-4 md:p-6 space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard icon={<Hammer className="h-4 w-4" />} label="Tools" value={tools.length} />
-        <StatCard icon={<Zap className="h-4 w-4" />} label="Runnable" value={tools.filter(t => t.status !== 'disable').length} />
+        <StatCard icon={<Zap className="h-4 w-4" />} label="Runnable" value={tools.filter(t => t.status !== 'disabled').length} />
         <StatCard icon={<AlertTriangle className="h-4 w-4" />} label="Failures" value={failures.length} />
         <StatCard icon={<Share2 className="h-4 w-4" />} label="AIHub Objects" value="tool" />
       </div>
@@ -289,10 +291,18 @@ export function ToolsPage() {
                   <div className="flex justify-end"><Button onClick={saveUpdate} disabled={update.isPending}><Save className="h-3.5 w-3.5 mr-1" /> Save new version</Button></div>
                 </TabsContent>
                 <TabsContent value="runtime" className="space-y-3">
+                  <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs text-amber-700 dark:text-amber-300">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    Snapshot resolve is not wired yet (ResolveTool returns Unavailable until the Runtime execution plane lands). This tab is a preview placeholder.
+                  </div>
                   <p className="text-xs text-muted-foreground">Runtime should call the tool resolve endpoint and execute only this permission-checked immutable manifest.</p>
                   <Textarea readOnly className="font-mono text-xs min-h-[420px]" value={resolve.data ? pretty(resolve.data) : 'Click Resolve to preview the Tool runtime snapshot.'} />
                 </TabsContent>
                 <TabsContent value="failures" className="space-y-2">
+                  <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs text-amber-700 dark:text-amber-300">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    Failure reporting is not wired yet (no failure store / reporter). Runtime-reported failures will appear here once the execution chain lands.
+                  </div>
                   {failures.length === 0 ? <EmptyState icon={<AlertTriangle className="h-10 w-10" />} title="No failures" description="Runtime failures reported by AgentKit will appear here." /> : (
                     <div className="space-y-2">
                       {failures.map((f) => (
