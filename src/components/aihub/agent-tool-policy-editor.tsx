@@ -49,7 +49,7 @@ function ToolBindingRow({
     tool.name || null,
   );
   const catalogEntry = catalog.find((entry) => entry.id === tool.name);
-  const detailTool = detail?.tool;
+  const detailTool = detail;
   const versionKeys = detailTool?.versions
     ? Object.keys(detailTool.versions).sort()
     : [];

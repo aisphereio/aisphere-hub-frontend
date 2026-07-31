@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toolApi } from '@/lib/api';
 import { asItems } from '@/lib/api/client';
-import type { ToolFailureRecord, ToolListItem, ToolResponse, ToolRuntimeSnapshot, ToolUpsertRequest } from '@/lib/api/types';
+import type { Tool, ToolFailureRecord, ToolListItem, ToolRuntimeSnapshot, ToolUpsertRequest } from '@/lib/api/types';
 
 export function useTools(params: Record<string, unknown> = {}) {
   return useQuery({
@@ -14,7 +14,7 @@ export function useTools(params: Record<string, unknown> = {}) {
 }
 
 export function useToolDetail(toolId: string | null) {
-  return useQuery<ToolResponse>({
+  return useQuery<Tool>({
     queryKey: ['tools', 'detail', toolId],
     queryFn: () => toolApi.detail(toolId!),
     enabled: Boolean(toolId),

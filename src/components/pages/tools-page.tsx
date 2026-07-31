@@ -101,7 +101,7 @@ export function ToolsPage() {
   const update = useToolUpdate();
   const remove = useToolDelete();
   const resolve = useToolResolve();
-  const tool = detail?.tool;
+  const tool = detail;
   const v = latestVersion(tool);
   const isBuiltin = tool?.status === 'builtin';
 

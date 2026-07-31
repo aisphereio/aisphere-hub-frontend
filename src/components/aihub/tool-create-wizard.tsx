@@ -230,7 +230,7 @@ export function ToolCreateWizard({ onCreated }: { onCreated: (id: string) => voi
         definition,
       };
       const out = await save.mutateAsync(body);
-      const toolId = out.tool?.id || body.id || '';
+      const toolId = out?.id || body.id || '';
       toast.success(`Tool ${toolId} created`);
       setOpen(false);
       setStep(0);

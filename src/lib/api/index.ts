@@ -52,6 +52,7 @@ import type {
   ToolFailureRecord,
   ToolListItem,
   ToolResponse,
+  Tool,
   ToolRuntimeSnapshot,
   ToolUpsertRequest,
   LocalUser,
@@ -401,15 +402,18 @@ export { sandboxApi } from './adapters/sandbox';
 export const toolApi = {
   list: (params: Record<string, unknown> = {}) =>
     request<Page<ToolListItem>>(`/v1/tools?${toQuery(params)}`),
+  // detail/create/update use `response_body: "tool"` in the proto, so the HTTP
+  // response is the Tool object directly (NOT wrapped in {tool: ...}). Type
+  // accordingly or detail?.tool will always be undefined.
   detail: (toolId: string) =>
-    request<ToolResponse>(`/v1/tools/${encodeURIComponent(toolId)}`),
+    request<Tool>(`/v1/tools/${encodeURIComponent(toolId)}`),
   create: (data: ToolUpsertRequest) =>
-    request<ToolResponse>("/v1/tools", {
+    request<Tool>("/v1/tools", {
       method: "POST",
       body: JSON.stringify(data),
     }),
   update: (toolId: string, data: ToolUpsertRequest) =>
-    request<ToolResponse>(`/v1/tools/${encodeURIComponent(toolId)}`, {
+    request<Tool>(`/v1/tools/${encodeURIComponent(toolId)}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
