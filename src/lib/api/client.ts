@@ -134,7 +134,12 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
     return (await res.blob()) as T;
   }
 
-  if (contentType.includes('application/json') || contentType === '') {
+  // Accept any JSON-family content type. The proto-generated gateway
+  // endpoints (/v1/tools, /v1/skills, ...) return `application/protojson`,
+  // which does NOT contain the substring "application/json" — gating on
+  // that exact string made the client return raw text instead of parsed
+  // JSON, so every list unwrap (asItems) saw a string and produced [].
+  if (contentType.includes('json') || contentType === '') {
     const text = await res.text();
     if (!text) return {} as T;
     try {
