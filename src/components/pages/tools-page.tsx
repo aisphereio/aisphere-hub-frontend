@@ -1,12 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Hammer, Plus, RefreshCw, Save, Search, Share2, Trash2, Zap } from 'lucide-react';
+import { AlertTriangle, Hammer, RefreshCw, Save, Search, Share2, Trash2, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -14,10 +13,11 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { ResourceSharePanel } from '@/components/aihub/resource-share-panel';
+import { ToolCreateWizard } from '@/components/aihub/tool-create-wizard';
 import { ConfirmDialog, EmptyState, ListSkeleton, StatCard } from '@/components/shared';
-import { useToolDelete, useToolDetail, useToolFailures, useToolResolve, useToolSave, useTools, useToolUpdate } from '@/hooks/use-tools';
+import { useToolDelete, useToolDetail, useToolFailures, useToolResolve, useTools, useToolUpdate } from '@/hooks/use-tools';
 import { fmtTime } from '@/lib/utils';
-import type { Tool, ToolDefinition, ToolListItem, ToolUpsertRequest } from '@/lib/api/types';
+import type { Tool, ToolDefinition, ToolListItem } from '@/lib/api/types';
 
 const DEFAULT_TOOL: ToolDefinition = {
   runtime: {
@@ -63,60 +63,6 @@ function parseDefinition(raw: string): ToolDefinition {
 function latestVersion(tool?: Tool) {
   if (!tool) return undefined;
   return tool.latestVersion && tool.versions ? tool.versions[tool.latestVersion] : undefined;
-}
-
-function ToolCreateDialog({ onCreated }: { onCreated: (id: string) => void }) {
-  const save = useToolSave();
-  const [open, setOpen] = useState(false);
-  const [id, setId] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [description, setDescription] = useState('');
-  const [definitionText, setDefinitionText] = useState(pretty(DEFAULT_TOOL));
-
-  const submit = async () => {
-    try {
-      const body: ToolUpsertRequest = {
-        id: id.trim(),
-        displayName: displayName.trim(),
-        description: description.trim(),
-        status: 'active',
-        definition: parseDefinition(definitionText),
-      };
-      const out = await save.mutateAsync(body);
-      const toolId = out.tool?.id || body.id || '';
-      toast.success(`Tool ${toolId} created`);
-      setOpen(false);
-      onCreated(toolId);
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Create tool failed');
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" className="bg-gradient-to-r from-violet-600 to-fuchsia-500">
-          <Plus className="h-3.5 w-3.5 mr-1" /> New Tool
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader><DialogTitle>Create Tool</DialogTitle></DialogHeader>
-        <div className="grid md:grid-cols-2 gap-3">
-          <div className="space-y-1.5"><Label className="text-xs">Tool ID</Label><Input value={id} onChange={(e) => setId(e.target.value)} /></div>
-          <div className="space-y-1.5"><Label className="text-xs">Display Name</Label><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} /></div>
-          <div className="space-y-1.5 md:col-span-2"><Label className="text-xs">Description</Label><Input value={description} onChange={(e) => setDescription(e.target.value)} /></div>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Definition JSON</Label>
-          <Textarea className="font-mono text-xs min-h-[320px]" value={definitionText} onChange={(e) => setDefinitionText(e.target.value)} />
-        </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={submit} disabled={save.isPending}><Save className="h-3.5 w-3.5 mr-1" /> Create</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 function ToolListCard({ item, active, onClick }: { item: ToolListItem; active: boolean; onClick: () => void }) {
@@ -235,7 +181,7 @@ export function ToolsPage() {
           <Input className="pl-8" placeholder="Search tools..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <Button variant="outline" size="sm" onClick={() => { refetch(); refetchFailures(); }}><RefreshCw className="h-3.5 w-3.5 mr-1" /> Refresh</Button>
-        <ToolCreateDialog onCreated={(id) => { setSelectedId(id); refetch(); }} />
+        <ToolCreateWizard onCreated={(id) => { setSelectedId(id); refetch(); }} />
       </div>
 
       {error && <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm"><AlertTriangle className="h-4 w-4" />{error.message}</div>}
