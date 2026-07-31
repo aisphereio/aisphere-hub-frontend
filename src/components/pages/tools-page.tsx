@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { ResourceSharePanel } from '@/components/aihub/resource-share-panel';
 import { ToolCreateWizard } from '@/components/aihub/tool-create-wizard';
+import { ToolOverview } from '@/components/aihub/tool-overview';
 import { ConfirmDialog, EmptyState, ListSkeleton, StatCard } from '@/components/shared';
 import { useToolDelete, useToolDetail, useToolFailures, useToolResolve, useTools, useToolUpdate } from '@/hooks/use-tools';
 import { fmtTime } from '@/lib/utils';
@@ -102,6 +103,7 @@ export function ToolsPage() {
   const resolve = useToolResolve();
   const tool = detail?.tool;
   const v = latestVersion(tool);
+  const isBuiltin = tool?.status === 'builtin';
 
   useEffect(() => {
     if (!selectedId && filtered.length > 0) {
@@ -209,15 +211,25 @@ export function ToolsPage() {
                 <CardTitle className="text-sm">{tool?.displayName || tool?.id || 'Tool Detail'}</CardTitle>
                 {detail?.object && <p className="text-xs text-muted-foreground mt-1">{detail.object}</p>}
               </div>
-              {tool && <div className="flex gap-2"><Button size="sm" variant="outline" onClick={runResolve}><Zap className="h-3.5 w-3.5 mr-1" /> Resolve</Button><Button size="sm" variant="destructive" onClick={() => setDeleteId(tool.id)}><Trash2 className="h-3.5 w-3.5 mr-1" /> Delete</Button></div>}
+              {tool && <div className="flex gap-2">{!isBuiltin && <Button size="sm" variant="outline" onClick={runResolve}><Zap className="h-3.5 w-3.5 mr-1" /> Resolve</Button>}{!isBuiltin && <Button size="sm" variant="destructive" onClick={() => setDeleteId(tool.id)}><Trash2 className="h-3.5 w-3.5 mr-1" /> Delete</Button>}</div>}
             </div>
           </CardHeader>
           <CardContent>
             {!tool ? (
               <EmptyState icon={<Hammer className="h-10 w-10" />} title="Select a tool" description="Choose a Hub-managed tool to edit its versioned runtime definition." />
             ) : (
-              <Tabs defaultValue="definition" className="space-y-4">
-                <TabsList><TabsTrigger value="definition">Definition</TabsTrigger><TabsTrigger value="runtime">Runtime</TabsTrigger><TabsTrigger value="failures">Failures</TabsTrigger><TabsTrigger value="shares">Shares</TabsTrigger></TabsList>
+              <Tabs defaultValue="overview" className="space-y-4">
+                <TabsList>
+                  <TabsTrigger value="overview">概览</TabsTrigger>
+                  {!isBuiltin && <TabsTrigger value="definition">Definition</TabsTrigger>}
+                  <TabsTrigger value="runtime">Runtime</TabsTrigger>
+                  <TabsTrigger value="failures">Failures</TabsTrigger>
+                  <TabsTrigger value="shares">Shares</TabsTrigger>
+                </TabsList>
+                <TabsContent value="overview" className="space-y-3">
+                  {tool && <ToolOverview tool={tool} />}
+                </TabsContent>
+                {!isBuiltin && (
                 <TabsContent value="definition" className="space-y-3">
                   <div className="grid md:grid-cols-4 gap-3 text-xs">
                     <div><Label className="text-muted-foreground">Latest</Label><div className="font-medium mt-1">{tool.latestVersion || '-'}</div></div>
@@ -236,6 +248,7 @@ export function ToolsPage() {
                   </div>
                   <div className="flex justify-end"><Button onClick={saveUpdate} disabled={update.isPending}><Save className="h-3.5 w-3.5 mr-1" /> Save new version</Button></div>
                 </TabsContent>
+                )}
                 <TabsContent value="runtime" className="space-y-3">
                   <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs text-amber-700 dark:text-amber-300">
                     <AlertTriangle className="h-3.5 w-3.5" />
