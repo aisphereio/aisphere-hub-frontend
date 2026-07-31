@@ -165,6 +165,7 @@ export function asItems<T>(page: unknown): T[] {
   if (!page) return [];
   const p = page as Record<string, unknown>;
   return (
+    (p.tools as T[]) ||
     (p.items as T[]) ||
     (p.skills as T[]) ||
     (p.versions as T[]) ||
