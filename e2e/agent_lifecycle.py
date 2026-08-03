@@ -63,6 +63,7 @@ def run() -> None:
             expect(page.get_by_text(agent_id, exact=True).first).to_be_visible(timeout=30_000)
 
             page.get_by_text("Playground", exact=True).click()
+            page.get_by_test_id("new-agent-session").click()
             expect(page.get_by_test_id("agent-playground")).to_be_visible()
             page.get_by_test_id("playground-input").fill("请确认你已加载 E2E Skill，并调用工具完成一次验证。")
             page.get_by_test_id("playground-send").click()
@@ -72,7 +73,18 @@ def run() -> None:
             expect(messages).to_have_count(2, timeout=120_000)
             assistant_text = messages.nth(1).inner_text()
             assert assistant_text.strip(), "Agent returned an empty response"
+
+            first_session_id = page.get_by_test_id("agent-session-id").inner_text()
+            page.get_by_test_id("new-agent-session").click()
+            session_items = page.get_by_test_id("agent-session-item")
+            expect(session_items).to_have_count(2, timeout=30_000)
+            second_session_id = page.get_by_test_id("agent-session-id").inner_text()
+            assert second_session_id and second_session_id != first_session_id, "Creating a session must create a new Runtime context"
+            session_items.first.click()
+            expect(page.get_by_test_id("agent-session-id")).to_have_text(first_session_id, timeout=10_000)
+            expect(page.get_by_test_id("playground-message")).to_have_count(0)
             print(f"PASS agent={agent_id} skill={SKILL_NAME} tool={selected_tool}")
+            print(f"sessions={first_session_id},{second_session_id}")
             print(f"assistant={assistant_text[:500]}")
         finally:
             screenshot = Path(os.getenv("E2E_ARTIFACT_DIR", "e2e-artifacts"))

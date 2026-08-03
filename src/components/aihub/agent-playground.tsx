@@ -5,26 +5,12 @@ import { Loader2, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAgentResolve } from '@/hooks/use-agents';
 import { useMe } from '@/hooks/use-auth';
-import { agentRuntimeApi, type RuntimeEvent } from '@/lib/api/runtime';
+import { agentRuntimeApi, createRuntimeSessionWithRetry, type RuntimeEvent } from '@/lib/api/runtime';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 
 type ChatMessage = { role: 'user' | 'assistant' | 'tool'; text: string };
-
-async function createSessionWithRetry(appName: string, userId: string, sessionId: string) {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      return await agentRuntimeApi.createSession(appName, userId, sessionId);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const transient = /no such host|not found|ready|dependencies/i.test(message);
-      if (!transient || attempt === 2) throw error;
-      await new Promise((resolvePromise) => setTimeout(resolvePromise, 3000));
-    }
-  }
-  throw new Error('Runtime session creation failed');
-}
 
 function eventText(event: RuntimeEvent): string {
   const parts = event.content?.parts || [];
@@ -37,13 +23,12 @@ function eventText(event: RuntimeEvent): string {
   return '';
 }
 
-export function AgentPlayground({ agentId }: { agentId: string }) {
+export function AgentPlayground({ agentId, agentVersion, sessionId, onSessionReady }: { agentId: string; agentVersion?: string; sessionId: string; onSessionReady?: () => void }) {
   const { data: principal } = useMe();
   const resolve = useAgentResolve();
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [busy, setBusy] = useState(false);
-  const [sessionId] = useState(() => `ui-${agentId}-${Date.now()}`);
   const userId = String(principal?.subjectId || principal?.sub || 'admin');
 
   const send = async () => {
@@ -55,9 +40,10 @@ export function AgentPlayground({ agentId }: { agentId: string }) {
     try {
       await resolve.mutateAsync({
         agentId,
-        request: { runtimeId: 'agentkit-console', sessionId, approvalConfirmed: true },
+        request: { runtimeId: 'agentkit-console', sessionId, version: agentVersion, approvalConfirmed: true },
       });
-      await createSessionWithRetry(agentId, userId, sessionId);
+      await createRuntimeSessionWithRetry(agentId, userId, sessionId, { agent_version: agentVersion || null, session_source: 'hub-ui' });
+      onSessionReady?.();
       const events = await agentRuntimeApi.run({ appName: agentId, userId, sessionId, text });
       const assistant = events.map(eventText).filter(Boolean).join('\n');
       setMessages((current) => [...current, { role: 'assistant', text: assistant || 'Agent completed without a text response.' }]);

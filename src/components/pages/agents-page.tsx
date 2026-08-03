@@ -5,7 +5,7 @@ import { AlertTriangle, Bot, FileCode2, PlayCircle, Plus, RefreshCw, Save, Share
 import { toast } from 'sonner';
 import { AgentToolPolicyEditor } from '@/components/aihub/agent-tool-policy-editor';
 import { AgentSkillPromptEditor } from '@/components/aihub/agent-skill-prompt-editor';
-import { AgentPlayground } from '@/components/aihub/agent-playground';
+import { AgentWorkspace } from '@/components/aihub/agent-workspace';
 import { ResourceSharePanel } from '@/components/aihub/resource-share-panel';
 import { ConfirmDialog, EmptyState, ListSkeleton, StatCard } from '@/components/shared';
 import { Badge } from '@/components/ui/badge';
@@ -335,7 +335,7 @@ export function AgentsPage() {
                 <TabsContent value="runtime" className="space-y-3">
                   <p className="text-xs text-muted-foreground">The snapshot contains only approved Tool versions and marks authorization as principal passthrough with IAM enforcement at the resource service.</p>
                   <Textarea readOnly className="min-h-[420px] font-mono text-xs" value={resolve.data ? pretty(resolve.data) : (planRun.data ? pretty(planRun.data) : 'Click Plan & Run to preview consent and resolve the Runtime snapshot.')} />
-                  <AgentPlayground agentId={agent.id} />
+                  <AgentWorkspace agentId={agent.id} agentVersion={agent.latestVersion} />
                 </TabsContent>
                 <TabsContent value="shares">
                   <ResourceSharePanel resourceType="agent" resourceId={agent.id} object={`agent:${agent.id}`} owner={agent.ownerSubject} />
