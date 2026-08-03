@@ -22,9 +22,19 @@ async function runtimeRequest<T>(path: string, init: RequestInit): Promise<T> {
     credentials: 'include',
     headers: { 'content-type': 'application/json', ...(init.headers || {}) },
   });
-  const body = await response.json().catch(() => null);
+  const rawBody = await response.text();
+  let body: unknown = null;
+  try {
+    body = rawBody ? JSON.parse(rawBody) : null;
+  } catch {
+    body = rawBody;
+  }
   if (!response.ok) {
-    const message = body && typeof body === 'object' && 'message' in body ? String(body.message) : `Runtime request failed (${response.status})`;
+    const message = body && typeof body === 'object' && 'message' in body
+      ? String(body.message)
+      : typeof body === 'string' && body.trim()
+        ? body.trim()
+        : `Runtime request failed (${response.status})`;
     throw new Error(message);
   }
   return body as T;
@@ -65,7 +75,7 @@ export async function createRuntimeSessionWithRetry(
       return await agentRuntimeApi.createSession(appName, userId, sessionId, state);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const transient = /no such host|not found|ready|dependencies/i.test(message);
+      const transient = /no such host|not found|ready|dependencies|context canceled|context deadline|temporar/i.test(message);
       if (!transient || attempt === 2) throw error;
       await new Promise((resolvePromise) => setTimeout(resolvePromise, 3000));
     }

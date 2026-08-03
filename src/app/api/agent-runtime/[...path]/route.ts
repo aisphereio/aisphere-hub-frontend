@@ -6,7 +6,21 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path?: s
   const { path = [] } = await context.params;
   const target = `${process.env.AGENT_RUNTIME_URL || DEFAULT_RUNTIME_URL}/api/${path.map(encodeURIComponent).join('/')}`;
   const headers = new Headers();
-  for (const name of ['content-type', 'cookie', 'authorization', 'x-aisphere-user', 'x-aisphere-org', 'x-aisphere-project']) {
+  for (const name of [
+    'content-type',
+    'cookie',
+    'authorization',
+    'x-aisphere-user',
+    'x-aisphere-org',
+    'x-aisphere-project',
+    'x-aisphere-auth-verified',
+    'x-aisphere-subject',
+    'x-aisphere-subject-type',
+    'x-aisphere-org-id',
+    'x-aisphere-project-id',
+    'x-aisphere-username',
+    'x-aisphere-name',
+  ]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
