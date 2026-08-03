@@ -75,7 +75,7 @@ export async function createRuntimeSessionWithRetry(
       return await agentRuntimeApi.createSession(appName, userId, sessionId, state);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const transient = /no such host|not found|ready|dependencies|context canceled|context deadline|temporar/i.test(message);
+      const transient = /no such host|not found|ready|dependencies|context canceled|context deadline|temporar|sandbox adapter.*status=5\d\d|phase.*pending|worker endpoint/i.test(message);
       if (!transient || attempt === 2) throw error;
       await new Promise((resolvePromise) => setTimeout(resolvePromise, 3000));
     }
