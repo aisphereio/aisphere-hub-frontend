@@ -1,0 +1,95 @@
+'use client';
+
+import { useState } from 'react';
+import { Loader2, Send } from 'lucide-react';
+import { toast } from 'sonner';
+import { useAgentResolve } from '@/hooks/use-agents';
+import { useMe } from '@/hooks/use-auth';
+import { agentRuntimeApi, type RuntimeEvent } from '@/lib/api/runtime';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+
+type ChatMessage = { role: 'user' | 'assistant' | 'tool'; text: string };
+
+async function createSessionWithRetry(appName: string, userId: string, sessionId: string) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await agentRuntimeApi.createSession(appName, userId, sessionId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const transient = /no such host|not found|ready|dependencies/i.test(message);
+      if (!transient || attempt === 2) throw error;
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 3000));
+    }
+  }
+  throw new Error('Runtime session creation failed');
+}
+
+function eventText(event: RuntimeEvent): string {
+  const parts = event.content?.parts || [];
+  const text = parts.map((part) => part.text || '').filter(Boolean).join('\n');
+  if (text) return text;
+  const call = parts.find((part) => part.functionCall);
+  if (call) return `Tool call: ${JSON.stringify(call.functionCall)}`;
+  const result = parts.find((part) => part.functionResponse);
+  if (result) return `Tool result: ${JSON.stringify(result.functionResponse)}`;
+  return '';
+}
+
+export function AgentPlayground({ agentId }: { agentId: string }) {
+  const { data: principal } = useMe();
+  const resolve = useAgentResolve();
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [sessionId] = useState(() => `ui-${agentId}-${Date.now()}`);
+  const userId = String(principal?.subjectId || principal?.sub || 'admin');
+
+  const send = async () => {
+    const text = input.trim();
+    if (!text || busy) return;
+    setBusy(true);
+    setInput('');
+    setMessages((current) => [...current, { role: 'user', text }]);
+    try {
+      await resolve.mutateAsync({
+        agentId,
+        request: { runtimeId: 'agentkit-console', sessionId, approvalConfirmed: true },
+      });
+      await createSessionWithRetry(agentId, userId, sessionId);
+      const events = await agentRuntimeApi.run({ appName: agentId, userId, sessionId, text });
+      const assistant = events.map(eventText).filter(Boolean).join('\n');
+      setMessages((current) => [...current, { role: 'assistant', text: assistant || 'Agent completed without a text response.' }]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Agent run failed';
+      setMessages((current) => [...current, { role: 'tool', text: message }]);
+      toast.error(message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card data-testid="agent-playground" className="border-violet-500/30">
+      <CardHeader className="py-3"><CardTitle className="text-sm">Agent Playground</CardTitle></CardHeader>
+      <CardContent className="space-y-3">
+        <p data-testid="playground-status" className="text-xs text-muted-foreground">Session: {sessionId} · Runtime 会按当前 Agent 版本创建沙箱并加载 Skill/Tool。</p>
+        <div className="min-h-[220px] space-y-2 rounded-md border bg-muted/20 p-3" data-testid="playground-messages">
+          {messages.length === 0 ? <p className="text-xs text-muted-foreground">发送第一条消息，验证 Prompt、Skill、Tool 和 Runtime 的联动。</p> : messages.map((message, index) => (
+            <div key={`${message.role}-${index}`} data-testid="playground-message" className={`rounded-md p-2 text-sm ${message.role === 'user' ? 'ml-8 bg-violet-500/10' : 'mr-8 bg-background'}`}>
+              <div className="mb-1 text-[10px] uppercase text-muted-foreground">{message.role}</div>
+              <div className="whitespace-pre-wrap">{message.text}</div>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-end gap-2">
+          <Textarea data-testid="playground-input" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder="给 Agent 发一条消息……" className="min-h-[80px]" />
+          <Button data-testid="playground-send" onClick={() => void send()} disabled={busy || !input.trim()}>
+            {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Send className="mr-1 h-4 w-4" />} 发送
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

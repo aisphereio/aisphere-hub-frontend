@@ -10,6 +10,8 @@ node_modules/
 
 # === 测试 ===
 /coverage/
+/e2e-artifacts/
+/e2e/.auth/
 
 # === Next.js ===
 /.next/

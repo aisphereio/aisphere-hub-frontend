@@ -176,6 +176,7 @@ export type AgentSkillRef = {
   version?: string;
   label?: string;
   required?: boolean;
+  source?: string;
 };
 
 export type AgentSkillSetRef = {

@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit --pretty false",
+    "e2e": "python e2e/agent_lifecycle.py",
     "contract:check": "node scripts/verify-contract-lock.mjs",
     "contract:sync": "node scripts/sync-contract.mjs",
     "api:generate": "orval --config orval.config.ts",

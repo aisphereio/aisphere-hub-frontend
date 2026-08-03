@@ -9,4 +9,5 @@ metadata:
 data:
   NEXT_PUBLIC_HUB_URL: ""
   NEXT_PUBLIC_AUTH_MODE: "gateway_oidc"
+  AGENT_RUNTIME_URL: "http://agentkit-runtime.agent-runtime.svc.cluster.local:8080"
   NODE_ENV: "production"

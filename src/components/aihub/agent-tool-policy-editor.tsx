@@ -70,7 +70,7 @@ function ToolBindingRow({
             onUpdate({ name, version: entry?.latestVersion || '' });
           }}
         >
-          <SelectTrigger size="sm" className="w-full">
+          <SelectTrigger data-testid={`agent-tool-name-${tool.name || 'empty'}`} size="sm" className="w-full">
             <SelectValue placeholder="Select a Tool from the catalog" />
           </SelectTrigger>
           <SelectContent>
@@ -316,6 +316,7 @@ export function AgentToolPolicyEditor({
             </p>
           </div>
           <Button
+            data-testid="add-agent-tool"
             type="button"
             variant="outline"
             size="sm"

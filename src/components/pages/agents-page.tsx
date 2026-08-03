@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Bot, FileCode2, PlayCircle, Plus, RefreshCw, Save, Share2, ShieldCheck, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AgentToolPolicyEditor } from '@/components/aihub/agent-tool-policy-editor';
+import { AgentSkillPromptEditor } from '@/components/aihub/agent-skill-prompt-editor';
+import { AgentPlayground } from '@/components/aihub/agent-playground';
 import { ResourceSharePanel } from '@/components/aihub/resource-share-panel';
 import { ConfirmDialog, EmptyState, ListSkeleton, StatCard } from '@/components/shared';
 import { Badge } from '@/components/ui/badge';
@@ -38,10 +40,7 @@ const DEFAULT_DEFINITION = {
   services: [],
   skills: [],
   skillSets: [],
-  tools: [
-    { name: 'workspace.read', required: true, approvalMode: 'always' },
-    { name: 'skill.publish', required: false, approvalMode: 'per_run' },
-  ],
+  tools: [],
 } as AgentDefinition;
 
 function pretty(value: unknown): string {
@@ -91,25 +90,26 @@ function AgentCreateDialog({ onCreated }: { onCreated: (id: string) => void }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="bg-gradient-to-r from-violet-600 to-fuchsia-500">
+        <Button data-testid="new-agent" size="sm" className="bg-gradient-to-r from-violet-600 to-fuchsia-500">
           <Plus className="mr-1 h-3.5 w-3.5" /> New Agent
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
         <DialogHeader><DialogTitle>Create Agent</DialogTitle></DialogHeader>
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="space-y-1.5"><Label className="text-xs">Agent ID</Label><Input value={id} onChange={(e) => setId(e.target.value)} /></div>
-          <div className="space-y-1.5"><Label className="text-xs">Display Name</Label><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} /></div>
-          <div className="space-y-1.5 md:col-span-2"><Label className="text-xs">Description</Label><Input value={description} onChange={(e) => setDescription(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label className="text-xs">Agent ID</Label><Input data-testid="agent-id" value={id} onChange={(e) => setId(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label className="text-xs">Display Name</Label><Input data-testid="agent-display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} /></div>
+          <div className="space-y-1.5 md:col-span-2"><Label className="text-xs">Description</Label><Input data-testid="agent-description" value={description} onChange={(e) => setDescription(e.target.value)} /></div>
         </div>
         <AgentToolPolicyEditor value={definitionText} onChange={setDefinitionText} />
+        <AgentSkillPromptEditor value={definitionText} onChange={setDefinitionText} />
         <div className="space-y-1.5">
           <Label className="text-xs">Definition JSON</Label>
           <Textarea className="min-h-[300px] font-mono text-xs" value={definitionText} onChange={(e) => setDefinitionText(e.target.value)} />
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={submit} disabled={save.isPending}><Save className="mr-1 h-3.5 w-3.5" /> Create</Button>
+          <Button data-testid="create-agent-submit" onClick={submit} disabled={save.isPending}><Save className="mr-1 h-3.5 w-3.5" /> Create</Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -311,7 +311,7 @@ export function AgentsPage() {
               <EmptyState icon={<Bot className="h-10 w-10" />} title="Select an agent" description="Choose an Agent to edit its versioned definition and Tool consent policy." />
             ) : (
               <Tabs defaultValue="definition" className="space-y-4">
-                <TabsList><TabsTrigger value="definition">Definition</TabsTrigger><TabsTrigger value="runtime">Runtime</TabsTrigger><TabsTrigger value="shares">Shares</TabsTrigger></TabsList>
+                <TabsList><TabsTrigger value="definition">Definition</TabsTrigger><TabsTrigger value="runtime">Playground</TabsTrigger><TabsTrigger value="shares">Shares</TabsTrigger></TabsList>
                 <TabsContent value="definition" className="space-y-3">
                   <div className="grid gap-3 text-xs md:grid-cols-4">
                     <div><Label className="text-muted-foreground">Latest</Label><div className="mt-1 font-medium">{agent.latestVersion || '-'}</div></div>
@@ -325,15 +325,17 @@ export function AgentsPage() {
                     <div className="space-y-1.5"><Label className="text-xs">Commit Message</Label><Input value={commitMsg} onChange={(e) => setCommitMsg(e.target.value)} /></div>
                   </div>
                   <AgentToolPolicyEditor value={definitionText} onChange={setDefinitionText} />
+                  <AgentSkillPromptEditor value={definitionText} onChange={setDefinitionText} />
                   <div className="space-y-1.5">
                     <Label className="text-xs">Definition JSON</Label>
                     <Textarea className="min-h-[380px] font-mono text-xs" value={definitionText} onChange={(e) => setDefinitionText(e.target.value)} />
                   </div>
-                  <div className="flex justify-end"><Button onClick={saveUpdate} disabled={update.isPending}><Save className="mr-1 h-3.5 w-3.5" /> Save new version</Button></div>
+                  <div className="flex justify-end"><Button data-testid="save-agent-version" onClick={saveUpdate} disabled={update.isPending}><Save className="mr-1 h-3.5 w-3.5" /> Save new version</Button></div>
                 </TabsContent>
                 <TabsContent value="runtime" className="space-y-3">
                   <p className="text-xs text-muted-foreground">The snapshot contains only approved Tool versions and marks authorization as principal passthrough with IAM enforcement at the resource service.</p>
                   <Textarea readOnly className="min-h-[420px] font-mono text-xs" value={resolve.data ? pretty(resolve.data) : (planRun.data ? pretty(planRun.data) : 'Click Plan & Run to preview consent and resolve the Runtime snapshot.')} />
+                  <AgentPlayground agentId={agent.id} />
                 </TabsContent>
                 <TabsContent value="shares">
                   <ResourceSharePanel resourceType="agent" resourceId={agent.id} object={`agent:${agent.id}`} owner={agent.ownerSubject} />
