@@ -62,6 +62,11 @@ def run() -> None:
             page.get_by_test_id("create-agent-submit").click()
             expect(page.get_by_text(agent_id, exact=True).first).to_be_visible(timeout=30_000)
 
+            page.get_by_role("button", name=re.compile("Plan & Run", re.IGNORECASE)).click()
+            approve = page.get_by_role("button", name=re.compile("Approve and resolve", re.IGNORECASE))
+            if approve.count() > 0:
+                approve.click()
+            expect(page.get_by_test_id("runtime-how-to")).to_be_visible(timeout=30_000)
             page.get_by_text("Playground", exact=True).click()
             page.get_by_test_id("new-agent-session").click()
             expect(page.get_by_test_id("agent-playground")).to_be_visible()

@@ -144,6 +144,7 @@ export function AgentsPage() {
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [pendingPlan, setPendingPlan] = useState<AgentRunPlan | null>(null);
   const [approvedTools, setApprovedTools] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState('definition');
 
   const { data: agents = [], isLoading, error, refetch } = useAgents({ q: search || undefined, pageSize: 80 });
   const filtered = useMemo(
@@ -203,7 +204,8 @@ export function AgentsPage() {
         approvedTools: tools,
       },
     });
-    toast.success(`Snapshot ${out.snapshotId} resolved with ${out.tools?.length || 0} Tools`);
+    setActiveTab('runtime');
+    toast.success(`Snapshot ${out.snapshotId} ready. Open a Session below and send a message.`);
   };
 
   const runAgent = async () => {
@@ -249,7 +251,7 @@ export function AgentsPage() {
   const perRunTools = pendingPlan?.tools.filter((tool) => tool.approvalMode === 'per_run') || [];
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
+    <div className="h-full overflow-y-auto space-y-4 p-4 md:p-6">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard icon={<Bot className="h-4 w-4" />} label="Agents" value={agents.length} />
         <StatCard icon={<FileCode2 className="h-4 w-4" />} label="Versioned" value={agents.filter((a) => a.latestVersion).length} />
@@ -310,7 +312,7 @@ export function AgentsPage() {
             {!agent ? (
               <EmptyState icon={<Bot className="h-10 w-10" />} title="Select an agent" description="Choose an Agent to edit its versioned definition and Tool consent policy." />
             ) : (
-              <Tabs defaultValue="definition" className="space-y-4">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
                 <TabsList><TabsTrigger value="definition">Definition</TabsTrigger><TabsTrigger value="runtime">Playground</TabsTrigger><TabsTrigger value="shares">Shares</TabsTrigger></TabsList>
                 <TabsContent value="definition" className="space-y-3">
                   <div className="grid gap-3 text-xs md:grid-cols-4">
@@ -333,8 +335,19 @@ export function AgentsPage() {
                   <div className="flex justify-end"><Button data-testid="save-agent-version" onClick={saveUpdate} disabled={update.isPending}><Save className="mr-1 h-3.5 w-3.5" /> Save new version</Button></div>
                 </TabsContent>
                 <TabsContent value="runtime" className="space-y-3">
-                  <p className="text-xs text-muted-foreground">The snapshot contains only approved Tool versions and marks authorization as principal passthrough with IAM enforcement at the resource service.</p>
-                  <Textarea readOnly className="min-h-[420px] font-mono text-xs" value={resolve.data ? pretty(resolve.data) : (planRun.data ? pretty(planRun.data) : 'Click Plan & Run to preview consent and resolve the Runtime snapshot.')} />
+                  <div data-testid="runtime-how-to" className="rounded-md border border-violet-500/30 bg-violet-500/5 p-3 text-xs">
+                    <div className="font-medium">How to use this Agent</div>
+                    <p className="mt-1 text-muted-foreground">Plan &amp; Run only prepares the approved Runtime snapshot. The actual conversation happens in the Playground below.</p>
+                    <ol className="mt-2 list-decimal space-y-1 pl-4 text-muted-foreground">
+                      <li>Create or select a Session on the left.</li>
+                      <li>Enter a message in the center input.</li>
+                      <li>Click Send and inspect the Agent response and Tool events.</li>
+                    </ol>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Resolved Runtime snapshot</Label>
+                    <Textarea data-testid="runtime-snapshot" readOnly className="min-h-[180px] max-h-[280px] overflow-y-auto font-mono text-xs" value={resolve.data ? pretty(resolve.data) : (planRun.data ? pretty(planRun.data) : 'Click Plan & Run to preview consent and resolve the Runtime snapshot.')} />
+                  </div>
                   <AgentWorkspace agentId={agent.id} agentVersion={agent.latestVersion} />
                 </TabsContent>
                 <TabsContent value="shares">

@@ -61,7 +61,7 @@ export function AgentPlayground({ agentId, agentVersion, sessionId, onSessionRea
       <CardHeader className="py-3"><CardTitle className="text-sm">Agent Playground</CardTitle></CardHeader>
       <CardContent className="space-y-3">
         <p data-testid="playground-status" className="text-xs text-muted-foreground">Session: {sessionId} · Runtime 会按当前 Agent 版本创建沙箱并加载 Skill/Tool。</p>
-        <div className="min-h-[220px] space-y-2 rounded-md border bg-muted/20 p-3" data-testid="playground-messages">
+        <div className="max-h-[420px] min-h-[220px] space-y-2 overflow-y-auto rounded-md border bg-muted/20 p-3" data-testid="playground-messages">
           {messages.length === 0 ? <p className="text-xs text-muted-foreground">发送第一条消息，验证 Prompt、Skill、Tool 和 Runtime 的联动。</p> : messages.map((message, index) => (
             <div key={`${message.role}-${index}`} data-testid="playground-message" className={`rounded-md p-2 text-sm ${message.role === 'user' ? 'ml-8 bg-violet-500/10' : 'mr-8 bg-background'}`}>
               <div className="mb-1 text-[10px] uppercase text-muted-foreground">{message.role}</div>
