@@ -7,7 +7,7 @@ import re
 import time
 from pathlib import Path
 
-from playwright.sync_api import Page, expect, sync_playwright
+from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError, expect, sync_playwright
 
 
 BASE_URL = os.getenv("E2E_BASE_URL", "https://hub.weagent.cc:30723")
@@ -34,7 +34,7 @@ def choose_tool(page: Page) -> str:
 def run() -> None:
     stamp = time.strftime("%Y%m%d%H%M%S")
     agent_id = f"e2e-agent-{stamp}"
-    prompt = "你是 E2E 验证助手。先理解用户意图，再使用已授权工具完成工作，并清楚说明结果。"
+    prompt = "You are an E2E verification assistant. Understand the request, use the configured tool, and clearly report the result."
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
@@ -70,8 +70,14 @@ def run() -> None:
             page.get_by_text("Playground", exact=True).click()
             page.get_by_test_id("new-agent-session").click()
             expect(page.get_by_test_id("agent-playground")).to_be_visible()
-            page.get_by_test_id("playground-input").fill("请确认你已加载 E2E Skill，并调用工具完成一次验证。")
+            page.get_by_test_id("playground-input").fill("Confirm the E2E Skill is loaded and invoke the configured tool once.")
             page.get_by_test_id("playground-send").click()
+            playground_approval = page.get_by_test_id("playground-approval")
+            try:
+                playground_approval.wait_for(state="visible", timeout=10_000)
+                page.get_by_test_id("playground-approve").click()
+            except PlaywrightTimeoutError:
+                pass
             expect(page.get_by_test_id("playground-message").nth(1)).to_be_visible(timeout=120_000)
 
             messages = page.get_by_test_id("playground-message")

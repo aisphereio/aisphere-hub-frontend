@@ -52,13 +52,24 @@ export const agentRuntimeApi = {
     runtimeRequest<RuntimeSession>(`/apps/${encodeURIComponent(appName)}/users/${encodeURIComponent(userId)}/sessions/${encodeURIComponent(sessionId)}`, { method: 'GET' }),
   deleteSession: (appName: string, userId: string, sessionId: string) =>
     runtimeRequest<void>(`/apps/${encodeURIComponent(appName)}/users/${encodeURIComponent(userId)}/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),
-  run: (input: { appName: string; userId: string; sessionId: string; text: string }) =>
+  run: (input: {
+    appName: string;
+    userId: string;
+    sessionId: string;
+    text: string;
+    version?: string;
+    approvalConfirmed?: boolean;
+    approvedTools?: string[];
+  }) =>
     runtimeRequest<RuntimeEvent[]>('/run', {
       method: 'POST',
       body: JSON.stringify({
         appName: input.appName,
         userId: input.userId,
         sessionId: input.sessionId,
+        version: input.version,
+        approvalConfirmed: input.approvalConfirmed,
+        approvedTools: input.approvedTools,
         newMessage: { role: 'user', parts: [{ text: input.text }] },
       }),
   }),

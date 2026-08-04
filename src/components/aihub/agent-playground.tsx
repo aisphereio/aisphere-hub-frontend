@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Loader2, Send } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAgentResolve } from '@/hooks/use-agents';
+import { useAgentRunPlan } from '@/hooks/use-agents';
 import { useMe } from '@/hooks/use-auth';
 import { agentRuntimeApi, createRuntimeSessionWithRetry, type RuntimeEvent } from '@/lib/api/runtime';
 import { Button } from '@/components/ui/button';
@@ -25,28 +25,66 @@ function eventText(event: RuntimeEvent): string {
 
 export function AgentPlayground({ agentId, agentVersion, sessionId, onSessionReady }: { agentId: string; agentVersion?: string; sessionId: string; onSessionReady?: () => void }) {
   const { data: principal } = useMe();
-  const resolve = useAgentResolve();
+  const planRun = useAgentRunPlan();
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [busy, setBusy] = useState(false);
+  const [pendingText, setPendingText] = useState('');
+  const [pendingTools, setPendingTools] = useState<string[]>([]);
   const userId = String(principal?.subjectId || principal?.sub || 'admin');
+
+  const execute = async (text: string, approvedTools: string[]) => {
+    await createRuntimeSessionWithRetry(agentId, userId, sessionId, { agent_version: agentVersion || null, session_source: 'hub-ui' });
+    onSessionReady?.();
+    const events = await agentRuntimeApi.run({
+      appName: agentId,
+      userId,
+      sessionId,
+      text,
+      version: agentVersion,
+      approvalConfirmed: true,
+      approvedTools,
+    });
+    const assistant = events.map(eventText).filter(Boolean).join('\n');
+    setMessages((current) => [...current, { role: 'assistant', text: assistant || 'Agent completed without a text response.' }]);
+  };
 
   const send = async () => {
     const text = input.trim();
-    if (!text || busy) return;
+    if (!text || busy || pendingText) return;
     setBusy(true);
     setInput('');
     setMessages((current) => [...current, { role: 'user', text }]);
     try {
-      await resolve.mutateAsync({
+      const plan = await planRun.mutateAsync({
         agentId,
-        request: { runtimeId: 'agentkit-console', sessionId, version: agentVersion, approvalConfirmed: true },
+        request: { runtimeId: 'agentkit-console', sessionId, version: agentVersion },
       });
-      await createRuntimeSessionWithRetry(agentId, userId, sessionId, { agent_version: agentVersion || null, session_source: 'hub-ui' });
-      onSessionReady?.();
-      const events = await agentRuntimeApi.run({ appName: agentId, userId, sessionId, text });
-      const assistant = events.map(eventText).filter(Boolean).join('\n');
-      setMessages((current) => [...current, { role: 'assistant', text: assistant || 'Agent completed without a text response.' }]);
+      const perRunTools = plan.tools.filter((tool) => tool.approvalMode === 'per_run').map((tool) => tool.tool);
+      if (perRunTools.length > 0) {
+        setPendingText(text);
+        setPendingTools(perRunTools);
+        return;
+      }
+      await execute(text, []);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Agent run failed';
+      setMessages((current) => [...current, { role: 'tool', text: message }]);
+      toast.error(message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const approveAndRun = async () => {
+    if (!pendingText || busy) return;
+    setBusy(true);
+    try {
+      const text = pendingText;
+      const tools = pendingTools;
+      setPendingText('');
+      setPendingTools([]);
+      await execute(text, tools);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Agent run failed';
       setMessages((current) => [...current, { role: 'tool', text: message }]);
@@ -69,6 +107,13 @@ export function AgentPlayground({ agentId, agentVersion, sessionId, onSessionRea
             </div>
           ))}
         </div>
+        {pendingText && pendingTools.length > 0 && (
+          <div className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm" data-testid="playground-approval">
+            <div className="font-medium">This run requests tool approval</div>
+            <div className="text-xs text-muted-foreground">{pendingTools.join(', ')}</div>
+            <Button onClick={() => void approveAndRun()} disabled={busy} data-testid="playground-approve">允许工具并运行</Button>
+          </div>
+        )}
         <div className="flex items-end gap-2">
           <Textarea data-testid="playground-input" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } }} placeholder="给 Agent 发一条消息……" className="min-h-[80px]" />
           <Button data-testid="playground-send" onClick={() => void send()} disabled={busy || !input.trim()}>

@@ -10,6 +10,7 @@ This suite verifies the user-facing Agent lifecycle:
 6. Save the Agent version.
 7. Open the Agent Playground.
 8. Create a Runtime session, send a message, and assert an assistant response.
+9. If the selected Tool uses `per_run` approval, approve it in the Playground and assert the run continues.
 
 The test uses a logged-in browser state because the test environment is protected by Casdoor OIDC. Create a Playwright storage state once, then point `E2E_STORAGE_STATE` at it. Never commit that file.
 
