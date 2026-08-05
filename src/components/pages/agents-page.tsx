@@ -66,6 +66,8 @@ function AgentCreateDialog({ onCreated }: { onCreated: (id: string) => void }) {
   const [id, setId] = useState('demo-agent');
   const [displayName, setDisplayName] = useState('Demo Agent');
   const [description, setDescription] = useState('Hub-managed Agent with human Tool consent');
+  const [scope, setScope] = useState('private');
+  const [projectId, setProjectId] = useState('');
   const [definitionText, setDefinitionText] = useState(pretty(DEFAULT_DEFINITION));
 
   const submit = async () => {
@@ -75,6 +77,8 @@ function AgentCreateDialog({ onCreated }: { onCreated: (id: string) => void }) {
         displayName: displayName.trim(),
         description: description.trim(),
         status: 'active',
+        scope,
+        projectId: projectId.trim() || undefined,
         definition: parseDefinition(definitionText),
       };
       const out = await save.mutateAsync(body);
@@ -100,6 +104,8 @@ function AgentCreateDialog({ onCreated }: { onCreated: (id: string) => void }) {
           <div className="space-y-1.5"><Label className="text-xs">Agent ID</Label><Input data-testid="agent-id" value={id} onChange={(e) => setId(e.target.value)} /></div>
           <div className="space-y-1.5"><Label className="text-xs">Display Name</Label><Input data-testid="agent-display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} /></div>
           <div className="space-y-1.5 md:col-span-2"><Label className="text-xs">Description</Label><Input data-testid="agent-description" value={description} onChange={(e) => setDescription(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label className="text-xs">Access scope</Label><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={scope} onChange={(e) => setScope(e.target.value)}><option value="private">Private — creator and explicit grants</option><option value="project">Project — project permissions</option><option value="public">Public — authenticated users can launch</option></select></div>
+          <div className="space-y-1.5"><Label className="text-xs">Project ID (optional)</Label><Input value={projectId} onChange={(e) => setProjectId(e.target.value)} placeholder="Project resource ID" /></div>
         </div>
         <AgentToolPolicyEditor value={definitionText} onChange={setDefinitionText} />
         <AgentSkillPromptEditor value={definitionText} onChange={setDefinitionText} />
@@ -128,6 +134,7 @@ function AgentListCard({ item, active, onClick }: { item: AgentListItem; active:
           </div>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.id}</p>
           {item.description && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.description}</p>}
+          <div className="mt-2 flex items-center gap-2"><Badge variant="outline" className="text-[10px]">{item.scope || 'private'}</Badge>{item.projectId && <span className="truncate text-[10px] text-muted-foreground">project: {item.projectId}</span>}</div>
         </div>
       </div>
     </button>
@@ -179,6 +186,7 @@ export function AgentsPage() {
           description: agent.description,
           status: agent.status || 'active',
           scope: agent.scope,
+          projectId: agent.projectId,
           labels: agent.labels,
           version: version.trim() || undefined,
           commitMsg,

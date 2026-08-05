@@ -10,6 +10,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path?: s
     'content-type',
     'cookie',
     'authorization',
+    'x-aisphere-principal-jwt',
     'x-aisphere-user',
     'x-aisphere-org',
     'x-aisphere-project',
