@@ -435,6 +435,7 @@ export type Agent = {
   description?: string;
   status?: string;
   scope?: string;
+  projectId?: string;
   labels?: Record<string, string>;
   object?: string;
   latestVersion?: string;
@@ -450,6 +451,7 @@ export type AgentListItem = {
   description?: string;
   status?: string;
   scope?: string;
+  projectId?: string;
   latestVersion?: string;
   object?: string;
   updateTime?: number;
@@ -462,6 +464,7 @@ export type AgentUpsertRequest = {
   description?: string;
   status?: string;
   scope?: string;
+  projectId?: string;
   labels?: Record<string, string>;
   version?: string;
   commitMsg?: string;
