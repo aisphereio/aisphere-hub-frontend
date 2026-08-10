@@ -97,13 +97,13 @@ export function AgentSkillPromptEditor({
     <div className="space-y-4 rounded-lg border bg-muted/20 p-4" data-testid="agent-config-builder">
       <div>
         <Label className="text-xs">Skills</Label>
-        <p className="mt-1 text-xs text-muted-foreground">选择的 Skill 会固定到 Agent 版本，并在 Runtime 启动时挂载到上下文。当前可运行闭环开放 builtin Skill；Catalog Skill 等下载契约接通后再启用。</p>
+        <p className="mt-1 text-xs text-muted-foreground">选择的 Skill 会固定到 Agent 版本；runtime 挂载前会按目录授权校验（只读可见的 Catalog Skill 才能绑定）。</p>
         <div className="mt-2 grid gap-2 md:grid-cols-2">
           {isLoading ? <p className="text-xs text-muted-foreground">Loading Skills…</p> : options.map((option) => {
             const checked = selected.some((item) => item.name === option.name);
             return (
-              <label key={`${option.name}@${option.version}`} className={`flex items-start gap-2 rounded-md border bg-background p-2 ${option.source === 'builtin' ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`} data-testid={`skill-option-${option.name}`}>
-                <Checkbox disabled={option.source !== 'builtin'} checked={checked} onCheckedChange={(next) => toggleSkill(option, next === true)} />
+              <label key={`${option.name}@${option.version}`} className="flex cursor-pointer items-start gap-2 rounded-md border bg-background p-2" data-testid={`skill-option-${option.name}`}>
+                <Checkbox checked={checked} onCheckedChange={(next) => toggleSkill(option, next === true)} />
                 <span className="min-w-0 text-xs">
                   <span className="block font-medium">{option.name}</span>
                   <span className="block font-mono text-[10px] text-muted-foreground">{option.version} · {option.source}</span>
