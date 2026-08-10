@@ -465,13 +465,15 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
     return [{ value: defaultBranch, label: `${defaultBranch}（草稿）` }, ...tags];
   }, [refs.data, defaultBranch]);
 
-  const switchRevision = (next: string) => {
+const switchRevision = (next: string) => {
     if (next === revision) return;
     setRevision(next);
-    // Fresh view per revision: root tree, close all open editors.
-    setCurrentPath("");
+    // Reset the view completely: root tree, no open editors, and re-enable
+    // the auto-open effect so SKILL.md opens automatically in the new view.
     setTabs([]);
     setActivePath(null);
+    setCurrentPath("");
+    autoOpenedRef.current = false;
   };
 
   // Open tabs: one entry per file the user has opened. We keep both
