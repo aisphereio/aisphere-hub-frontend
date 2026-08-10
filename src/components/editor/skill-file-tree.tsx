@@ -42,6 +42,9 @@ export type SkillFileTreeProps = {
   onCreateFile: () => void;
   /** Called after the user confirms deletion in the dialog. */
   onDeleteFile?: (path: string, sha: string) => void;
+  /** Branch locked read-only (e.g. viewing an immutable release tag):
+      hides the new-file button and disables delete. */
+  readOnly?: boolean;
 };
 
 function parentPath(p: string): string {
@@ -73,6 +76,7 @@ export function SkillFileTree({
   onSelectFile,
   onCreateFile,
   onDeleteFile,
+  readOnly = false,
 }: SkillFileTreeProps) {
   const t = useT();
   const segments = breadcrumbSegments(path);
@@ -98,6 +102,7 @@ export function SkillFileTree({
           variant="ghost"
           className="h-7 gap-1 px-2 text-xs"
           onClick={onCreateFile}
+          disabled={readOnly}
           title={t("editor.newFile")}
         >
           <FilePlus2 className="h-3.5 w-3.5" />
@@ -152,7 +157,7 @@ export function SkillFileTree({
             const isDir = entry.type === "dir";
             const selected = entry.path === selectedPath;
             const isDeleting = entry.path === deletingPath;
-            const canDelete = !isDir && onDeleteFile && !isDeleting;
+            const canDelete = !isDir && onDeleteFile && !isDeleting && !readOnly;
             return (
               <div
                 key={entry.path}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { ArrowLeft, Loader2, Trash2, Star, Bell, X, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +46,7 @@ import {
   useSaveFile,
   useDeleteFile,
 } from "@/hooks/use-skill-files";
+import { useSkillRefs } from "@/hooks/use-skill-releases";
 import { useResourceShares } from "@/hooks/use-shares";
 import { getScopeColor, getStatusColor, fmtTime } from "@/lib/utils";
 import { ConfirmDialog, InfoItem } from "@/components/shared";
@@ -444,6 +452,28 @@ type SkillFileEditorPaneProps = {
 function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPaneProps) {
   const t = useT();
   const [currentPath, setCurrentPath] = useState("");
+  // Revision being viewed: the default (editable) branch by default, or an
+  // immutable release tag selected from the view switcher. Tags render
+  // the whole pane (tree + editor) read-only in place — no popup.
+  const refs = useSkillRefs(skillName);
+  const [revision, setRevision] = useState<string>(defaultBranch);
+  const isDraftView = revision === defaultBranch;
+  const revisionOptions = useMemo(() => {
+    const tags = (refs.data ?? [])
+      .filter((ref) => ref.type === "tag")
+      .map((ref) => ({ value: ref.fullRef, label: ref.name }));
+    return [{ value: defaultBranch, label: `${defaultBranch}（草稿）` }, ...tags];
+  }, [refs.data, defaultBranch]);
+
+  const switchRevision = (next: string) => {
+    if (next === revision) return;
+    setRevision(next);
+    // Fresh view per revision: root tree, close all open editors.
+    setCurrentPath("");
+    setTabs([]);
+    setActivePath(null);
+  };
+
   // Open tabs: one entry per file the user has opened. We keep both
   // real files and in-progress new-file drafts here so each tab owns
   // its own editor instance + dirty/sha state. `create` flips to false
@@ -486,7 +516,7 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
     setActivePath(path);
   }, []);
 
-  const tree = useFileTree(skillName, currentPath, defaultBranch);
+  const tree = useFileTree(skillName, currentPath, revision);
   const deleteMutation = useDeleteFile();
 
   // Auto-open SKILL.md on first load so the editor shows content instead of
@@ -512,7 +542,7 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
   // (see useDeleteFile.onSuccess) and we close any open tab for it.
   const handleDeleteFile = (path: string, sha: string) => {
     deleteMutation.mutate(
-      { skillName, path, sha, branch: defaultBranch },
+      { skillName, path, sha, branch: revision },
       {
         onSuccess: () => {
           // The delete itself was already confirmed and the file is gone
@@ -614,7 +644,30 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
   }, [hasDirtyTabs]);
 
   return (
-    <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
+    <>
+      {/* Revision switcher: default branch (draft) or any released tag.
+          Switching views reuses the exact same tree + editor below. */}
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b bg-muted/20 px-2">
+        <Select value={revision} onValueChange={switchRevision}>
+          <SelectTrigger className="h-7 w-[240px] font-mono text-xs">
+            <SelectValue placeholder="选择查看版本" />
+          </SelectTrigger>
+          <SelectContent>
+            {revisionOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {!isDraftView && (
+          <Badge variant="outline" className="text-[10px]">只读版本</Badge>
+        )}
+        <span className="text-[10px] text-muted-foreground">
+          {isDraftView ? "可编辑草稿" : "不可变版本，仅供查看"}
+        </span>
+      </div>
+      <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
       <ResizablePanel defaultSize={22} minSize={15} maxSize={45}>
         <SkillFileTree
           skillName={skillName}
@@ -623,12 +676,13 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
           isLoading={tree.isLoading}
           selectedPath={activePath ?? undefined}
           deletingPath={deleteMutation.isPending ? deleteMutation.variables?.path ?? null : null}
+          readOnly={!isDraftView}
           onNavigate={(p) => {
             setCurrentPath(p);
           }}
           onSelectFile={(p) => openTab(p, false)}
           onCreateFile={startCreate}
-          onDeleteFile={handleDeleteFile}
+          onDeleteFile={isDraftView ? handleDeleteFile : undefined}
         />
       </ResizablePanel>
       <ResizableHandle withHandle />
@@ -707,8 +761,9 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
                   <EditorTab
                     skillName={skillName}
                     filePath={tab.path}
-                    branch={defaultBranch}
+                    branch={revision}
                     create={tab.create}
+                    readOnly={!isDraftView}
                     active={tab.path === activePath}
                     onSaved={() => markSaved(tab.path)}
                     onDirtyChange={(dirty) => markTabDirty(tab.path, dirty)}
@@ -748,6 +803,7 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
         }}
       />
     </ResizablePanelGroup>
+    </>
   );
 }
 
@@ -830,6 +886,7 @@ type EditorTabProps = {
   branch: string;
   create: boolean;
   active: boolean;
+  readOnly?: boolean;
   onSaved: () => void;
   onDirtyChange: (dirty: boolean) => void;
 };
@@ -839,6 +896,8 @@ function EditorTab({
   filePath,
   branch,
   create,
+  active,
+  readOnly = false,
   onSaved,
   onDirtyChange,
 }: EditorTabProps) {
@@ -864,7 +923,7 @@ function EditorTab({
       initialContent={editorInitial}
       sha={editorSha}
       create={create}
-      readOnly={saveMutation.isPending}
+      readOnly={readOnly || saveMutation.isPending}
       onSaved={(_sha, _content) => onSaved()}
       onConflict={handleConflict}
       onDirtyChange={onDirtyChange}

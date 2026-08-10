@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react';
 import {
   CheckCircle2,
-  Eye,
   FileDiff,
   History,
   Loader2,
@@ -42,8 +41,6 @@ import { HubApiError } from '@/lib/api/hub-fetch';
 import { buildSkillReleaseViews } from '@/lib/skill-versions';
 import { fmtTime } from '@/lib/utils';
 
-import { SkillVersionBrowserDialog } from './skill-version-browser-dialog';
-
 type SkillReleasesPanelProps = {
   skillName: string;
 };
@@ -74,7 +71,6 @@ export function SkillReleasesPanel({ skillName }: SkillReleasesPanelProps) {
   const [releaseNotes, setReleaseNotes] = useState('');
   const [compareBaseRef, setCompareBaseRef] = useState('');
   const [restoreCommit, setRestoreCommit] = useState<SkillCommit | null>(null);
-  const [browserTag, setBrowserTag] = useState<string | null>(null);
 
   const versionViews = useMemo(
     () => buildSkillReleaseViews<SkillRelease>(releases.data ?? []),
@@ -261,14 +257,9 @@ export function SkillReleasesPanel({ skillName }: SkillReleasesPanelProps) {
                         {release.publisherName || release.publisherId || '未知发布人'} · {releaseTime(release)}
                       </div>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 shrink-0 px-2 text-[10px]"
-                      onClick={() => setBrowserTag(view.tag)}
-                    >
-                      <Eye className="mr-1 h-3.5 w-3.5" /> 浏览版本
-                    </Button>
+                    <Badge variant="outline" className="h-7 shrink-0 px-2 text-[10px]">
+                      在编辑器顶部切换版本查看
+                    </Badge>
                   </div>
 
                   {release.releaseNotes && (
@@ -423,17 +414,6 @@ export function SkillReleasesPanel({ skillName }: SkillReleasesPanelProps) {
         confirmLabel="确认恢复"
         onConfirm={restore}
       />
-
-      {browserTag && (
-        <SkillVersionBrowserDialog
-          key={browserTag}
-          skillName={skillName}
-          releases={releases.data ?? []}
-          initialTag={browserTag}
-          open
-          onOpenChange={(open) => { if (!open) setBrowserTag(null); }}
-        />
-      )}
     </div>
   );
 }
