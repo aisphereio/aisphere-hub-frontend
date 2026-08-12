@@ -22,5 +22,11 @@ export interface V1Skill {
   projectId?: string;
   status?: string;
   updateTime?: string;
+  visibletoAnyUser?: boolean;
   visibility?: string;
+  /**
+     * Latest stable released version (canonical git tag, e.g. "v1.2.0").
+     * Empty when the skill has no published release.
+     */
+  latestVersion?: string;
 }
