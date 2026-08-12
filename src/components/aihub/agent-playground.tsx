@@ -63,7 +63,17 @@ export function AgentPlayground({ agentId, agentVersion, sessionId, onSessionRea
   };
 
   const execute = async (text: string, approvedTools: string[]) => {
-    await createRuntimeSessionWithRetry(agentId, userId, sessionId, { agent_version: agentVersion || null, session_source: 'hub-ui' });
+    try {
+      await createRuntimeSessionWithRetry(agentId, userId, sessionId, { agent_version: agentVersion || null, session_source: 'hub-ui' });
+    } catch (error) {
+      // Runtime 会话已存在是幂等复用，不是错误：直接继续 run（后端 run 自带 EnsureSession）。
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/already exists/i.test(message)) {
+        appendMessages((current) => [...current, { role: 'tool', parts: [{ kind: 'text', text: message }] }]);
+        toast.error(message);
+        return;
+      }
+    }
     onSessionReady?.();
     try {
       await runAgentStream(
