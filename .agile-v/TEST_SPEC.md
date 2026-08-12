@@ -50,13 +50,14 @@ Framework: vitest + @testing-library/react + happy-dom
 | TC-FE-024 | REQ-FE-AGENT-002 | Agent writes canonical SkillSet revision bindings | Valid set writes lower-case `skillsets`; unresolved set is disabled | component | 1. Mock resolved and unresolved SkillSets. 2. Verify unresolved checkbox is disabled. 3. Select resolved set. 4. Verify canonical field and revision. |
 | TC-FE-025 | REQ-FE-SKILL-008 | Skill lifecycle management keeps inactive assets recoverable | Management list requests inactive Skills and lifecycle actions send active/disabled/archived separately from delete | component | 1. Mock active/disabled/archived Skills. 2. Trigger each action. 3. Verify lifecycle mutation and delete confirmation. |
 | TC-FE-026 | REQ-FE-AGENT-002 | Inactive SkillSet members cannot enter new Agent revisions | SkillSet with archived member is disabled even when its hashes are complete | component | 1. Mock an archived pinned member. 2. Render Agent editor. 3. Verify the set checkbox is disabled. |
+| TC-FE-027 | REQ-FE-AGENT-002, REQ-FE-AGENT-003 | Missing Skill allowed-tools render as non-authorizing warnings | Warning lists missing Tools and states that no Tool was added or granted | component | 1. Render compatibility warning payload. 2. Verify missing Tool name. 3. Verify non-grant boundary text. |
 
 ## 3. Summary
 
 | Dimension | Count |
 |-----------|:-----:|
-| Total TCs | 26 |
-| Component tests | 26 |
+| Total TCs | 27 |
+| Component tests | 27 |
 | P0 priority | 23 |
-| **Implemented** | **14** (TC-FE-001~008, TC-FE-019~020, TC-FE-023~026) |
+| **Implemented** | **15** (TC-FE-001~008, TC-FE-019~020, TC-FE-023~027) |
 | **Pending** | **12** (TC-FE-009~018, TC-FE-021~022) |

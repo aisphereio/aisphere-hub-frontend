@@ -115,8 +115,8 @@ export function AgentSkillPromptEditor({
     if (checked && !isRunnableSkillSet(set)) return;
     const next = selectedSets.filter((item) => item.name !== set.name);
     if (checked) {
-      // revision pinned at save time. A newer SkillSet revision makes the
-      // saved Agent out of sync; resolve refuses with AGENT_SKILLSET_REVISION_MISMATCH.
+      // revision is pinned at save time and resolved from Hub's immutable
+      // SkillSet revision history, so later edits do not drift old Agents.
       next.push({ name: set.name, revision: set.revision ?? 0, required: true });
     }
     update(setSkillSets(definition, next));

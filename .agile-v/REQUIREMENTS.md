@@ -661,15 +661,15 @@ These requirements define the expected behavior of the Aisphere Hub Frontend (Sk
 ## REQ-FE-AGENT-002 — Agent Create
 - **Priority:** P1 | **Status:** `OBSERVED_IMPLEMENTED`
 - **API:** `POST /v3/aihub/agents` → `AgentUpsertRequest` → `AgentResponse`
-- **UI:** Dialog with agent configuration fields. Catalog Skill bindings require an exact published Release. SkillSet bindings persist the canonical lower-case `skillsets` field with an exact revision; unresolved sets stay disabled. Validation. Loading. Success toast.
-- **Verification:** 1) Form validates. 2) Catalog Skill selection writes an exact Release. 3) Valid SkillSet selection writes `skillsets[{ name, revision }]`. 4) Submit calls API. 5) Success refreshes list.
+- **UI:** Dialog with agent configuration fields. Catalog Skill bindings require an exact published Release. SkillSet bindings persist the canonical lower-case `skillsets` field with an exact revision; unresolved sets stay disabled. Save responses surface Skill `allowed-tools` compatibility warnings without adding or granting any Tool. Validation. Loading. Success toast.
+- **Verification:** 1) Form validates. 2) Catalog Skill selection writes an exact Release. 3) Valid SkillSet selection writes `skillsets[{ name, revision }]`. 4) Compatibility warnings list missing Tools and explicitly remain non-authorizing. 5) Submit calls API. 6) Success refreshes list.
 - **Done criteria:** Component test.
 
 ## REQ-FE-AGENT-003 — Agent Edit
 - **Priority:** P1 | **Status:** `OBSERVED_IMPLEMENTED`
 - **API:** `PUT /v3/aihub/agents/{id}` → `AgentUpsertRequest` → `AgentResponse`
-- **UI:** Edit button per row opens pre-filled dialog, including pinned Skill Release and SkillSet revision bindings. Save with loading. Success toast.
-- **Verification:** 1) Edit dialog pre-fills. 2) Release/SkillSet changes remain immutable references. 3) Submit calls API. 4) Success refreshes list.
+- **UI:** Edit button per row opens pre-filled dialog, including pinned Skill Release and SkillSet revision bindings. Save displays non-authorizing Skill/Tool compatibility warnings. Save with loading. Success toast.
+- **Verification:** 1) Edit dialog pre-fills. 2) Release/SkillSet changes remain immutable references. 3) Missing recommended Tools render as warnings only. 4) Submit calls API. 5) Success refreshes list.
 - **Done criteria:** Component test.
 
 ## REQ-FE-AGENT-004 — Agent Delete

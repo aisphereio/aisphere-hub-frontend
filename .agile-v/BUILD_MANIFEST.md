@@ -121,7 +121,7 @@
 | ART-0053 | REQ-FE-SKILLSET-005 | `src/components/pages/skillsets-page.tsx` | SkillSet delete |
 | ART-0054 | REQ-FE-SKILLSET-006 | `src/components/skillsets/skillset-member-list.tsx`, `src/lib/api/index.ts`, `src/lib/api/types.ts` | Runtime-consumable immutable lock snapshot |
 
-### Agents (6 REQs, 8 ART)
+### Agents (6 REQs, 9 ART)
 
 | ART | REQ | Path | Notes |
 |--------|-----|------|-------|
@@ -133,6 +133,7 @@
 | ART-0060 | REQ-FE-AGENT-006 | `src/components/pages/agents-page.tsx` | Agent status display |
 | ART-0115 | REQ-FE-AGENT-002 | `src/components/aihub/agent-skill-prompt-editor.tsx` | Exact Skill Release and canonical SkillSet revision binding |
 | ART-0116 | REQ-FE-AGENT-003 | `src/hooks/use-skillsets.ts`, `src/lib/api/types.ts` | SkillSet member projection and Agent definition contract |
+| ART-0117 | REQ-FE-AGENT-002, REQ-FE-AGENT-003 | `src/components/pages/agents-page.tsx`, `src/lib/api/types.ts` | Skill allowed-tools compatibility warnings; no Tool grant side effect |
 
 ### Tools (6)
 

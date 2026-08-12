@@ -479,6 +479,14 @@ export type AgentResponse = {
   agent: Agent;
   object?: string;
   latestVersion?: string;
+  warnings?: AgentCompatibilityWarning[];
+};
+
+export type AgentCompatibilityWarning = {
+  code: 'SKILL_TOOL_COMPATIBILITY_MISSING' | 'SKILL_TOOL_COMPATIBILITY_UNAVAILABLE' | string;
+  skill: string;
+  missingTools?: string[];
+  message: string;
 };
 
 export type AgentRuntimeSkillSnapshot = {

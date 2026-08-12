@@ -29,7 +29,7 @@ import {
   useAgents,
 } from '@/hooks/use-agents';
 import type { AgentRunPlan } from '@/lib/api/agents';
-import type { Agent, AgentDefinition, AgentListItem, AgentUpsertRequest } from '@/lib/api/types';
+import type { Agent, AgentCompatibilityWarning, AgentDefinition, AgentListItem, AgentUpsertRequest } from '@/lib/api/types';
 import { fmtTime } from '@/lib/utils';
 
 const DEFAULT_DEFINITION = {
@@ -60,6 +60,24 @@ function latestVersion(agent?: Agent) {
   return agent.latestVersion && agent.versions ? agent.versions[agent.latestVersion] : undefined;
 }
 
+export function CompatibilityWarnings({ warnings }: { warnings?: AgentCompatibilityWarning[] }) {
+  if (!warnings?.length) return null;
+  return (
+    <div data-testid="agent-compatibility-warnings" className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+      {warnings.map((warning, index) => (
+        <div key={`${warning.code}:${warning.skill}:${index}`} className="flex items-start gap-2 text-amber-900 dark:text-amber-200">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <div>
+            <p className="font-medium">{warning.message}</p>
+            {warning.missingTools?.length ? <p className="mt-0.5 font-mono text-[10px] opacity-80">Missing: {warning.missingTools.join(', ')}</p> : null}
+            <p className="mt-0.5 text-[10px] opacity-80">Warning only — AISphere did not add or grant any Tool.</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function AgentCreateDialog({ onCreated }: { onCreated: (id: string) => void }) {
   const save = useAgentSave();
   const [open, setOpen] = useState(false);
@@ -83,6 +101,7 @@ function AgentCreateDialog({ onCreated }: { onCreated: (id: string) => void }) {
       };
       const out = await save.mutateAsync(body);
       const agentId = out.agent?.id || body.id || '';
+      for (const warning of out.warnings || []) toast.warning(warning.message);
       toast.success(`Agent ${agentId} created`);
       setOpen(false);
       onCreated(agentId);
@@ -152,6 +171,7 @@ export function AgentsPage() {
   const [pendingPlan, setPendingPlan] = useState<AgentRunPlan | null>(null);
   const [approvedTools, setApprovedTools] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('definition');
+  const [compatibilityWarnings, setCompatibilityWarnings] = useState<AgentCompatibilityWarning[]>([]);
 
   const { data: agents = [], isLoading, error, refetch } = useAgents({ q: search || undefined, pageSize: 80 });
   const filtered = useMemo(
@@ -178,7 +198,7 @@ export function AgentsPage() {
   const saveUpdate = async () => {
     if (!agent) return;
     try {
-      await update.mutateAsync({
+      const out = await update.mutateAsync({
         agentId: agent.id,
         data: {
           id: agent.id,
@@ -193,6 +213,8 @@ export function AgentsPage() {
           definition: parseDefinition(definitionText),
         },
       });
+      setCompatibilityWarnings(out.warnings || []);
+      for (const warning of out.warnings || []) toast.warning(warning.message);
       toast.success(`Agent ${agent.id} updated`);
       refetch();
       refetchDetail();
@@ -336,6 +358,7 @@ export function AgentsPage() {
                   </div>
                   <AgentToolPolicyEditor value={definitionText} onChange={setDefinitionText} />
                   <AgentSkillPromptEditor value={definitionText} onChange={setDefinitionText} />
+                  <CompatibilityWarnings warnings={compatibilityWarnings} />
                   <div className="space-y-1.5">
                     <Label className="text-xs">Definition JSON</Label>
                     <Textarea className="min-h-[380px] font-mono text-xs" value={definitionText} onChange={(e) => setDefinitionText(e.target.value)} />
