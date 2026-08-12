@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useSkills } from '@/hooks/use-skills';
-import type { AgentDefinition, AgentSkillRef } from '@/lib/api/types';
+import { useSkillSets, useSkillSetSkills } from '@/hooks/use-skillsets';
+import type { AgentDefinition, AgentSkillRef, AgentSkillSetRef, SkillSet } from '@/lib/api/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -58,6 +59,10 @@ function setSkills(definition: AgentDefinition, skills: AgentSkillRef[]): AgentD
   return { ...definition, skills: skills.length > 0 ? skills : [] };
 }
 
+function setSkillSets(definition: AgentDefinition, sets: AgentSkillSetRef[]): AgentDefinition {
+  return { ...definition, skillSets: sets.length > 0 ? sets : [] };
+}
+
 export function AgentSkillPromptEditor({
   value,
   onChange,
@@ -66,10 +71,12 @@ export function AgentSkillPromptEditor({
   onChange: (value: string) => void;
 }) {
   const { data: catalogSkills = [], isLoading } = useSkills({ pageSize: 100 });
+  const { data: skillSets = [], isLoading: setsLoading } = useSkillSets({ pageSize: 100 });
   const definition = useMemo(() => parseDefinition(value), [value]);
   const entryPoint = definition?.entryPoint || 'root_agent.yaml';
   const prompt = definition ? promptFromYaml(String(definition.files[entryPoint] || '')) : '';
   const selected = definition?.skills || [];
+  const selectedSets = definition?.skillSets || [];
 
   const options = useMemo(() => [
     ...BUILTIN_SKILLS,
@@ -92,9 +99,34 @@ export function AgentSkillPromptEditor({
     }
     update(setSkills(definition, next));
   };
+  const toggleSkillSet = (set: SkillSet, checked: boolean) => {
+    if (!definition) return;
+    const next = selectedSets.filter((item) => item.name !== set.name);
+    if (checked) {
+      // revision pinned at save time. A newer SkillSet revision makes the
+      // saved Agent out of sync; resolve refuses with AGENT_SKILLSET_REVISION_MISMATCH.
+      next.push({ name: set.name, revision: set.revision ?? 0, required: true });
+    }
+    update(setSkillSets(definition, next));
+  };
 
   return (
     <div className="space-y-4 rounded-lg border bg-muted/20 p-4" data-testid="agent-config-builder">
+      <div>
+        <Label className="text-xs">SkillSets</Label>
+        <p className="mt-1 text-xs text-muted-foreground">SkillSet 是版本固定的技能集合；Agent 保存时按当前 revision 固定，运行 resolve 时展开为其全部成员 Skill（每个成员仍按目录授权校验）。</p>
+        <div className="mt-2 grid gap-2 md:grid-cols-2">
+          {setsLoading ? <p className="text-xs text-muted-foreground">Loading SkillSets…</p> : skillSets.map((set) => {
+            const checked = selectedSets.some((item) => item.name === set.name);
+            return (
+              <SkillSetOption key={set.name} set={set} checked={checked} onToggle={toggleSkillSet} />
+            );
+          })}
+          {!setsLoading && skillSets.length === 0 && (
+            <p className="text-xs text-muted-foreground">暂无可用 SkillSet</p>
+          )}
+        </div>
+      </div>
       <div>
         <Label className="text-xs">Skills</Label>
         <p className="mt-1 text-xs text-muted-foreground">选择的 Skill 会固定到 Agent 版本；runtime 挂载前会按目录授权校验（只读可见的 Catalog Skill 才能绑定）。</p>
@@ -125,6 +157,58 @@ export function AgentSkillPromptEditor({
           placeholder="你是一个可靠的工作区助手……"
         />
       </div>
+    </div>
+  );
+}
+
+function SkillSetOption({
+  set,
+  checked,
+  onToggle,
+}: {
+  set: SkillSet;
+  checked: boolean;
+  onToggle: (set: SkillSet, checked: boolean) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const { data: members = [], isLoading: membersLoading } = useSkillSetSkills(expanded ? set.name : null);
+
+  return (
+    <div className="rounded-md border bg-background p-2" data-testid={`skillset-option-${set.name}`}>
+      <label className="flex cursor-pointer items-start gap-2">
+        <Checkbox checked={checked} onCheckedChange={(next) => onToggle(set, next === true)} />
+        <span className="min-w-0 flex-1 text-xs">
+          <span className="block font-medium">{set.name}</span>
+          <span className="block font-mono text-[10px] text-muted-foreground">
+            revision {set.revision ?? '—'} · {set.members?.length ?? 0} members
+          </span>
+        </span>
+        <button
+          type="button"
+          className="text-[10px] text-muted-foreground underline-offset-2 hover:underline"
+          onClick={(event) => {
+            event.preventDefault();
+            setExpanded((value) => !value);
+          }}
+        >
+          {expanded ? '收起' : '展开'}
+        </button>
+      </label>
+      {expanded && (
+        <div className="mt-1.5 space-y-1 border-t pt-1.5">
+          {membersLoading ? (
+            <p className="px-1 text-[10px] text-muted-foreground">加载成员…</p>
+          ) : members.length === 0 ? (
+            <p className="px-1 text-[10px] text-muted-foreground">无成员</p>
+          ) : (
+            members.map((member) => (
+              <p key={member.skillName} className="px-1 font-mono text-[10px] text-muted-foreground">
+                {member.skillName} @ {member.version ?? '—'}
+              </p>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }

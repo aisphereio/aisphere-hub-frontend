@@ -182,6 +182,8 @@ export type AgentSkillRef = {
 export type AgentSkillSetRef = {
   name: string;
   required?: boolean;
+  /** SkillSet revision pinned at Agent save time; resolve fails if the set moved on (AGENT_SKILLSET_REVISION_MISMATCH). */
+  revision?: number;
 };
 
 export type AgentToolRef = {
