@@ -48,6 +48,7 @@ import type { ModelProfile, Page } from '../types';
 // --- generated → domain ---
 
 function toModelProfile(p: V1ModelProfile): ModelProfile {
+  const labels = p.labels as Record<string, string> | undefined;
   return {
     id: p.id ?? '',
     version: p.version,
@@ -55,6 +56,8 @@ function toModelProfile(p: V1ModelProfile): ModelProfile {
     displayName: p.displayName,
     description: p.description,
     provider: p.provider,
+    modelType: labels?.model_type || 'llm',
+    modelFamily: labels?.model_family,
     apiFormat: p.apiFormat,
     endpoint: p.endpoint,
     model: p.model,
@@ -67,7 +70,7 @@ function toModelProfile(p: V1ModelProfile): ModelProfile {
       maxOutputTokens: p.limits.maxOutputTokens,
     },
     reasoning: p.reasoning,
-    labels: p.labels as Record<string, string> | undefined,
+    labels,
     metadata: p.metadata,
   };
 }
@@ -75,6 +78,11 @@ function toModelProfile(p: V1ModelProfile): ModelProfile {
 // --- domain → generated request ---
 
 function toCreateRequest(p: ModelProfile): V1CreateModelProfileRequest {
+  const labels = {
+    ...(p.labels || {}),
+    ...(p.modelType ? { model_type: p.modelType } : {}),
+    ...(p.modelFamily ? { model_family: p.modelFamily } : {}),
+  };
   return {
     id: p.id,
     displayName: p.displayName,
@@ -93,7 +101,7 @@ function toCreateRequest(p: ModelProfile): V1CreateModelProfileRequest {
       maxOutputTokens: p.limits.maxOutputTokens,
     },
     reasoning: p.reasoning,
-    labels: p.labels,
+    labels,
     metadata: p.metadata,
     version: p.version,
     projectId: (p as ModelProfile & { projectId?: string }).projectId,
@@ -128,6 +136,11 @@ export const modelProfileApi = {
   update: async (id: string, profile: ModelProfile): Promise<ModelProfile> => {
     // The PUT body is the full profile (proto defaults make omitted fields
     // indistinguishable from empty); send every settable field.
+    const labels = {
+      ...(profile.labels || {}),
+      ...(profile.modelType ? { model_type: profile.modelType } : {}),
+      ...(profile.modelFamily ? { model_family: profile.modelFamily } : {}),
+    };
     const updated = await modelProfileServiceUpdateModelProfile(id, {
       displayName: profile.displayName,
       description: profile.description,
@@ -145,7 +158,7 @@ export const modelProfileApi = {
         maxOutputTokens: profile.limits.maxOutputTokens,
       },
       reasoning: profile.reasoning,
-      labels: profile.labels,
+      labels,
       metadata: profile.metadata,
       version: profile.version,
     });

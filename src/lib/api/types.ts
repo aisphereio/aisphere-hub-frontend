@@ -1281,6 +1281,8 @@ export interface ModelProfile {
   displayName?: string;
   description?: string;
   provider?: string;
+  modelType?: string;
+  modelFamily?: string;
   apiFormat?: string;
   endpoint?: string;
   model?: string;

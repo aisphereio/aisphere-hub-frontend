@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,12 @@ import {
 import { useModelProfileT } from './i18n';
 import { toast } from 'sonner';
 import type { ModelProfile } from '@/lib/api/types';
+import {
+  MODEL_PRESETS,
+  MODEL_TYPES,
+  findModelPreset,
+  parseReasoning,
+} from './model-catalog';
 
 interface ModelProfileFormDialogProps {
   open: boolean;
@@ -36,7 +43,7 @@ interface ModelProfileFormDialogProps {
   onSaved?: () => void;
 }
 
-const PROVIDERS = ['openai', 'vllm', 'vertex', 'custom'];
+const PROVIDERS = ['openai', 'deepseek', 'zhipu', 'alibaba', 'vllm', 'vertex', 'custom'];
 const API_FORMATS = [
   'openai_responses',
   'openai_chat_completions',
@@ -50,6 +57,8 @@ function emptyForm(): ModelProfile {
     displayName: '',
     description: '',
     status: 'active',
+    modelType: 'llm',
+    modelFamily: 'custom',
     provider: 'openai',
     apiFormat: 'openai_responses',
     endpoint: '',
@@ -68,12 +77,27 @@ export function ModelProfileFormDialog({
 }: ModelProfileFormDialogProps) {
   const t = useModelProfileT();
   const isEdit = Boolean(editing);
-  const [form, setForm] = useState<ModelProfile>(() =>
-    editing ? { ...emptyForm(), ...editing } : emptyForm(),
-  );
+  const [form, setForm] = useState<ModelProfile>(() => {
+    const initial = editing ? { ...emptyForm(), ...editing } : emptyForm();
+    return {
+      ...initial,
+      modelFamily:
+        initial.modelFamily ||
+        findModelPreset(undefined, initial.upstreamModel)?.family ||
+        'custom',
+    };
+  });
   const createMut = useCreateModelProfile();
   const updateMut = useUpdateModelProfile();
   const isPending = createMut.isPending || updateMut.isPending;
+  const preset = useMemo(
+    () => findModelPreset(form.modelFamily, form.upstreamModel),
+    [form.modelFamily, form.upstreamModel],
+  );
+  const reasoningValues = useMemo(
+    () => parseReasoning(form.reasoning),
+    [form.reasoning],
+  );
 
   const set = <K extends keyof ModelProfile>(
     key: K,
@@ -91,6 +115,34 @@ export function ModelProfileFormDialog({
         [key]: value,
       },
     }));
+
+  const selectFamily = (family: string) => {
+    const nextPreset = MODEL_PRESETS.find((item) => item.family === family);
+    setForm((current) => ({
+      ...current,
+      modelFamily: family,
+      provider: nextPreset?.provider || current.provider,
+      apiFormat: nextPreset?.apiFormat || current.apiFormat,
+      upstreamPath: nextPreset?.upstreamPath || current.upstreamPath,
+      modelType: family === 'custom' ? current.modelType || 'llm' : 'llm',
+      reasoning: nextPreset?.reasoning
+        ? current.modelFamily === family && current.reasoning
+          ? current.reasoning
+          : JSON.stringify({
+            [nextPreset.reasoning.parameter]:
+              nextPreset.reasoning.kind === 'toggle' ? false : 'medium',
+          })
+        : undefined,
+    }));
+  };
+
+  const setReasoningValue = (value: boolean | string) => {
+    if (!preset?.reasoning) return;
+    set('reasoning', JSON.stringify({
+      ...reasoningValues,
+      [preset.reasoning.parameter]: value,
+    }));
+  };
 
   const canSubmit = Boolean(
     form.id.trim() &&
@@ -209,6 +261,41 @@ export function ModelProfileFormDialog({
                 </Select>
               </div>
             </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>{t('form.modelType')}</Label>
+                <Select
+                  value={form.modelType || 'llm'}
+                  onValueChange={(value) => set('modelType', value)}
+                  disabled={isPending}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {MODEL_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>{t('form.modelFamily')}</Label>
+                <Select
+                  value={form.modelFamily || 'custom'}
+                  onValueChange={selectFamily}
+                  disabled={isPending}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {MODEL_PRESETS.map((item) => (
+                      <SelectItem key={item.family} value={item.family}>{item.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">{t('form.modelFamilyHint')}</p>
+              </div>
+            </div>
           </section>
 
           <section className="space-y-3">
@@ -321,6 +408,55 @@ export function ModelProfileFormDialog({
               </p>
             </div>
           </section>
+
+          {form.modelType === 'llm' && preset?.reasoning ? (
+            <section className="space-y-3 rounded-lg border bg-muted/20 p-4">
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t('form.reasoning')}
+                </h4>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {t('form.reasoningHint', { model: preset.label })}
+                </p>
+              </div>
+
+              {preset.reasoning.kind === 'toggle' ? (
+                <div className="flex items-center justify-between rounded-md border bg-background p-3">
+                  <div>
+                    <Label>{t('form.enableReasoning')}</Label>
+                    <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                      {preset.reasoning.parameter}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={Boolean(reasoningValues[preset.reasoning.parameter])}
+                    onCheckedChange={setReasoningValue}
+                    disabled={isPending}
+                    aria-label={t('form.enableReasoning')}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label>{t('form.reasoningEffort')}</Label>
+                  <Select
+                    value={String(reasoningValues[preset.reasoning.parameter] || 'medium')}
+                    onValueChange={setReasoningValue}
+                    disabled={isPending}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {preset.reasoning.options.map((option) => (
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="font-mono text-[11px] text-muted-foreground">
+                    {preset.reasoning.parameter}
+                  </p>
+                </div>
+              )}
+            </section>
+          ) : null}
 
           <section className="space-y-3 rounded-lg border bg-muted/20 p-4">
             <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

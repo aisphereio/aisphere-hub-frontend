@@ -1,10 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import dynamic from 'next/dynamic';
 import { ChevronDown, ChevronUp, Wrench } from 'lucide-react';
 
 import type { RuntimeEvent } from '@/lib/api/runtime';
@@ -20,6 +17,16 @@ export type UiChatMessage = {
   parts: UiContentPart[];
   invocationId?: string;
 };
+
+/**
+ * markdown 渲染客户端-only（ssr:false），避免 react-markdown / react-syntax-
+ * highlighter 在服务器混水渲染输出不一致导致 React 418 hydration 崩溃。
+ * 加载期用纯文本占位，流式内容最终以 markdown 渲染。
+ */
+const MarkdownBody = dynamic(() => import('./markdown-content').then((m) => m.MarkdownContent), {
+  ssr: false,
+  loading: () => <span className="whitespace-pre-wrap" />,
+});
 
 function partText(part: { text?: string }): string | null {
   return part.text || null;
@@ -66,14 +73,13 @@ function roleFromAuthor(author: string): UiChatMessage['role'] {
   return 'user';
 }
 
-/** 从历史 session.events 恢复消息列表：同一 invocation（一次运行回合）的事件合并为一条消息，避免 tool 事件撑爆气泡。 */
+/** 从历史 session.events 恢复消息列表：同一 invocation（一次运行回合）的事件合并为一条消息。 */
 export function eventsToMessages(events: RuntimeEvent[] | undefined): UiChatMessage[] {
   const messages: UiChatMessage[] = [];
   for (const event of events || []) {
     const converted = eventParts(event);
     if (!converted.parts.length) continue;
     const last = messages[messages.length - 1];
-    // 同一次运行时（同一 invocationId）的连续事件合并进上一条消息；tool 结果挂到同一回合。
     if (last && converted.invocationId && last.invocationId === converted.invocationId) {
       const nextParts = [...last.parts];
       for (const part of converted.parts) {
@@ -101,10 +107,7 @@ function findLastIndex<T>(list: T[], predicate: (item: T) => boolean): number {
 }
 
 /**
- * 合并同 invocation 的流式事件到已有消息：
- * - 同一次运行（同 invocationId）的连续事件合并进同一条消息，tool/文本事件都挂同一回合，避免撑爆气泡；
- * - 增量事件（partial=true）的 text 追加到已累积文本，final 完整事件（partial=false）替换该段；
- * - 用户回显（author=user）在 UI 已乐观渲染，这里跳过。
+ * 合并同 invocation 的流式事件到已有消息（tool/文本挂同一回合，partial 追加/final 替换）。
  */
 export function appendStreamEvent(messages: UiChatMessage[], event: RuntimeEvent): UiChatMessage[] {
   const converted = eventParts(event);
@@ -132,7 +135,6 @@ export function appendStreamEvent(messages: UiChatMessage[], event: RuntimeEvent
     return { ...base, parts: nextParts, invocationId: invocationId || base.invocationId };
   };
 
-  // 优先合并进同 invocation 的最后一条非 user 消息；无 invocation 时合并进最后一条非 user 消息（历史恢复/降级 run 的兜底）。
   const targetIndex = findLastIndex(messages, (message) =>
     (invocationId ? message.invocationId === invocationId : !message.invocationId) && message.role !== 'user',
   );
@@ -142,39 +144,6 @@ export function appendStreamEvent(messages: UiChatMessage[], event: RuntimeEvent
   const target = messages[targetIndex];
   const effectiveRole = target.role === 'tool' && converted.parts.some((part) => part.kind === 'text') ? 'assistant' : target.role;
   return [...messages.slice(0, targetIndex), merge({ ...target, role: effectiveRole }), ...messages.slice(targetIndex + 1)];
-}
-
-function CodeBlock(props: { className?: string; children?: React.ReactNode }) {
-  const match = /language-(\w+)/.exec(props.className || '');
-  const language = match ? match[1] : '';
-  const raw = String(props.children || '').replace(/\n$/, '');
-  if (language || raw.includes('\n')) {
-    return (
-      <SyntaxHighlighter language={language || undefined} style={oneDark} PreTag="div" customStyle={{ borderRadius: '0.5rem', margin: '0.5rem 0', fontSize: '0.8125rem' }}>
-        {raw}
-      </SyntaxHighlighter>
-    );
-  }
-  return <code className={`${props.className || ''} rounded bg-muted px-1 py-0.5 font-mono text-[0.8125em]`}>{props.children}</code>;
-}
-
-/** 渲染 markdown + GFM（表格/链接/列表）+ 代码高亮。 */
-function RenderMarkdown({ text }: { text: string }) {
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        code: CodeBlock,
-        a: (props) => (
-          <a href={props.href} className="text-violet-500 underline underline-offset-2" target="_blank" rel="noreferrer">
-            {props.children}
-          </a>
-        ),
-      }}
-    >
-      {text}
-    </ReactMarkdown>
-  );
 }
 
 function ToolCall(props: { part: { name: string; args: unknown } }) {
@@ -212,7 +181,7 @@ function ToolResult(props: { name: string; response: unknown }) {
   );
 }
 
-/** 单条会话消息：text 走 markdown，工具调用/结果独立卡片展示。 */
+/** 单条会话消息：text 走 markdown（客户端-only），工具调用/结果独立卡片展示。 */
 export function ChatMessage(props: { message: UiChatMessage }) {
   const { message } = props;
   const bubbleClass = message.role === 'user' ? 'ml-8 bg-violet-500/10' : 'mr-8 bg-background';
@@ -231,7 +200,7 @@ export function ChatMessage(props: { message: UiChatMessage }) {
         if (part.kind === 'text') {
           return (
             <div key={index} className="whitespace-pre-wrap">
-              <RenderMarkdown text={part.text} />
+              <MarkdownBody text={part.text} />
             </div>
           );
         }
