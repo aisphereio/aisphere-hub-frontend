@@ -460,8 +460,8 @@ function SkillFileEditorPane({ skillName, defaultBranch }: SkillFileEditorPanePr
   const isDraftView = revision === defaultBranch;
   const revisionOptions = useMemo(() => {
     const tags = (refs.data ?? [])
-      .filter((ref) => ref.type === "tag")
-      .map((ref) => ({ value: ref.fullRef, label: ref.name }));
+      .filter((ref) => ref.type === "tag" && Boolean(ref.fullRef))
+      .map((ref) => ({ value: ref.fullRef as string, label: ref.name || ref.fullRef as string }));
     return [{ value: defaultBranch, label: `${defaultBranch}（草稿）` }, ...tags];
   }, [refs.data, defaultBranch]);
 
