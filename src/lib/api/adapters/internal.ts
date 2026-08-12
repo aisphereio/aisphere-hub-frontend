@@ -86,12 +86,15 @@ export function normalizeSkill(skill: Skill): Skill {
   const ownerName = skill.ownerName || raw.owner_name;
   const createTime = skill.createTime ?? raw.create_time;
   const updateTime = skill.updateTime ?? raw.update_time;
+  const status = String(skill.status || '').toLowerCase();
   return {
     ...skill,
     ownerId,
     ownerName,
     createTime,
     updateTime,
+    status: status || undefined,
+    enable: status ? status === 'active' : skill.enable,
     versions,
     labels: skill.labels || manifestLabels,
     metadata:

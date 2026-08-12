@@ -46,13 +46,17 @@ Framework: vitest + @testing-library/react + happy-dom
 | TC-FE-020 | REQ-FE-SKILL-005 | Release provenance and integrity render | Release card shows notes, publisher, commit, tree, manifest hash and publication time | component | 1. Mock a complete release. 2. Open Versions tab. 3. Verify metadata. |
 | TC-FE-021 | REQ-FE-SKILLSET-004 | Adding a member requires an exact Release | Add is disabled without a release and bind sends `{ skillName, version }` after selection | component | 1. Mock available Skills and releases. 2. Select Skill. 3. Select release. 4. Verify bind request. |
 | TC-FE-022 | REQ-FE-SKILLSET-006 | Lock snapshot validation renders resolved payload | Resolve action shows revision and exact member hashes | component | 1. Mock resolved SkillSet lock. 2. Click validate. 3. Verify success state and JSON payload. |
+| TC-FE-023 | REQ-FE-AGENT-002 | Agent binds a Catalog Skill to an exact published Release | Saved Agent definition contains the selected Skill with an exact version | component | 1. Mock a catalog Skill and Releases. 2. Select the Skill. 3. Verify the latest exact Release is written. |
+| TC-FE-024 | REQ-FE-AGENT-002 | Agent writes canonical SkillSet revision bindings | Valid set writes lower-case `skillsets`; unresolved set is disabled | component | 1. Mock resolved and unresolved SkillSets. 2. Verify unresolved checkbox is disabled. 3. Select resolved set. 4. Verify canonical field and revision. |
+| TC-FE-025 | REQ-FE-SKILL-008 | Skill lifecycle management keeps inactive assets recoverable | Management list requests inactive Skills and lifecycle actions send active/disabled/archived separately from delete | component | 1. Mock active/disabled/archived Skills. 2. Trigger each action. 3. Verify lifecycle mutation and delete confirmation. |
+| TC-FE-026 | REQ-FE-AGENT-002 | Inactive SkillSet members cannot enter new Agent revisions | SkillSet with archived member is disabled even when its hashes are complete | component | 1. Mock an archived pinned member. 2. Render Agent editor. 3. Verify the set checkbox is disabled. |
 
 ## 3. Summary
 
 | Dimension | Count |
 |-----------|:-----:|
-| Total TCs | 22 |
-| Component tests | 22 |
-| P0 priority | 22 |
-| **Implemented** | **10** (TC-FE-001~008, TC-FE-019~020) |
+| Total TCs | 26 |
+| Component tests | 26 |
+| P0 priority | 23 |
+| **Implemented** | **14** (TC-FE-001~008, TC-FE-019~020, TC-FE-023~026) |
 | **Pending** | **12** (TC-FE-009~018, TC-FE-021~022) |

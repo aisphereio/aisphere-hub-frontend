@@ -28,6 +28,7 @@ import {
   skillServiceImportSkillArchive,
   skillServiceListSkills,
   skillServiceUpdateSkill,
+  skillServiceUpdateSkillLifecycle,
   skillServiceUpdateSkillVisibility,
 } from '../generated/skill-service/skill-service';
 import type { V1Skill } from '../generated/model';
@@ -67,6 +68,7 @@ export const skillApi = {
         | string
         | undefined,
       visibility: (params.visibility ?? params.scope) as string | undefined,
+      includeInactive: (params.includeInactive ?? params.include_inactive) as boolean | undefined,
     });
     const page = {
       items: (reply.skills || []).map(toSkill),
@@ -87,6 +89,11 @@ export const skillApi = {
 
   remove: (skillName: string) =>
     skillServiceDeleteSkill(skillName).then(() => '') as Promise<string>,
+
+  lifecycle: async (skillName: string, status: 'active' | 'disabled' | 'archived') => {
+    const updated = await skillServiceUpdateSkillLifecycle(skillName, { status });
+    return toSkill(updated);
+  },
 
   update: async (skillName: string, data: Partial<Skill>) => {
     // The backend PUT is not a sparse PATCH: protobuf default values make

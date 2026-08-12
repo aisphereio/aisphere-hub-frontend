@@ -10,6 +10,12 @@ export interface V1Skill {
   defaultBranch?: string;
   description?: string;
   displayName?: string;
+  /**
+     * Latest stable released version (canonical git tag, e.g. "v1.2.0").
+     * Empty when the skill has no published release; clients can still pin a
+     * specific version or fall back to a draft/default branch workflow.
+     */
+  latestVersion?: string;
   name?: string;
   orgId?: string;
   ownerId?: string;
@@ -22,11 +28,5 @@ export interface V1Skill {
   projectId?: string;
   status?: string;
   updateTime?: string;
-  visibletoAnyUser?: boolean;
   visibility?: string;
-  /**
-     * Latest stable released version (canonical git tag, e.g. "v1.2.0").
-     * Empty when the skill has no published release.
-     */
-  latestVersion?: string;
 }

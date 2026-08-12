@@ -564,10 +564,10 @@ These requirements define the expected behavior of the Aisphere Hub Frontend (Sk
 
 ## REQ-FE-SKILL-008 — Skill Delete
 - **Priority:** P0 | **Status:** `OBSERVED_IMPLEMENTED`
-- **Requirement:** Delete skills with confirmation.
-- **API:** `DELETE /v1/skills/{name}` → `string`
-- **UI:** Delete button. Confirmation dialog. Loading. Success toast. Redirect to list.
-- **Verification:** 1) Confirmation shows. 2) Submit calls API. 3) Success redirects.
+- **Requirement:** Manage the explicit active/disabled/archived/deleted lifecycle with confirmation and recoverable pre-delete states.
+- **API:** `POST /v1/skills/{name}:lifecycle` with `{ status: active|disabled|archived }`; `DELETE /v1/skills/{name}` performs irreversible deletion.
+- **UI:** Skill cards show lifecycle status and expose Activate, Disable new runs, Archive, and Delete actions. The management list opts into inactive Skills; Agent catalog selection remains active-only.
+- **Verification:** 1) Disabled/archived Skills stay visible to managers. 2) Lifecycle action sends the exact target state. 3) Delete remains a separate destructive confirmation. 4) Archived/disabled SkillSet members cannot be selected into a new Agent revision.
 - **Done criteria:** Component test.
 
 ## REQ-FE-SKILL-009 — Skill File Tree
@@ -661,15 +661,15 @@ These requirements define the expected behavior of the Aisphere Hub Frontend (Sk
 ## REQ-FE-AGENT-002 — Agent Create
 - **Priority:** P1 | **Status:** `OBSERVED_IMPLEMENTED`
 - **API:** `POST /v3/aihub/agents` → `AgentUpsertRequest` → `AgentResponse`
-- **UI:** Dialog with agent configuration fields. Validation. Loading. Success toast.
-- **Verification:** 1) Form validates. 2) Submit calls API. 3) Success refreshes list.
+- **UI:** Dialog with agent configuration fields. Catalog Skill bindings require an exact published Release. SkillSet bindings persist the canonical lower-case `skillsets` field with an exact revision; unresolved sets stay disabled. Validation. Loading. Success toast.
+- **Verification:** 1) Form validates. 2) Catalog Skill selection writes an exact Release. 3) Valid SkillSet selection writes `skillsets[{ name, revision }]`. 4) Submit calls API. 5) Success refreshes list.
 - **Done criteria:** Component test.
 
 ## REQ-FE-AGENT-003 — Agent Edit
 - **Priority:** P1 | **Status:** `OBSERVED_IMPLEMENTED`
 - **API:** `PUT /v3/aihub/agents/{id}` → `AgentUpsertRequest` → `AgentResponse`
-- **UI:** Edit button per row opens pre-filled dialog. Save with loading. Success toast.
-- **Verification:** 1) Edit dialog pre-fills. 2) Submit calls API. 3) Success refreshes list.
+- **UI:** Edit button per row opens pre-filled dialog, including pinned Skill Release and SkillSet revision bindings. Save with loading. Success toast.
+- **Verification:** 1) Edit dialog pre-fills. 2) Release/SkillSet changes remain immutable references. 3) Submit calls API. 4) Success refreshes list.
 - **Done criteria:** Component test.
 
 ## REQ-FE-AGENT-004 — Agent Delete

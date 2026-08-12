@@ -149,6 +149,7 @@ export type SkillSet = {
 
 export type SkillSetMember = {
   skillName: string;
+  status?: string;
   version?: string;
   commitSha?: string;
   treeSha?: string;

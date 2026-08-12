@@ -49,6 +49,21 @@ export function useSkillDelete() {
   });
 }
 
+export function useSkillLifecycle() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ skillName, status }: {
+      skillName: string;
+      status: 'active' | 'disabled' | 'archived';
+    }) => skillApi.lifecycle(skillName, status),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["skills", "list"] });
+      queryClient.invalidateQueries({ queryKey: ["skills", "detail", vars.skillName] });
+      queryClient.invalidateQueries({ queryKey: ["skillsets"] });
+    },
+  });
+}
+
 export function useSkillDraft() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -93,7 +93,7 @@
 | REQ-FE-PROJCAP-003 | Capability enable/disable | `iamProjectApi.enable/disableProjectCapability` ✅ |
 | REQ-FE-PROJCAP-004 | Capability register | `iamProjectApi.registerCapability` ✅ |
 
-### Skills (10 REQs, 10 ART)
+### Skills (10 REQs, 12 ART)
 
 | ART | REQ | Path | Description |
 |--------|-----|------|-------------|
@@ -107,6 +107,8 @@
 | ART-0046 | REQ-FE-SKILL-008 | `src/components/pages/skills-page.tsx` | Skill delete |
 | ART-0047 | REQ-FE-SKILL-009 | `src/components/editor/file-tree.tsx` | Skill file tree |
 | ART-0048 | REQ-FE-SKILL-010 | `src/components/editor/skill-releases-panel.tsx`, `src/lib/api/generated/skill-release-service/` | Canonical branch/Tag/commit comparison |
+| ART-0117 | REQ-FE-SKILL-008 | `src/components/pages/skills-page.tsx`, `src/components/skills/skill-card.tsx`, `src/hooks/use-skills.ts` | Active/disabled/archived/deleted lifecycle management |
+| ART-0118 | REQ-FE-SKILL-008 | `src/lib/api/generated/skill-service/`, `src/lib/api/adapters/skill.ts` | Proto-generated lifecycle and inactive-list contract |
 
 ### SkillSets (6 REQs, 6 ART)
 
@@ -119,7 +121,7 @@
 | ART-0053 | REQ-FE-SKILLSET-005 | `src/components/pages/skillsets-page.tsx` | SkillSet delete |
 | ART-0054 | REQ-FE-SKILLSET-006 | `src/components/skillsets/skillset-member-list.tsx`, `src/lib/api/index.ts`, `src/lib/api/types.ts` | Runtime-consumable immutable lock snapshot |
 
-### Agents (6 REQs, 6 ART)
+### Agents (6 REQs, 8 ART)
 
 | ART | REQ | Path | Notes |
 |--------|-----|------|-------|
@@ -129,6 +131,8 @@
 | ART-0058 | REQ-FE-AGENT-004 | `src/components/pages/agents-page.tsx` | Agent delete |
 | ART-0059 | REQ-FE-AGENT-005 | `src/components/pages/agents-page.tsx` | Agent runtime resolution |
 | ART-0060 | REQ-FE-AGENT-006 | `src/components/pages/agents-page.tsx` | Agent status display |
+| ART-0115 | REQ-FE-AGENT-002 | `src/components/aihub/agent-skill-prompt-editor.tsx` | Exact Skill Release and canonical SkillSet revision binding |
+| ART-0116 | REQ-FE-AGENT-003 | `src/hooks/use-skillsets.ts`, `src/lib/api/types.ts` | SkillSet member projection and Agent definition contract |
 
 ### Tools (6)
 

@@ -69,6 +69,7 @@ function isRunnableSkillSet(set: SkillSet): boolean {
   return Boolean(
     set.revision && set.revision > 0 && set.members?.length &&
     set.members.every((member) =>
+      (!member.status || member.status === 'active') &&
       member.version && member.commitSha && member.treeSha && member.manifestSha256),
   );
 }

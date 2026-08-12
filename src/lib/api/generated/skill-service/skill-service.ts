@@ -13,6 +13,7 @@ import type {
   SkillServiceMergePullRequestBody,
   SkillServiceReviewPullRequestBody,
   SkillServiceUpdateSkillBody,
+  SkillServiceUpdateSkillLifecycleBody,
   SkillServiceUpdateSkillVisibilityBody,
   V1CreateSkillRequest,
   V1DeleteSkillResponse,
@@ -362,6 +363,27 @@ export const skillServiceDeleteSkillShare = async (name: string,
     method: 'DELETE'
 
 
+  }
+);}
+
+
+export const getSkillServiceUpdateSkillLifecycleUrl = (name: string,) => {
+
+
+
+
+  return `/v1/skills/${encodeURIComponent(String(name))}:lifecycle`
+}
+
+export const skillServiceUpdateSkillLifecycle = async (name: string,
+    skillServiceUpdateSkillLifecycleBody: SkillServiceUpdateSkillLifecycleBody, options?: RequestInit): Promise<V1Skill> => {
+
+  return hubFetch<V1Skill>(getSkillServiceUpdateSkillLifecycleUrl(name),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(skillServiceUpdateSkillLifecycleBody)
   }
 );}
 

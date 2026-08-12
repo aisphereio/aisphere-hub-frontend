@@ -589,6 +589,18 @@
       },
       "type": "object"
     },
+    "SkillServiceUpdateSkillLifecycleBody": {
+      "properties": {
+        "status": {
+          "description": "Mutable lifecycle states are active, disabled and archived.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "object"
+    },
     "SkillServiceUpdateSkillVisibilityBody": {
       "properties": {
         "visibility": {
@@ -3307,6 +3319,10 @@
         "displayName": {
           "type": "string"
         },
+        "latestVersion": {
+          "description": "Latest stable released version (canonical git tag, e.g. \"v1.2.0\").\nEmpty when the skill has no published release; clients can still pin a\nspecific version or fall back to a draft/default branch workflow.",
+          "type": "string"
+        },
         "name": {
           "type": "string"
         },
@@ -4046,6 +4062,14 @@
       "properties": {
         "namespace": {
           "$ref": "#/definitions/v1Namespace"
+        }
+      },
+      "type": "object"
+    },
+    "v1UpdateSkillLifecycleResponse": {
+      "properties": {
+        "skill": {
+          "$ref": "#/definitions/v1Skill"
         }
       },
       "type": "object"
@@ -6870,6 +6894,13 @@
             "name": "visibility",
             "required": false,
             "type": "string"
+          },
+          {
+            "description": "Catalog consumers omit this and receive active Skills only. Management\nscreens opt in so disabled/archived assets remain recoverable.",
+            "in": "query",
+            "name": "includeInactive",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "responses": {
@@ -7666,6 +7697,44 @@
             "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/v1DeleteSkillShareResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/KernelErrorResponse"
+            }
+          }
+        },
+        "tags": [
+          "SkillService"
+        ]
+      }
+    },
+    "/v1/skills/{name}:lifecycle": {
+      "post": {
+        "operationId": "SkillService_UpdateSkillLifecycle",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SkillServiceUpdateSkillLifecycleBody"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/v1Skill"
             }
           },
           "default": {

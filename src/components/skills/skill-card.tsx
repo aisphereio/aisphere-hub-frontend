@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Download, MoreHorizontal, Trash2, FileCode2, ChevronRight, Share2 } from 'lucide-react';
+import { Archive, CirclePause, CirclePlay, Download, MoreHorizontal, Trash2, FileCode2, ChevronRight, Share2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,11 @@ import { getStatusColor, getScopeColor } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
 import type { Skill } from '@/lib/api/types';
 
+function displayVersion(version?: string): string {
+  if (!version) return '';
+  return version.startsWith('v') ? version.slice(1) : version;
+}
+
 interface SkillCardProps {
   skill: Skill;
   onClick: () => void;
@@ -26,10 +31,10 @@ export function SkillCard({ skill, onClick, onAction }: SkillCardProps) {
   const t = useT();
   // Git-native backend only populates enable/disable; online/offline/draft/
   // published are legacy fields that are no longer filled.
-  const isDisabled = skill.enable === false;
-  const statusLabel = t(isDisabled ? 'skills.statusDisabled' : 'skills.statusActive');
-  const stableVersion = skill.labels?.stable || skill.stableVersion;
-  const latestVersion = skill.labels?.latest || skill.latestVersion;
+  const lifecycle = String(skill.status || (skill.enable === false ? 'disabled' : 'active')).toLowerCase();
+  const statusLabel = lifecycle === 'archived' ? 'Archived' : t(lifecycle === 'disabled' ? 'skills.statusDisabled' : 'skills.statusActive');
+  const stableVersion = displayVersion(skill.labels?.stable || skill.stableVersion);
+  const latestVersion = displayVersion(skill.labels?.latest || skill.latestVersion);
   const visibility = (skill.visibility || skill.scope || 'private').toLowerCase();
 
   return (
@@ -70,6 +75,20 @@ export function SkillCard({ skill, onClick, onAction }: SkillCardProps) {
                 <DropdownMenuItem onClick={() => onAction?.('share', skill)}>
                   <Share2 className="h-3.5 w-3.5 mr-2" /> 分享权限
                 </DropdownMenuItem>
+                {lifecycle === 'active' ? (
+                  <DropdownMenuItem onClick={() => onAction?.('disable', skill)}>
+                    <CirclePause className="h-3.5 w-3.5 mr-2" /> Disable new runs
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={() => onAction?.('activate', skill)}>
+                    <CirclePlay className="h-3.5 w-3.5 mr-2" /> Activate
+                  </DropdownMenuItem>
+                )}
+                {lifecycle !== 'archived' && (
+                  <DropdownMenuItem onClick={() => onAction?.('archive', skill)}>
+                    <Archive className="h-3.5 w-3.5 mr-2" /> Archive
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-destructive" onClick={() => onAction?.('delete', skill)}>
                   <Trash2 className="h-3.5 w-3.5 mr-2" /> {t('skillCard.delete')}
@@ -83,7 +102,7 @@ export function SkillCard({ skill, onClick, onAction }: SkillCardProps) {
           </p>
 
           <div className="flex items-center gap-1.5 flex-wrap">
-            <Badge variant="secondary" className={`text-[10px] px-1.5 h-4 ${getStatusColor(isDisabled ? 'disable' : 'enable')}`}>
+            <Badge variant="secondary" className={`text-[10px] px-1.5 h-4 ${getStatusColor(lifecycle === 'active' ? 'enable' : 'disable')}`}>
               {statusLabel}
             </Badge>
             <Badge variant="outline" className={`text-[10px] px-1.5 h-4 ${getScopeColor(visibility)}`}>
@@ -141,8 +160,8 @@ interface SkillCardCompactProps {
 
 export function SkillCardCompact({ skill, onClick }: SkillCardCompactProps) {
   const t = useT();
-  const isDisabled = skill.enable === false;
-  const statusLabel = t(isDisabled ? 'skills.statusDisabled' : 'skills.statusActive');
+  const lifecycle = String(skill.status || (skill.enable === false ? 'disabled' : 'active')).toLowerCase();
+  const statusLabel = lifecycle === 'archived' ? 'Archived' : t(lifecycle === 'disabled' ? 'skills.statusDisabled' : 'skills.statusActive');
 
   return (
     <motion.div
@@ -161,7 +180,7 @@ export function SkillCardCompact({ skill, onClick }: SkillCardCompactProps) {
               <span className="text-xs font-medium truncate group-hover:text-violet-600 transition-colors">
                 {skill.displayName || skill.name}
               </span>
-              <Badge variant="secondary" className={`text-[9px] px-1 h-3.5 shrink-0 ${getStatusColor(isDisabled ? 'disable' : 'enable')}`}>
+              <Badge variant="secondary" className={`text-[9px] px-1 h-3.5 shrink-0 ${getStatusColor(lifecycle === 'active' ? 'enable' : 'disable')}`}>
                 {statusLabel}
               </Badge>
             </div>

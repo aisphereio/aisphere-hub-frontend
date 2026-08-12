@@ -48,6 +48,7 @@ describe('AgentSkillPromptEditor', () => {
         revision: 3,
         members: [{
           skillName: 'release-notes',
+          status: 'active',
           version: 'v1.2.0',
           commitSha: 'commit-sha',
           treeSha: 'tree-sha',
@@ -57,6 +58,17 @@ describe('AgentSkillPromptEditor', () => {
         name: 'unresolved-set',
         revision: 1,
         members: [{ skillName: 'draft-only' }],
+      }, {
+        name: 'archived-member-set',
+        revision: 2,
+        members: [{
+          skillName: 'old-release-notes',
+          status: 'archived',
+          version: 'v1.0.0',
+          commitSha: 'commit-sha',
+          treeSha: 'tree-sha',
+          manifestSha256: 'manifest-sha',
+        }],
       }],
       isLoading: false,
     });
@@ -85,7 +97,9 @@ describe('AgentSkillPromptEditor', () => {
 
     const valid = screen.getByTestId('skillset-option-release-workflow');
     const invalid = screen.getByTestId('skillset-option-unresolved-set');
+    const archived = screen.getByTestId('skillset-option-archived-member-set');
     expect(within(invalid).getByRole('checkbox')).toBeDisabled();
+    expect(within(archived).getByRole('checkbox')).toBeDisabled();
     fireEvent.click(within(valid).getByRole('checkbox'));
 
     const saved = JSON.parse(onChange.mock.calls.at(-1)?.[0]);

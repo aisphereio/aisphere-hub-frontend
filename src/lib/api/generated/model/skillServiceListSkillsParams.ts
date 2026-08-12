@@ -10,4 +10,9 @@ pageSize?: number;
 pageToken?: string;
 query?: string;
 visibility?: string;
+/**
+ * Catalog consumers omit this and receive active Skills only. Management
+ * screens opt in so disabled/archived assets remain recoverable.
+ */
+includeInactive?: boolean;
 };

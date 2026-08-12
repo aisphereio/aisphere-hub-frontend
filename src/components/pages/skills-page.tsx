@@ -10,7 +10,7 @@ import {
   type SkillViewMode,
 } from '@/components/skills';
 import { useOpenSkillEditor } from '@/components/layout/app-shell';
-import { useSkills, useSkillDelete } from '@/hooks/use-skills';
+import { useSkills, useSkillDelete, useSkillLifecycle } from '@/hooks/use-skills';
 import { useT } from '@/lib/i18n';
 import { toast } from 'sonner';
 import type { Skill } from '@/lib/api/types';
@@ -36,9 +36,11 @@ export function SkillsPage() {
     skillsetName: skillSetName || undefined,
     pageNo: 1,
     pageSize: 80,
+    includeInactive: true,
   });
 
   const deleteMutation = useSkillDelete();
+  const lifecycleMutation = useSkillLifecycle();
 
   // Filter items client-side for scope (visibility).
   // Status filtering (online/offline/draft/published) was removed — the
@@ -79,7 +81,7 @@ export function SkillsPage() {
       setShareSkill(skill);
       return;
     }
-    if (action === 'delete') {
+    if (['activate', 'disable', 'archive', 'delete'].includes(action)) {
       setConfirmAction({ action, skill });
     }
   };
@@ -89,6 +91,10 @@ export function SkillsPage() {
       if (action === 'delete') {
         await deleteMutation.mutateAsync(skill.name);
         toast.success(`${skill.name} ${t('skills.deleted')}`);
+      } else if (action === 'activate' || action === 'disable' || action === 'archive') {
+        const status = action === 'activate' ? 'active' : action === 'disable' ? 'disabled' : 'archived';
+        await lifecycleMutation.mutateAsync({ skillName: skill.name, status });
+        toast.success(`${skill.name} is now ${status}`);
       }
       refetch();
     } catch (e: unknown) {
@@ -295,10 +301,12 @@ export function SkillsPage() {
         <ConfirmDialog
           open={Boolean(confirmAction)}
           onOpenChange={(open) => { if (!open) setConfirmAction(null); }}
-          title={t('editor.deleteTitle')}
-          description={confirmAction ? t('editor.deleteDesc', { name: confirmAction.skill.name }) : ''}
-          confirmLabel={t('common.delete')}
-          variant="destructive"
+          title={confirmAction?.action === 'delete' ? t('editor.deleteTitle') : `Confirm ${confirmAction?.action || 'lifecycle change'}`}
+          description={confirmAction?.action === 'delete'
+            ? t('editor.deleteDesc', { name: confirmAction.skill.name })
+            : `Apply ${confirmAction?.action} to ${confirmAction?.skill.name}? Disabled Skills reject new runs; archived Skills leave the catalog but existing immutable pins may still run.`}
+          confirmLabel={confirmAction?.action === 'delete' ? t('common.delete') : 'Confirm'}
+          variant={confirmAction?.action === 'delete' ? 'destructive' : 'default'}
           onConfirm={() => confirmAction && executeAction(confirmAction.action, confirmAction.skill)}
         />
       </div>
