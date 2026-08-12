@@ -87,3 +87,6 @@ next-env.d.ts
 /tsconfig.json.front
 /package.json.front
 /package-lock.json.worktrees/
+# Python E2E bytecode
+__pycache__/
+*.py[cod]

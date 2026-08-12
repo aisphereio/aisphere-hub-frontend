@@ -33,3 +33,24 @@ http://agentkit-runtime.agent-runtime.svc.cluster.local:8080
 ```
 
 For local development, set `AGENT_RUNTIME_URL` to the reachable Runtime URL before starting Next.
+
+## Cross-service Skill Golden E2E
+
+`skill_runtime_golden.py` is the non-browser regression gate for the execution
+plane. It resolves an existing Agent with at least one released catalog Skill,
+asserts `revision == commitSHA`, downloads the signed ZIP, verifies SHA256,
+runs a real model turn through Runtime, and finally requires persisted user and
+assistant events (an empty Session cannot pass).
+
+Run it from a network location that can reach Hub and Runtime, for example a
+test-cluster utility Pod. Supply the internal token through the environment;
+never put it in the repository.
+
+```powershell
+$env:E2E_HUB_URL = 'http://aisphere-hub.aisphere.svc.cluster.local:18001'
+$env:E2E_RUNTIME_URL = 'http://agentkit-runtime.agent-runtime.svc.cluster.local:8080/api'
+$env:E2E_AGENT_ID = 'close-ag-1'
+$env:E2E_AGENT_VERSION = 'v2'
+$env:E2E_INTERNAL_TOKEN = '<test-environment-token>'
+python e2e/skill_runtime_golden.py
+```
