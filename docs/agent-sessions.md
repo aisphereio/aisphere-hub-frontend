@@ -36,3 +36,10 @@ The UI retries only transient Runtime startup/DNS readiness failures. It does no
 ## Lifecycle rule
 
 Session history belongs to the Runtime session, not to the Agent definition. Publishing a new Agent version does not mutate existing Sessions. New conversations should be created against the new version; existing Sessions remain useful for audit and controlled continuation.
+
+## Playground UX closure (2026-08-12)
+
+- **History restore**: switching Sessions or refreshing the page no longer resets the chat. `AgentPlayground` calls `GET /apps/{app}/users/{user}/sessions/{session}` on mount/Session change and rebuilds the message list; `agent-workspace` no longer remounts the panel with `key={sessionId}`. Multiple messages per run are coalesced into one bubble per invocation, so tool calls/results stay inside the same turn instead of sprouting duplicate bubbles.
+- **Streaming**: sending uses `POST /run_sse` via the Hub proxy (`/api/agent-runtime/run_sse`, SSE frames `data:` = one `models.Event` JSON, `adkRunDone` terminates). Sent text renders incrementally; `partial=true` frames append, final frames replace. If SSE fails, the client degrades to the non-streaming `POST /run` and reuses the same merge logic.
+- **Rendering**: assistant text renders Markdown + GFM (tables, code fences) + syntax highlighting; `functionCall`/`functionResponse` parts render as collapsible tool cards with pretty-printed JSON instead of being merged raw into the transcript text. `react-markdown`, `remark-gfm` and `react-syntax-highlighter` (already in `package.json`) are now wired in.
+- `runStream` supporting API lives in `src/lib/api/runtime.ts`; shared event→parts conversion and merge helpers live in `src/components/aihub/chat-message.tsx`.

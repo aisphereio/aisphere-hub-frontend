@@ -123,7 +123,7 @@ export function AgentWorkspace({ agentId, agentVersion }: AgentWorkspaceProps) {
 
       <div className="min-w-0">
         {activeSessionId ? (
-          <AgentPlayground key={activeSessionId} agentId={agentId} agentVersion={agentVersion} sessionId={activeSessionId} onSessionReady={() => void sessionsQuery.refetch()} />
+          <AgentPlayground agentId={agentId} agentVersion={agentVersion} sessionId={activeSessionId} onSessionReady={() => void sessionsQuery.refetch()} />
         ) : (
           <Card className="flex min-h-[520px] items-center justify-center border-dashed">
             <div className="text-center"><MessageSquarePlus className="mx-auto mb-3 h-8 w-8 text-muted-foreground" /><p className="text-sm font-medium">选择或创建一个会话</p><p className="mt-1 text-xs text-muted-foreground">同一个 Agent 可以拥有多个独立的对话上下文。</p><Button className="mt-4" onClick={() => void createSession()} disabled={busy}>新建会话</Button></div>

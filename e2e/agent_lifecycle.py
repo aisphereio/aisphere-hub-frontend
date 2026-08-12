@@ -91,9 +91,14 @@ def run() -> None:
             expect(session_items).to_have_count(2, timeout=30_000)
             second_session_id = page.get_by_test_id("agent-session-id").inner_text()
             assert second_session_id and second_session_id != first_session_id, "Creating a session must create a new Runtime context"
+            # 切回旧会话：历史必须从 runtime 恢复（而不是被重挂载清空为 0）。
             session_items.first.click()
             expect(page.get_by_test_id("agent-session-id")).to_have_text(first_session_id, timeout=10_000)
-            expect(page.get_by_test_id("playground-message")).to_have_count(0)
+            restored_messages = page.get_by_test_id("playground-message")
+            expect(restored_messages).to_have_count(2, timeout=15_000)
+            restored_text = restored_messages.nth(1).inner_text()
+            assert restored_text.strip(), "Switching back must restore prior assistant history"
+            print(f"restored_session_history={restored_text[:300]}")
             print(f"PASS agent={agent_id} skill={SKILL_NAME} tool={selected_tool}")
             print(f"sessions={first_session_id},{second_session_id}")
             print(f"assistant={assistant_text[:500]}")

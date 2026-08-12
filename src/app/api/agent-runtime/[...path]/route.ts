@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 const DEFAULT_RUNTIME_URL = 'http://agentkit-runtime.agent-runtime.svc.cluster.local:8080';
 
 async function proxy(request: NextRequest, context: { params: Promise<{ path?: string[] }> }) {
