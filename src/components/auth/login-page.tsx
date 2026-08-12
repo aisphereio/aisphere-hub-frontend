@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useT } from '@/lib/i18n';
 import { LanguageToggle } from '@/components/layout/language-toggle';
-import { buildGatewayLoginUrl } from '@/lib/api/client';
+import { startBrowserLogin } from '@/lib/api/adapters/auth';
 
 interface LoginPageProps {
   onLogin?: () => void;
@@ -15,12 +15,13 @@ interface LoginPageProps {
 export function LoginPage({ onLogin }: LoginPageProps) {
   const t = useT();
 
-  const loginWithCasdoor = () => {
+  const loginWithCasdoor = async () => {
     if (onLogin) {
       onLogin();
-    } else {
-      window.location.assign(buildGatewayLoginUrl());
+      return;
     }
+    const url = await startBrowserLogin();
+    window.location.assign(url);
   };
 
   return (

@@ -8,7 +8,7 @@ import { Topbar } from './topbar';
 import { getAccessSpace, setAccessSpace, IS_GATEWAY_OIDC } from '@/lib/api/client';
 import { useMe, useLogout } from '@/hooks/use-auth';
 import { LoginPage } from '@/components/auth/login-page';
-import { buildGatewayLoginUrl } from '@/lib/api/client';
+import { startBrowserLogin } from '@/lib/api/adapters/auth';
 import { SkillEditor } from '@/components/editor/skill-editor';
 import { UserPanelSheet } from '@/components/layout/user-panel-sheet';
 import { useT } from '@/lib/i18n';
@@ -115,7 +115,7 @@ export function AppShell({ children }: AppShellProps) {
   if (!principal || error) {
     return (
       <LoginPage
-        onLogin={() => { window.location.assign(buildGatewayLoginUrl()); }}
+        onLogin={() => { void startBrowserLogin().then((url) => window.location.assign(url)); }}
       />
     );
   }

@@ -22,7 +22,27 @@ import {
   authnServiceRefresh,
 } from '../generated/authn-service/authn-service';
 import type { V1MeResponse } from '../generated/model';
-import { buildGatewayLoginUrl, GATEWAY_LOGOUT_PATH } from '../client';
+import { buildGatewayLoginUrl, GATEWAY_LOGOUT_PATH, IS_GATEWAY_OIDC } from '../client';
+
+/**
+ * Browser 登录启动：返回需要跳转的 URL。
+ * - gateway_oidc 模式：直接走 Envoy OIDC（buildGatewayLoginUrl）。
+ * - token 模式：先向 hub 请求 Casdoor 授权 URL（/v1/authn/login-url），
+ *   失败则退回网关入口兜底。
+ */
+export async function startBrowserLogin(callbackPath = '/auth/callback'): Promise<string> {
+  if (IS_GATEWAY_OIDC) return buildGatewayLoginUrl();
+  if (typeof window === 'undefined') return buildGatewayLoginUrl();
+  const redirectUri = `${window.location.origin}${callbackPath}`;
+  const state = `${Date.now()}`;
+  try {
+    const url = await authnServiceLoginURL({ redirectUri, state });
+    if (url?.loginUrl) return url.loginUrl;
+  } catch {
+    // hub 不可达时退回网关占位，避免登录按钮无响应
+  }
+  return buildGatewayLoginUrl();
+}
 
 export const authApi = {
   exchange: async (code: string, redirectUri: string, state = '') => {
