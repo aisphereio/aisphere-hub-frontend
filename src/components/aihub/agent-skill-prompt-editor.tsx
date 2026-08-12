@@ -2,10 +2,21 @@
 
 import { useMemo } from 'react';
 import { useSkills } from '@/hooks/use-skills';
+import { useSkillSets } from '@/hooks/use-skillsets';
 import type { AgentDefinition, AgentSkillRef } from '@/lib/api/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+
+type AgentSkillSetBinding = {
+  name: string;
+  revision: number;
+  required?: boolean;
+};
+
+type AgentDefinitionWithExactSkillSets = Omit<AgentDefinition, 'skillSets'> & {
+  skillSets?: AgentSkillSetBinding[];
+};
 
 const BUILTIN_SKILLS = [
   {
@@ -16,9 +27,9 @@ const BUILTIN_SKILLS = [
   },
 ];
 
-function parseDefinition(raw: string): AgentDefinition | null {
+function parseDefinition(raw: string): AgentDefinitionWithExactSkillSets | null {
   try {
-    return JSON.parse(raw) as AgentDefinition;
+    return JSON.parse(raw) as AgentDefinitionWithExactSkillSets;
   } catch {
     return null;
   }
@@ -37,7 +48,7 @@ function promptFromYaml(content: string): string {
   return body.join('\n').replace(/\n+$/, '');
 }
 
-function withPrompt(definition: AgentDefinition, prompt: string): AgentDefinition {
+function withPrompt(definition: AgentDefinitionWithExactSkillSets, prompt: string): AgentDefinitionWithExactSkillSets {
   const entryPoint = definition.entryPoint;
   const original = String(definition.files[entryPoint] || '');
   const lines = original.split(/\r?\n/);
@@ -54,8 +65,15 @@ function withPrompt(definition: AgentDefinition, prompt: string): AgentDefinitio
   return { ...definition, files: { ...definition.files, [entryPoint]: nextContent } };
 }
 
-function setSkills(definition: AgentDefinition, skills: AgentSkillRef[]): AgentDefinition {
+function setSkills(definition: AgentDefinitionWithExactSkillSets, skills: AgentSkillRef[]): AgentDefinitionWithExactSkillSets {
   return { ...definition, skills: skills.length > 0 ? skills : [] };
+}
+
+function setSkillSets(
+  definition: AgentDefinitionWithExactSkillSets,
+  skillSets: AgentSkillSetBinding[],
+): AgentDefinitionWithExactSkillSets {
+  return { ...definition, skillSets: skillSets.length > 0 ? skillSets : [] };
 }
 
 export function AgentSkillPromptEditor({
@@ -65,11 +83,13 @@ export function AgentSkillPromptEditor({
   value: string;
   onChange: (value: string) => void;
 }) {
-  const { data: catalogSkills = [], isLoading } = useSkills({ pageSize: 100 });
+  const { data: catalogSkills = [], isLoading: skillsLoading } = useSkills({ pageSize: 100 });
+  const { data: catalogSkillSets = [], isLoading: skillSetsLoading } = useSkillSets({ pageSize: 100 });
   const definition = useMemo(() => parseDefinition(value), [value]);
   const entryPoint = definition?.entryPoint || 'root_agent.yaml';
   const prompt = definition ? promptFromYaml(String(definition.files[entryPoint] || '')) : '';
   const selected = definition?.skills || [];
+  const selectedSkillSets = definition?.skillSets || [];
 
   const options = useMemo(() => [
     ...BUILTIN_SKILLS,
@@ -83,7 +103,16 @@ export function AgentSkillPromptEditor({
       .filter((skill) => skill.name && skill.version),
   ], [catalogSkills]);
 
-  const update = (next: AgentDefinition) => onChange(JSON.stringify(next, null, 2));
+  const skillSetOptions = useMemo(() => catalogSkillSets
+    .map((skillSet) => ({
+      name: skillSet.name,
+      revision: Number(skillSet.revision || 0),
+      description: skillSet.description || 'Hub SkillSet',
+      memberCount: skillSet.members?.length || 0,
+    }))
+    .filter((skillSet) => skillSet.name && skillSet.revision > 0), [catalogSkillSets]);
+
+  const update = (next: AgentDefinitionWithExactSkillSets) => onChange(JSON.stringify(next, null, 2));
   const toggleSkill = (option: (typeof options)[number], checked: boolean) => {
     if (!definition) return;
     const next = selected.filter((item) => item.name !== option.name);
@@ -92,14 +121,22 @@ export function AgentSkillPromptEditor({
     }
     update(setSkills(definition, next));
   };
+  const toggleSkillSet = (option: (typeof skillSetOptions)[number], checked: boolean) => {
+    if (!definition) return;
+    const next = selectedSkillSets.filter((item) => item.name !== option.name);
+    if (checked) {
+      next.push({ name: option.name, revision: option.revision, required: true });
+    }
+    update(setSkillSets(definition, next));
+  };
 
   return (
     <div className="space-y-4 rounded-lg border bg-muted/20 p-4" data-testid="agent-config-builder">
       <div>
         <Label className="text-xs">Skills</Label>
-        <p className="mt-1 text-xs text-muted-foreground">选择的 Skill 会固定到 Agent 版本；runtime 挂载前会按目录授权校验（只读可见的 Catalog Skill 才能绑定）。</p>
+        <p className="mt-1 text-xs text-muted-foreground">选择的 Skill 会固定到正式发布版本；Runtime Resolve 时再次做可见性、生命周期和 release 校验。</p>
         <div className="mt-2 grid gap-2 md:grid-cols-2">
-          {isLoading ? <p className="text-xs text-muted-foreground">Loading Skills…</p> : options.map((option) => {
+          {skillsLoading ? <p className="text-xs text-muted-foreground">Loading Skills…</p> : options.map((option) => {
             const checked = selected.some((item) => item.name === option.name);
             return (
               <label key={`${option.name}@${option.version}`} className="flex cursor-pointer items-start gap-2 rounded-md border bg-background p-2" data-testid={`skill-option-${option.name}`}>
@@ -114,6 +151,36 @@ export function AgentSkillPromptEditor({
           })}
         </div>
       </div>
+
+      <div>
+        <Label className="text-xs">SkillSets</Label>
+        <p className="mt-1 text-xs text-muted-foreground">绑定时固定当前 revision。以后 SkillSet 增删成员不会让已保存的 Agent 版本漂移。</p>
+        <div className="mt-2 grid gap-2 md:grid-cols-2">
+          {skillSetsLoading ? <p className="text-xs text-muted-foreground">Loading SkillSets…</p> : skillSetOptions.map((option) => {
+            const selectedBinding = selectedSkillSets.find((item) => item.name === option.name);
+            const checked = Boolean(selectedBinding);
+            return (
+              <label key={`${option.name}@${option.revision}`} className="flex cursor-pointer items-start gap-2 rounded-md border bg-background p-2" data-testid={`skillset-option-${option.name}`}>
+                <Checkbox checked={checked} onCheckedChange={(next) => toggleSkillSet(option, next === true)} />
+                <span className="min-w-0 text-xs">
+                  <span className="block font-medium">{option.name}</span>
+                  <span className="block font-mono text-[10px] text-muted-foreground">
+                    revision {selectedBinding?.revision || option.revision} · {option.memberCount} skills
+                  </span>
+                  <span className="mt-1 block text-muted-foreground">{option.description}</span>
+                  {selectedBinding && selectedBinding.revision !== option.revision ? (
+                    <span className="mt-1 block text-amber-600">已固定 revision {selectedBinding.revision}；当前 SkillSet 已更新到 revision {option.revision}。</span>
+                  ) : null}
+                </span>
+              </label>
+            );
+          })}
+          {!skillSetsLoading && skillSetOptions.length === 0 ? (
+            <p className="text-xs text-muted-foreground">暂无可绑定的 SkillSet。</p>
+          ) : null}
+        </div>
+      </div>
+
       <div className="space-y-1.5">
         <Label className="text-xs">System Prompt</Label>
         <p className="text-xs text-muted-foreground">Prompt 会写入 {entryPoint} 的 instruction 字段，Runtime 加载 Agent 时直接使用。</p>
