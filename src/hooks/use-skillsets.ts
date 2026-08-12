@@ -28,7 +28,10 @@ export function useSkillSetDetail(skillSetName: string | null) {
 export function useSkillSetSkills(skillSetName: string | null) {
   return useQuery({
     queryKey: ['skillsets', 'skills', skillSetName],
-    queryFn: () => skillSetApi.skillSetSkills(skillSetName!),
+    queryFn: async () => {
+      const detail = await skillSetApi.skillSetSkills(skillSetName!);
+      return detail.members ?? [];
+    },
     enabled: Boolean(skillSetName),
     staleTime: 10_000,
   });

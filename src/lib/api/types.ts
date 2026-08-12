@@ -417,7 +417,8 @@ export type AgentDefinition = {
   sandbox?: AgentSandboxRef;
   services?: AgentServiceRef[];
   skills?: AgentSkillRef[];
-  skillSets?: AgentSkillSetRef[];
+  /** Canonical AgentDefinition field; lower-case matches the Hub contract and lifecycle design. */
+  skillsets?: AgentSkillSetRef[];
   tools?: AgentToolRef[];
 };
 

@@ -39,7 +39,7 @@ const DEFAULT_DEFINITION = {
   },
   services: [],
   skills: [],
-  skillSets: [],
+  skillsets: [],
   tools: [],
 } as AgentDefinition;
 

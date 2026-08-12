@@ -2,10 +2,12 @@
 
 import { useMemo, useState } from 'react';
 import { useSkills } from '@/hooks/use-skills';
+import { useSkillReleases } from '@/hooks/use-skill-releases';
 import { useSkillSets, useSkillSetSkills } from '@/hooks/use-skillsets';
-import type { AgentDefinition, AgentSkillRef, AgentSkillSetRef, SkillSet } from '@/lib/api/types';
+import type { AgentDefinition, AgentSkillRef, AgentSkillSetRef, Skill, SkillSet } from '@/lib/api/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
 const BUILTIN_SKILLS = [
@@ -60,7 +62,15 @@ function setSkills(definition: AgentDefinition, skills: AgentSkillRef[]): AgentD
 }
 
 function setSkillSets(definition: AgentDefinition, sets: AgentSkillSetRef[]): AgentDefinition {
-  return { ...definition, skillSets: sets.length > 0 ? sets : [] };
+  return { ...definition, skillsets: sets.length > 0 ? sets : [] };
+}
+
+function isRunnableSkillSet(set: SkillSet): boolean {
+  return Boolean(
+    set.revision && set.revision > 0 && set.members?.length &&
+    set.members.every((member) =>
+      member.version && member.commitSha && member.treeSha && member.manifestSha256),
+  );
 }
 
 export function AgentSkillPromptEditor({
@@ -76,7 +86,7 @@ export function AgentSkillPromptEditor({
   const entryPoint = definition?.entryPoint || 'root_agent.yaml';
   const prompt = definition ? promptFromYaml(String(definition.files[entryPoint] || '')) : '';
   const selected = definition?.skills || [];
-  const selectedSets = definition?.skillSets || [];
+  const selectedSets = definition?.skillsets || [];
 
   const options = useMemo(() => [
     ...BUILTIN_SKILLS,
@@ -91,16 +101,17 @@ export function AgentSkillPromptEditor({
   ], [catalogSkills]);
 
   const update = (next: AgentDefinition) => onChange(JSON.stringify(next, null, 2));
-  const toggleSkill = (option: (typeof options)[number], checked: boolean) => {
+  const toggleSkill = (option: (typeof options)[number], checked: boolean, version = option.version) => {
     if (!definition) return;
     const next = selected.filter((item) => item.name !== option.name);
     if (checked) {
-      next.push({ name: option.name, version: option.version, source: option.source, required: true });
+      next.push({ name: option.name, version, source: option.source, required: true });
     }
     update(setSkills(definition, next));
   };
   const toggleSkillSet = (set: SkillSet, checked: boolean) => {
     if (!definition) return;
+    if (checked && !isRunnableSkillSet(set)) return;
     const next = selectedSets.filter((item) => item.name !== set.name);
     if (checked) {
       // revision pinned at save time. A newer SkillSet revision makes the
@@ -132,10 +143,21 @@ export function AgentSkillPromptEditor({
         <p className="mt-1 text-xs text-muted-foreground">选择的 Skill 会固定到 Agent 版本；runtime 挂载前会按目录授权校验（只读可见的 Catalog Skill 才能绑定）。</p>
         <div className="mt-2 grid gap-2 md:grid-cols-2">
           {isLoading ? <p className="text-xs text-muted-foreground">Loading Skills…</p> : options.map((option) => {
-            const checked = selected.some((item) => item.name === option.name);
+            const selectedBinding = selected.find((item) => item.name === option.name);
+            if (option.source === 'catalog') {
+              const skill = catalogSkills.find((item) => item.name === option.name);
+              return skill ? (
+                <CatalogSkillOption
+                  key={option.name}
+                  skill={skill}
+                  selected={selectedBinding}
+                  onToggle={(checked, version) => toggleSkill(option, checked, version)}
+                />
+              ) : null;
+            }
             return (
               <label key={`${option.name}@${option.version}`} className="flex cursor-pointer items-start gap-2 rounded-md border bg-background p-2" data-testid={`skill-option-${option.name}`}>
-                <Checkbox checked={checked} onCheckedChange={(next) => toggleSkill(option, next === true)} />
+                <Checkbox checked={Boolean(selectedBinding)} onCheckedChange={(next) => toggleSkill(option, next === true)} />
                 <span className="min-w-0 text-xs">
                   <span className="block font-medium">{option.name}</span>
                   <span className="block font-mono text-[10px] text-muted-foreground">{option.version} · {option.source}</span>
@@ -161,6 +183,45 @@ export function AgentSkillPromptEditor({
   );
 }
 
+function CatalogSkillOption({
+  skill,
+  selected,
+  onToggle,
+}: {
+  skill: Skill;
+  selected?: AgentSkillRef;
+  onToggle: (checked: boolean, version: string) => void;
+}) {
+  const releases = useSkillReleases(skill.name);
+  const releaseTags = (releases.data ?? []).map((release) => release.tag).filter(Boolean) as string[];
+  const version = selected?.version || skill.latestVersion || releaseTags[0] || '';
+  const selectable = Boolean(version) && !releases.isLoading;
+
+  return (
+    <div className="rounded-md border bg-background p-2" data-testid={`skill-option-${skill.name}`}>
+      <label className={`flex items-start gap-2 ${selectable ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+        <Checkbox
+          disabled={!selectable}
+          checked={Boolean(selected)}
+          onCheckedChange={(next) => onToggle(next === true, version)}
+        />
+        <span className="min-w-0 flex-1 text-xs">
+          <span className="block font-medium">{skill.name}</span>
+          <span className="mt-1 block text-muted-foreground">{skill.description || 'Hub Skill catalog release'}</span>
+        </span>
+      </label>
+      <Select disabled={releaseTags.length === 0} value={version} onValueChange={(next) => selected && onToggle(true, next)}>
+        <SelectTrigger className="mt-2 h-7 w-full font-mono text-[10px]" aria-label={`${skill.name} Release`}>
+          <SelectValue placeholder={releases.isLoading ? '加载 Release…' : '无已发布 Release'} />
+        </SelectTrigger>
+        <SelectContent>
+          {releaseTags.map((tag) => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 function SkillSetOption({
   set,
   checked,
@@ -172,16 +233,18 @@ function SkillSetOption({
 }) {
   const [expanded, setExpanded] = useState(false);
   const { data: members = [], isLoading: membersLoading } = useSkillSetSkills(expanded ? set.name : null);
+  const runnable = isRunnableSkillSet(set);
 
   return (
     <div className="rounded-md border bg-background p-2" data-testid={`skillset-option-${set.name}`}>
-      <label className="flex cursor-pointer items-start gap-2">
-        <Checkbox checked={checked} onCheckedChange={(next) => onToggle(set, next === true)} />
+      <label className={`flex items-start gap-2 ${runnable ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
+        <Checkbox disabled={!runnable} checked={checked} onCheckedChange={(next) => onToggle(set, next === true)} />
         <span className="min-w-0 flex-1 text-xs">
           <span className="block font-medium">{set.name}</span>
           <span className="block font-mono text-[10px] text-muted-foreground">
             revision {set.revision ?? '—'} · {set.members?.length ?? 0} members
           </span>
+          {!runnable && <span className="block text-[10px] text-destructive">需先为全部成员固定 Release</span>}
         </span>
         <button
           type="button"

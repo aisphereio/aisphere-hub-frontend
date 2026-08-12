@@ -165,15 +165,11 @@ describe('SkillReleasesPanel', () => {
     expect(screen.getByText('Improve ranking quality')).toBeDefined();
   });
 
-  it('opens a read-only browser for the selected release', () => {
+  it('keeps release history read-only after the inline browser was removed', () => {
     render(<SkillReleasesPanel skillName="search" />);
 
-    // Each version card has a 预览 button that selects it for inline preview;
-    // buildSkillReleaseViews surfaces the prerelease (v2.0.0-beta.1) first,
-    // and selecting it reveals the 全屏浏览 button which opens the browser
-    // dialog seeded with that tag.
-    fireEvent.click(screen.getAllByRole('button', { name: '预览' })[0]);
-    fireEvent.click(screen.getByRole('button', { name: '全屏浏览' }));
-    expect(screen.getByText('browser:v2.0.0-beta.1')).toBeDefined();
+    expect(screen.queryByRole('button', { name: '预览' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '全屏浏览' })).toBeNull();
+    expect(screen.queryByText('browser:v2.0.0-beta.1')).toBeNull();
   });
 });
