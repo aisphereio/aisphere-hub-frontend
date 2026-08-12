@@ -73,28 +73,37 @@ function roleFromAuthor(author: string): UiChatMessage['role'] {
   return 'user';
 }
 
-/** 从历史 session.events 恢复消息列表：同一 invocation（一次运行回合）的事件合并为一条消息。 */
+/** 从历史 session.events 恢复消息列表：同一 invocation（一次运行回合）的非 user 事件合并为一条消息；user 事件始终独立成条。 */
 export function eventsToMessages(events: RuntimeEvent[] | undefined): UiChatMessage[] {
   const messages: UiChatMessage[] = [];
   for (const event of events || []) {
     const converted = eventParts(event);
     if (!converted.parts.length) continue;
-    const last = messages[messages.length - 1];
-    if (last && converted.invocationId && last.invocationId === converted.invocationId) {
-      const nextParts = [...last.parts];
-      for (const part of converted.parts) {
-        if (part.kind === 'text') {
-          const textIndex = nextParts.findIndex((item) => item.kind === 'text');
-          if (textIndex === -1) nextParts.push(part);
-          else nextParts[textIndex] = { kind: 'text', text: (nextParts[textIndex] as { text: string }).text + part.text };
-        } else {
-          nextParts.push(part);
-        }
-      }
-      messages[messages.length - 1] = { ...last, parts: nextParts };
-    } else {
-      messages.push({ role: converted.role, parts: converted.parts, invocationId: converted.invocationId });
+    if (converted.role === 'user') {
+      messages.push({ role: 'user', parts: converted.parts, invocationId: converted.invocationId });
+      continue;
     }
+    // 找同 invocation 的最后一条非 user 消息合并（tool/文本挂同一回合），否则新建。
+    const targetIndex = findLastIndex(
+      messages,
+      (message) => Boolean(converted.invocationId) && message.invocationId === converted.invocationId && message.role !== 'user',
+    );
+    if (targetIndex === -1) {
+      messages.push({ role: converted.role, parts: converted.parts, invocationId: converted.invocationId });
+      continue;
+    }
+    const target = messages[targetIndex];
+    const nextParts = [...target.parts];
+    for (const part of converted.parts) {
+      if (part.kind === 'text') {
+        const textIndex = nextParts.findIndex((item) => item.kind === 'text');
+        if (textIndex === -1) nextParts.push(part);
+        else nextParts[textIndex] = { kind: 'text', text: (nextParts[textIndex] as { text: string }).text + part.text };
+      } else {
+        nextParts.push(part);
+      }
+    }
+    messages[targetIndex] = { ...target, parts: nextParts };
   }
   return messages;
 }
